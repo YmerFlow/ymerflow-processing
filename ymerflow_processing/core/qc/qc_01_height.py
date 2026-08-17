@@ -62,7 +62,7 @@ def height_above_ground(
     marginal_max: float,
     column: str | None = None,
     output_column: str = "qc_height",
-    line_verdict_column: str | None = "qc_height_line",
+    line_verdict_column: str | None = "ql_height",
     line_column: str | None = None,
     unit: str = "m",
     gap_tolerance: float = 0.0,

@@ -37,7 +37,7 @@ def currents(lm, hm=None, n_flights=1, **kw):
 
 def test_a_steady_transmitter_passes():
     dataset, _ = transmitter_stability(currents([9.0] * 10), **SPEC)
-    assert list(dataset.flightlines["qc_current"]) == [GOOD] * 10
+    assert list(dataset.flightlines["qc_cur"]) == [GOOD] * 10
 
 
 def test_drift_away_from_the_mean_is_flagged():
@@ -75,7 +75,7 @@ def test_steady_but_off_nominal_is_stable_and_flagged_separately():
         currents([9.0] * 10, hm=[136.0] * 10), **SPEC)
 
     assert report.distributions["stability"][GOOD] == 10          # rock steady
-    assert list(dataset.flightlines["qc_nominal"]) == [OUT_OF_SPEC] * 10
+    assert list(dataset.flightlines["qc_nom"]) == [OUT_OF_SPEC] * 10
     offset = report.distributions["per_moment"]["ch2 (HM/z)"][
         "nominal_offset_fraction"]
     assert offset == pytest.approx(0.236, abs=0.001)
@@ -84,14 +84,14 @@ def test_steady_but_off_nominal_is_stable_and_flagged_separately():
 def test_measured_above_nominal_counts_as_much_as_below():
     high, _ = transmitter_stability(currents([9.0] * 5, hm=[143.0] * 5), **SPEC)
     low, _ = transmitter_stability(currents([9.0] * 5, hm=[77.0] * 5), **SPEC)
-    assert list(high.flightlines["qc_nominal"]) == [OUT_OF_SPEC] * 5
-    assert list(low.flightlines["qc_nominal"]) == [OUT_OF_SPEC] * 5
+    assert list(high.flightlines["qc_nom"]) == [OUT_OF_SPEC] * 5
+    assert list(low.flightlines["qc_nom"]) == [OUT_OF_SPEC] * 5
 
 
 def test_a_small_offset_is_tolerated():
     dataset, _ = transmitter_stability(
         currents([9.0] * 5, hm=[115.0] * 5), **SPEC)      # 4.5% high
-    assert list(dataset.flightlines["qc_nominal"]) == [GOOD] * 5
+    assert list(dataset.flightlines["qc_nom"]) == [GOOD] * 5
 
 
 def test_the_nominal_window_is_exposed():
@@ -99,18 +99,18 @@ def test_the_nominal_window_is_exposed():
     steady_but_off = currents([9.0] * 5, hm=[121.0] * 5)          # 10% high
     strict, _ = transmitter_stability(steady_but_off, nominal_good_fraction=0.05,
                                       nominal_marginal_fraction=0.08, **SPEC)
-    assert list(strict.flightlines["qc_nominal"]) == [OUT_OF_SPEC] * 5
+    assert list(strict.flightlines["qc_nom"]) == [OUT_OF_SPEC] * 5
 
     lenient, _ = transmitter_stability(currents([9.0] * 5, hm=[121.0] * 5),
                                        nominal_good_fraction=0.25,
                                        nominal_marginal_fraction=0.5, **SPEC)
-    assert list(lenient.flightlines["qc_nominal"]) == [GOOD] * 5
+    assert list(lenient.flightlines["qc_nom"]) == [GOOD] * 5
 
 
 def test_the_combined_verdict_takes_the_worse_of_the_two():
     dataset, _ = transmitter_stability(
         currents([9.0] * 5, hm=[143.0] * 5), **SPEC)
-    assert list(dataset.flightlines["qc_current"]) == [OUT_OF_SPEC] * 5
+    assert list(dataset.flightlines["qc_cur"]) == [OUT_OF_SPEC] * 5
 
 
 def test_no_nominal_declared_means_no_nominal_verdict():
@@ -119,7 +119,7 @@ def test_no_nominal_declared_means_no_nominal_verdict():
         dataset.system.gex_dict[f"Channel{channel}"].pop("TxApproximateCurrent")
 
     dataset, report = transmitter_stability(dataset, **SPEC)
-    assert "qc_nominal" not in dataset.flightlines.columns
+    assert "qc_nom" not in dataset.flightlines.columns
     assert any("declares no nominal current" in n for n in report.notes)
 
 
@@ -211,7 +211,7 @@ def test_it_reports_as_an_instrument_finding():
     """An unstable transmitter is a maintenance conversation, not a reflight."""
     _, report = transmitter_stability(currents([9.0] * 3), **SPEC)
     assert report.finding == "instrument"
-    assert report.verdict_column == "qc_current"
+    assert report.verdict_column == "qc_cur"
 
 
 def test_changes_no_measurement_uncertainty_or_mask():
@@ -227,12 +227,12 @@ def test_the_per_sounding_verdict_columns_fit_a_shapefile_field():
 
     Deliberately not asserting this of *every* qc_ column: the denormalized
     per-line verdicts exceed ten across several checks and collide on
-    truncation (qc_attitude and qc_attitude_line both become qc_attitud). That
+    truncation (qc_tilt and ql_tilt both become qc_attitud). That
     is a naming problem for the vector export to resolve centrally, not one for
     each check to work around.
     """
     dataset, _ = transmitter_stability(currents([9.0] * 3), **SPEC)
-    for name in ("qc_current", "qc_nominal", "qc_cur_ch1"):
+    for name in ("qc_cur", "qc_nom", "qc_cur_ch1"):
         assert name in dataset.flightlines.columns
         assert len(name) <= 10
 
@@ -264,6 +264,6 @@ def test_registered_and_runs_from_a_pipeline():
     """)
     dataset, report = QCRunner(pipeline).run(dataset)
 
-    assert list(dataset.flightlines["qc_current"]) == [GOOD] * 4
+    assert list(dataset.flightlines["qc_cur"]) == [GOOD] * 4
     # An instrument finding, so it feeds qc_sensor rather than qc_verdict.
     assert list(dataset.flightlines["qc_sensor"]) == [GOOD] * 4

@@ -136,7 +136,7 @@ def ground_speed(
     column: str | None = None,
     time_column: str | None = None,
     output_column: str = "qc_speed",
-    line_verdict_column: str | None = "qc_speed_line",
+    line_verdict_column: str | None = "ql_speed",
     line_column: str | None = None,
     unit: str = "km/h",
     scale: float = MS_TO_KMH,

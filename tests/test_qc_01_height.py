@@ -48,7 +48,7 @@ def test_writes_the_denormalized_line_verdict():
     dataset = make_dataset(n=6, n_lines=2, height=[30.0, 30.0, 30.0, 30.0, 30.0, 80.0])
     dataset, _ = height_above_ground(dataset, **SPEC)
 
-    line_verdict = dataset.flightlines["qc_height_line"]
+    line_verdict = dataset.flightlines["ql_height"]
     assert list(line_verdict[:3]) == [GOOD] * 3
     assert list(line_verdict[3:]) == [OUT_OF_SPEC] * 3
 
@@ -56,7 +56,7 @@ def test_writes_the_denormalized_line_verdict():
 def test_the_line_verdict_can_be_declined():
     dataset = heights(30.0)
     dataset, _ = height_above_ground(dataset, line_verdict_column=None, **SPEC)
-    assert "qc_height_line" not in dataset.flightlines.columns
+    assert "ql_height" not in dataset.flightlines.columns
 
 
 def test_the_output_column_is_nameable():

@@ -51,7 +51,7 @@ def test_the_per_check_columns_are_untouched():
     dataset, _ = run(ALL_THREE, dataset)
 
     assert list(dataset.flightlines["qc_height"]) == [GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qc_attitude"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qc_tilt"]) == [GOOD, OUT_OF_SPEC]
     assert list(dataset.flightlines["qc_speed"]) == [GOOD, OUT_OF_SPEC]
 
 
@@ -155,7 +155,7 @@ def test_the_report_says_which_checks_fed_the_rollup():
     assert checks["height_above_ground"] == {
         "column": "qc_height", "finding": "flight"}
     assert checks["altimeter_agreement"] == {
-        "column": "qc_altimeter", "finding": "instrument"}
+        "column": "qc_altim", "finding": "instrument"}
 
 
 def test_each_step_declares_its_own_verdict_column():
@@ -165,7 +165,7 @@ def test_each_step_declares_its_own_verdict_column():
 
     declared = {s.step: (s.verdict_column, s.finding) for s in report.steps}
     assert declared["height_above_ground"] == ("qc_height", "flight")
-    assert declared["system_attitude"] == ("qc_attitude", "flight")
+    assert declared["system_attitude"] == ("qc_tilt", "flight")
 
 
 def test_a_check_that_skipped_contributes_nothing():

@@ -1,23 +1,28 @@
-"""qc_10 — sounding density.
+"""qc_10 — sounding spacing.
 
-Measures how closely spaced the soundings actually are along each line, against
-the density the survey was contracted to deliver, and writes the verdict as a
-column on ``flightlines``.
+Measures how far apart the soundings actually fall along each line, against the
+spacing the survey was contracted to deliver, and writes the verdict as a column
+on ``flightlines``.
 
 **What it does to the dataset:** adds the along-line spacing to each sounding,
 a verdict on the local density, and optionally the worst verdict on each line.
 It changes no measurement, no uncertainty and no mask (R6).
 
-Density or spacing — they are inverses and the threshold kind flips
-------------------------------------------------------------------
+Spacing, not density — and the threshold kind follows
+-----------------------------------------------------
 ``03`` describes this check as producing "per-line along-line spacing" with
-threshold kind ``descending`` — *less coverage is worse*. Those two do not agree:
-wider **spacing** is worse, so spacing alone would be ``ascending``. It is
-**density** — soundings per kilometre — that gets worse as it falls.
+threshold kind ``descending`` — *less coverage is worse*. Those two do not agree.
+Spacing and density are inverses, so only one of them can be ``descending``:
+wider **spacing** is worse, which is ``ascending``; lower **density** is worse,
+which is ``descending``.
 
-Classification is on density, matching the stated kind, because that is also how
-contracts are usually written. The spacing that produced it is reported and
-written alongside, since it is the number a geophysicist pictures.
+**Spacing carries the verdict**, because that is the quantity a contract states
+and the one a geophysicist pictures — "soundings no more than 15 m apart" rather
+than "at least 67 per kilometre". The density it implies is computed and
+reported alongside, since a contract may equally be written that way and the two
+are the same measurement seen from either end.
+
+Deviates from ``03``'s stated threshold kind, deliberately and for that reason.
 
 Why report it separately from speed
 -----------------------------------
@@ -59,12 +64,12 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    DESCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, tier_counts,
+    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, tier_counts,
 )
 
 log = logging.getLogger(__name__)
 
-STEP = "sounding_density"
+STEP = "sounding_spacing"
 
 #: Metres in a kilometre. Density is quoted per kilometre because that is how
 #: contracts are written; position arrives in CRS units.
@@ -87,22 +92,22 @@ def along_line_spacing(easting, northing, lines) -> np.ndarray:
     return spacing
 
 
-def sounding_density(
+def sounding_spacing(
     dataset,
-    good_min: float,
-    marginal_min: float,
-    output_column: str = "qc_density",
-    spacing_column: str = "along_line_spacing",
-    line_verdict_column: str | None = "qc_density_line",
+    good_max: float,
+    marginal_max: float,
+    output_column: str = "qc_spacing",
+    spacing_column: str = "spacing",
+    line_verdict_column: str | None = "ql_spacing",
     line_column: str | None = None,
     units_per_km: float = UNITS_PER_KM,
     gap_tolerance: float = 0.0,
 ):
     """Classify local sounding density against the contracted minimum.
 
-    :param good_min: Soundings per kilometre at or above which the line meets
-        spec. A contract term, so no default.
-    :param marginal_min: Density below which the line is Out of Spec. Between
+    :param good_max: Spacing at or below which the line meets spec, in CRS
+        units. A contract term, so no default.
+    :param marginal_max: Spacing above which the line is Out of Spec. Between
         the two is Marginal.
     :param output_column: Where the per-sounding verdict is written.
     :param spacing_column: Where the along-line spacing is written, in CRS
@@ -146,21 +151,28 @@ def sounding_density(
         )
 
     spacing = along_line_spacing(frame[xyz.x_column], frame[xyz.y_column], lines)
-    # Density is the inverse of spacing. A repeated position gives zero spacing
-    # and an infinite density, which is not a measurement — drop it rather than
-    # let it dominate every statistic downstream.
+
+    # A repeated position is a duplicate, not spacing of zero. Left as a number
+    # it would classify as the best possible coverage, which is the opposite of
+    # what it means, so it is dropped from the measurement entirely.
+    duplicated = int(np.sum(spacing == 0))
+    spacing = np.where(spacing == 0, np.nan, spacing)
+
+    # Density is the inverse, reported because a contract may be written either
+    # way round.
     with np.errstate(divide="ignore", invalid="ignore"):
         density = np.where(spacing > 0, units_per_km / spacing, np.nan)
 
-    duplicated = int(np.sum(spacing == 0))
     if duplicated:
         report.notes.append(
             f"{duplicated} sounding(s) sit at the same position as the previous "
-            "one; they have no density and no verdict."
+            "one; they have zero spacing, which is not a measurement, so they "
+            "carry no density and no verdict."
         )
 
-    spec = {"kind": DESCENDING, "good_min": good_min, "marginal_min": marginal_min}
-    verdicts = classify(density, spec)
+    spec = {"kind": ASCENDING, "good_max": good_max,
+            "marginal_max": marginal_max}
+    verdicts = classify(spacing, spec)
 
     for name in (spacing_column, output_column):
         if name in frame.columns:
@@ -188,7 +200,7 @@ def sounding_density(
             "after": summarize(spacing[kept]),
         },
         "verdicts": counts,
-        "thresholds": describe(spec, "soundings/km"),
+        "thresholds": describe(spec, "CRS units"),
     }
 
     if not has_lines:

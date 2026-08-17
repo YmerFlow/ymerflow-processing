@@ -90,7 +90,7 @@ def test_a_qc_pipeline_preserves_it():
         steps:
           - height_above_ground: {good_max: 45, marginal_max: 65}
           - system_attitude: {good: 5, marginal: 7.5}
-          - sounding_density: {good_min: 80, marginal_min: 50}
+          - sounding_spacing: {good_max: 12, marginal_max: 30}
     """)).run(dataset)
 
     assert gate_count_mismatches(dataset) == []

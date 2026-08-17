@@ -43,8 +43,8 @@ setup(
             "ymerflow_processing.core.qc.qc_03_speed:ground_speed",
             "altimeter_agreement = "
             "ymerflow_processing.core.qc.qc_08_altimeter:altimeter_agreement",
-            "sounding_density = "
-            "ymerflow_processing.core.qc.qc_10_density:sounding_density",
+            "sounding_spacing = "
+            "ymerflow_processing.core.qc.qc_10_spacing:sounding_spacing",
             "transmitter_stability = "
             "ymerflow_processing.core.qc.qc_04_current:transmitter_stability",
         ],

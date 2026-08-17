@@ -31,8 +31,8 @@ def test_disagreement_is_the_spread_and_higher_is_worse():
     dataset = altimeters(laser=[40.0, 40.0, 40.0], radar=[40.5, 42.0, 55.0])
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
-    assert list(dataset.flightlines["altimeter_spread"]) == [0.5, 2.0, 15.0]
-    assert list(dataset.flightlines["qc_altimeter"]) == [
+    assert list(dataset.flightlines["alt_spread"]) == [0.5, 2.0, 15.0]
+    assert list(dataset.flightlines["qc_altim"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -40,7 +40,7 @@ def test_the_sign_of_the_disagreement_does_not_matter():
     """Which sensor read higher is not the question; that they differ is."""
     dataset = altimeters(laser=[40.0, 45.0], radar=[45.0, 40.0])
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
-    assert list(dataset.flightlines["altimeter_spread"]) == [5.0, 5.0]
+    assert list(dataset.flightlines["alt_spread"]) == [5.0, 5.0]
 
 
 def test_three_altimeters_use_the_full_spread():
@@ -48,7 +48,7 @@ def test_three_altimeters_use_the_full_spread():
     is the point, since knowing that would remove the need for the check."""
     dataset = altimeters(laser=[40.0], radar=[41.0], baro=[48.0])
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar", "baro"], **SPEC)
-    assert dataset.flightlines["altimeter_spread"][0] == 8.0
+    assert dataset.flightlines["alt_spread"][0] == 8.0
 
 
 def test_a_lone_reading_has_no_verdict():
@@ -57,8 +57,8 @@ def test_a_lone_reading_has_no_verdict():
     dataset = altimeters(laser=[40.0, np.nan], radar=[40.2, 40.0])
     dataset, report = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
-    assert pd.isna(dataset.flightlines["altimeter_spread"][1])
-    assert pd.isna(dataset.flightlines["qc_altimeter"][1])
+    assert pd.isna(dataset.flightlines["alt_spread"][1])
+    assert pd.isna(dataset.flightlines["qc_altim"][1])
     assert any("only one altimeter" in n for n in report.notes)
 
 
@@ -74,7 +74,7 @@ def test_height_can_be_in_spec_while_the_altimeters_disagree():
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
     assert dataset.flightlines["qc_height"][0] == GOOD           # looks fine
-    assert dataset.flightlines["qc_altimeter"][0] == OUT_OF_SPEC  # but unknowable
+    assert dataset.flightlines["qc_altim"][0] == OUT_OF_SPEC  # but unknowable
 
 
 # ── Refusing to do the wrong thing ───────────────────────────────────────────
@@ -142,4 +142,4 @@ def test_registered_and_runs_from_a_pipeline():
               marginal_max: 3.0
     """)
     dataset, report = QCRunner(pipeline).run(dataset)
-    assert list(dataset.flightlines["qc_altimeter"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qc_altim"]) == [GOOD, OUT_OF_SPEC]

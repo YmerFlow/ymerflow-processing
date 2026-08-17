@@ -133,7 +133,7 @@ def test_writes_the_denormalized_line_verdict():
     dataset = make_dataset(n=6, n_lines=2, speed=[85] * 5 + [130])
     dataset, _ = ground_speed(dataset, **SPEC)
 
-    verdict = dataset.flightlines["qc_speed_line"]
+    verdict = dataset.flightlines["ql_speed"]
     assert list(verdict[:3]) == [GOOD] * 3
     assert list(verdict[3:]) == [OUT_OF_SPEC] * 3
 
@@ -243,6 +243,6 @@ def test_all_three_checks_run_from_one_pipeline():
     dataset, report = QCRunner(pipeline).run(dataset)
 
     assert list(dataset.flightlines["qc_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qc_attitude"]) == [GOOD, OUT_OF_SPEC, GOOD]
+    assert list(dataset.flightlines["qc_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
     assert list(dataset.flightlines["qc_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
     assert len(report.steps) == 3

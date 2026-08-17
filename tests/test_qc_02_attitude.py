@@ -45,7 +45,7 @@ def test_the_combined_verdict_is_the_worse_of_the_two():
     dataset = attitude(pitch=[0, 6, 0, 9], roll=[0, 0, 9, 6])
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qc_attitude"]) == [
+    assert list(dataset.flightlines["qc_tilt"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC, OUT_OF_SPEC]
 
 
@@ -56,7 +56,7 @@ def test_a_sounding_missing_one_axis_has_no_attitude_verdict():
 
     assert dataset.flightlines["qc_pitch"][1] == GOOD      # pitch is still judged
     assert pd.isna(dataset.flightlines["qc_roll"][1])
-    assert pd.isna(dataset.flightlines["qc_attitude"][1])
+    assert pd.isna(dataset.flightlines["qc_tilt"][1])
 
 
 # ── Total tilt: reported, never classified ───────────────────────────────────
@@ -73,7 +73,7 @@ def test_two_axes_inside_spec_can_combine_past_it():
     dataset = attitude([5.0], [5.0])
     dataset, report = system_attitude(dataset, **SPEC)
 
-    assert dataset.flightlines["qc_attitude"][0] == GOOD        # both axes pass
+    assert dataset.flightlines["qc_tilt"][0] == GOOD        # both axes pass
     assert report.distributions["total_tilt"]["before"]["max"] == pytest.approx(
         7.07, abs=0.01)                                         # yet 7.07 total
 
@@ -134,7 +134,7 @@ def test_writes_the_denormalized_line_verdict():
     dataset = make_dataset(n=6, n_lines=2, pitch=[0] * 5 + [9], roll=[0] * 6)
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    line_verdict = dataset.flightlines["qc_attitude_line"]
+    line_verdict = dataset.flightlines["ql_tilt"]
     assert list(line_verdict[:3]) == [GOOD] * 3
     assert list(line_verdict[3:]) == [OUT_OF_SPEC] * 3
 
@@ -145,7 +145,7 @@ def test_the_output_columns_are_nameable():
                                  output_column="att", line_verdict_column=None,
                                  **SPEC)
     assert {"p", "r", "att"} <= set(dataset.flightlines.columns)
-    assert "qc_attitude_line" not in dataset.flightlines.columns
+    assert "ql_tilt" not in dataset.flightlines.columns
 
 
 def test_re_running_is_idempotent_and_says_so():
@@ -212,7 +212,7 @@ def test_missing_attitude_columns_are_a_note_not_an_error():
 
     dataset, report = system_attitude(dataset, **SPEC)
 
-    assert "qc_attitude" not in dataset.flightlines.columns
+    assert "qc_tilt" not in dataset.flightlines.columns
     assert any("no attitude columns" in n.lower() for n in report.notes)
 
 
@@ -222,7 +222,7 @@ def test_one_axis_present_is_a_note_and_still_judged():
 
     dataset, report = system_attitude(dataset, **SPEC)
 
-    assert dataset.flightlines["qc_attitude"][0] == OUT_OF_SPEC
+    assert dataset.flightlines["qc_tilt"][0] == OUT_OF_SPEC
     assert any("that axis alone" in n for n in report.notes)
 
 
@@ -253,7 +253,7 @@ def test_runs_without_any_channels():
 
     assert dataset.n_channels == 0
     dataset, _ = system_attitude(dataset, **SPEC)
-    assert list(dataset.flightlines["qc_attitude"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qc_tilt"]) == [GOOD, OUT_OF_SPEC]
 
 
 # ── Registration and the runner ──────────────────────────────────────────────
@@ -276,5 +276,5 @@ def test_runs_alongside_qc_01_from_one_pipeline():
     dataset, report = QCRunner(pipeline).run(dataset)
 
     assert list(dataset.flightlines["qc_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qc_attitude"]) == [GOOD, OUT_OF_SPEC, GOOD]
+    assert list(dataset.flightlines["qc_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
     assert len(report.steps) == 2

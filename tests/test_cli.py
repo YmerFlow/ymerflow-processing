@@ -242,7 +242,7 @@ def test_verdict_columns_survive_into_the_exported_dataset(
 
     header = (out / "20260815.xyz").read_text().splitlines()[0]
     assert "qc_height" in header
-    assert "qc_height_line" in header
+    assert "ql_height" in header
 
 
 def test_re_running_replaces_that_delivery_and_leaves_others_alone(
