@@ -323,3 +323,44 @@ feature.
    process record already stores, so cross-flight drift is a query over existing data rather
    than a new state mechanism. What remains open is only whether that runner reads reports or
    datasets by default.
+
+---
+
+## Addition, 2026-08-17 — column names are constrained by the export
+
+Not a revision of anything above; a constraint on new checks that was not visible when this
+was written, because the reason lives in a file format rather than in a check.
+
+**Every column a check writes must be at most ten characters, and no two may share their
+first ten.** A shapefile field name is limited to ten, and the vector export named above is
+the artifact that reaches a client. An eleven-character name is silently truncated on
+export; two names truncating to the same ten collide without complaint, and one quietly
+replaces the other in the deliverable. That has already happened once — `qc_attitude` and
+`qc_attitude_line` both became `qc_attitud` — and was caught by a test rather than by review.
+
+The scheme adopted, which keeps names inside the limit and says what grain a column belongs
+to:
+
+```
+qs_  this sounding          qf_  its flight
+ql_  its line               qd_  the delivery it arrived in
+```
+
+A bare name with no prefix is a *measurement* rather than a verdict.
+
+GeoPackage has no such limit, and is the better default for exactly this kind of reason.
+The constraint is kept anyway, because a contract that names shapefile should not force a
+column rename.
+
+## Addition, 2026-08-17 — unclassified must survive the export
+
+`03` says above that a metric with no threshold entry gets **no classification at all**
+rather than a default, and calls that graceful absence the right behaviour.
+
+Shapefile cannot express it. DBF does not distinguish NULL from empty, so "not measured" and
+"measured and fine" risk arriving at a client as the same thing — losing the distinction in
+the one artifact they read.
+
+So the export writes unclassified as an **explicit label** rather than as a blank, and states
+in its report what that label was. GeoPackage could carry a true NULL, but both formats write
+the same label so that two exports of one dataset do not disagree.

@@ -99,21 +99,22 @@ every consumer. No step carries its own copy of the floor or the slope.
 
 ## Status
 
-Interface layer, channel discovery, and the first QC check.
+Interface layer, channel discovery, seven QC checks, and the command line.
+**333 tests**, all synthetic — no survey files, no platform, no web stack.
 
 **Done**
 
 - **Channel discovery (R1).** The number of channels is read from the data, never assumed.
-  One moment, two, three or four all take the same path, and a survey with no array
-  families at all — a scalar magnetometer — correctly reports none.
-- **`core/qc/`** — the Good / Marginal / Out of Spec model with four threshold kinds, the
-  per-line and per-flight aggregation, and **qc_01 height above ground** end to end: verdict
-  column, denormalized line verdict, structured report, registered under
-  `ymerflow.processing.qc`.
+  One moment, two, three or four take the same path, and a survey with no array families at
+  all — a scalar magnetometer — correctly reports none.
+- **`core/qc/`** — Good / Marginal / Out of Spec with four threshold kinds, per-line and
+  per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
+- **Seven checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
+  qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing.
+- **One filter**: `select_channels`, which reduces a delivery to the channels an inversion
+  accepts — component or moment, by the R7 `criterion` idiom.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
-  dataset plus a JSON report; `compare`, `list` and `validate` alongside it. No platform, no
-  web stack, no database — which is what acquisition QC on a schedule actually needs.
-- 149 tests, all synthetic, no survey files and no platform required.
+  dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 
 ```bash
 yf-process run qc.yaml --xyz 20260815.xyz --gex sys.gex --out QC/
@@ -128,32 +129,75 @@ Which registry a step name resolves in comes from `--group`, else a `kind:` in t
 — validated against the steps rather than trusted — else derived from which registry
 resolves them.
 
-**A fourth entry-point group: `ymerflow.processing.methods`**
+### Column names
 
-`core/` owns the *vocabulary* (`Channel`, `Axis`) and the *mechanism* (pattern-driven
-discovery over `layer_data`). It does not own the array-naming patterns or what the second
-axis means — those belong to the method package, which registers an adapter. TEM's adapter
-says its arrays are named `dbdt_ch*` / `Gate_Ch*` and its axis is gate time in seconds.
+Four grains, one letter each, so the scheme reads itself:
 
-This is what keeps `core/` genuinely method-agnostic rather than holding TEM naming under a
-general-sounding label, and it is why adding FEM, mag, rad or gravity later is a new package
-plus one adapter, with nothing in `core/` to change.
+```
+qs_  this sounding          qf_  its flight
+ql_  its line               qd_  the delivery it arrived in
+```
 
-> **Deviation from `building_plans/`.** `01` and `02` place `Moment` — carrying `gate_times`
-> and `dipole_moment` — on the data object in `core/`, while `core/` is specified as knowing
-> nothing about gates or moments. The two cannot both hold. Resolved by splitting on
-> structure versus physics: identity and array addressing are agnostic and live in `core/`;
-> gate times and dipole moment are time-domain and live in `em/tem/`. The plans should be
-> updated to match.
+A bare name is a *measurement* rather than a verdict — `spacing`, `alt_spread`, `pl_excess`.
 
-Next, in order:
+**Every name stays inside ten characters**, because that is what a shapefile field allows and
+the vector export is what reaches a client. Two names truncating to the same ten would
+collide silently, so this is a constraint on new checks rather than a stylistic preference.
 
-1. **The remaining QC checks** — qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
-   and the rest. The `centered`, `descending` and `window` threshold kinds are built and
-   tested but not yet used by any check. qc_06 and qc_07 wait on flight-plan input
+---
+
+## Deviations from `building_plans/`
+
+The plans are the clean-room input and are not revised. Where the build diverged, it is
+recorded here — "the plan said X, we did Y, here is why X could not hold" is more useful
+than a corrected plan.
+
+**`Moment` in `core/`** — `01` and `02` put it on the data object, while `core/` is specified
+as knowing nothing about gates or moments. Both cannot hold. Split on structure versus
+physics: identity and array addressing are method-agnostic and live in `core/` as `Channel`
+and `Axis`; gate times and dipole moment are time-domain and live in `em/tem/`. This
+produced a fourth entry-point group, `ymerflow.processing.methods`, so adding FEM, mag, rad
+or gravity later is a new package plus one adapter with nothing in `core/` to change.
+
+**qc_10 classifies spacing, not density** — `03` asks for "along-line spacing" with kind
+`descending`, which cannot both hold: they are inverses, so wider spacing is `ascending` and
+lower density is `descending`. Spacing carries the verdict because it is what a contract
+states; density is reported alongside.
+
+**qc_01 takes no terrain model** — `03` lists one among its inputs. Producing a correct
+height-above-ground column from a DTM is filter_05's job, and duplicating it here would put
+one physical statement in two places with two chances to disagree, which is the defect R9
+exists to prevent.
+
+**qc_04 judges stability, not agreement with nominal** — `03` asks for a window derived from
+survey-wide statistics. A steady current away from the declared nominal is not a data
+problem, since the current flown is recorded per sounding and carried into the
+normalization; what costs quality is the current *moving*. Both are measured, and a large
+nominal offset earns its own separate verdict.
+
+**Per-line results are measures, not verdicts** — an earlier form wrote the worst verdict
+found anywhere on a line, which made one bad sounding in five hundred read as a failed line.
+Replaced by the fraction and the longest contiguous run at every grain, with a verdict only
+where a contract supplies a rule. `03` left this open; this resolves it by measuring and not
+deciding.
+
+**Findings are typed** — not in `03`. A check declares `flight`, `instrument` or
+`environment`, so a failing altimeter does not read as a badly flown line and a powerline
+reads as neither. Free-form rather than an enum, since more kinds will follow.
+
+---
+
+## Next
+
+1. **The vector export** — `03`'s third output, and the one that leaves the building.
+   GeoPackage by default, shapefile when a contract names it, points and lines both.
+2. **The remaining QC checks** — qc_12 culled fraction is buildable; qc_11 needs an
+   inversion, qc_09 needs the comparison registry, qc_06 and qc_07 need flight-plan input
    (`Ymerflow#69`).
-2. **The shared culling policy**, then the culling predicates as small functions over it.
-3. **The noise group**, which is where most of the value is.
+3. **filter_33**, the manual-edit checkpoint — the only thing that makes re-running safe once
+   a human has edited, and now fully specified.
+4. **The shared culling policy**, then the culling predicates as small functions over it.
+5. **The noise group**, which is where most of the value is.
 
 Specifications live in `building_plans/`. `04_cli_runner.md` records every decision behind
 the command line and why the alternatives lost.
