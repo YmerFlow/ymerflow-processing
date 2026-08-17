@@ -134,7 +134,7 @@ def test_describe_quotes_the_actual_limits():
     text = describe(ASCENDING_SPEC, "m")
     assert text[GOOD] == "Good (<=45 m)"
     assert text[MARGINAL] == "Marginal (45-65 m)"
-    assert text[OUT_OF_SPEC] == "Out of Spec (>65 m)"
+    assert text[OUT_OF_SPEC] == "OOS (>65 m)"
 
 
 def test_tier_counts_reports_every_tier_even_at_zero():

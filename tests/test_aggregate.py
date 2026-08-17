@@ -110,19 +110,49 @@ def test_each_group_measure_is_repeated_on_its_soundings():
     lines = [100] * 3 + [200] * 3
     x, y = np.arange(6) * 10.0, np.zeros(6)
 
-    fraction, run = grain_measures(verdicts, lines, easting=x, northing=y)
+    measures = grain_measures(verdicts, lines, easting=x, northing=y)
 
-    assert list(fraction[:3]) == [pytest.approx(2 / 3)] * 3
-    assert list(fraction[3:]) == [0.0] * 3
-    assert run[0] == 10.0
+    assert list(measures["oos"][:3]) == [pytest.approx(2 / 3)] * 3
+    assert list(measures["oos"][3:]) == [0.0] * 3
+    assert measures["run"][0] == 10.0
+    assert list(measures["n"]) == [3.0] * 6
 
 
 def test_one_bad_sounding_does_not_read_as_a_failed_line():
     """What replaced the worst-verdict column: one in six is a fraction of
     0.17, not a line-wide Out of Spec."""
     verdicts = _verdicts([OUT_OF_SPEC] + [GOOD] * 5)
-    fraction, _ = grain_measures(verdicts, [100] * 6)
-    assert fraction[0] == pytest.approx(1 / 6)
+    measures = grain_measures(verdicts, [100] * 6)
+    assert measures["oos"][0] == pytest.approx(1 / 6)
+
+
+def test_every_tier_gets_a_fraction_not_just_the_failing_one():
+    """0.02 out of spec does not say whether the rest was Good or Marginal, and
+    those are different deliveries."""
+    verdicts = _verdicts([OUT_OF_SPEC] + [MARGINAL] * 3 + [GOOD] * 4)
+    measures = grain_measures(verdicts, [100] * 8)
+
+    assert measures["good"][0] == pytest.approx(0.5)
+    assert measures["marg"][0] == pytest.approx(3 / 8)
+    assert measures["oos"][0] == pytest.approx(1 / 8)
+
+
+def test_the_three_fractions_sum_to_one_over_what_was_classified():
+    """And 'n' is the denominator, so a half-measured line cannot pass for
+    a fully measured one."""
+    verdicts = _verdicts([OUT_OF_SPEC, MARGINAL, GOOD, GOOD, None, None])
+    measures = grain_measures(verdicts, [100] * 6)
+
+    total = measures["good"][0] + measures["marg"][0] + measures["oos"][0]
+    assert total == pytest.approx(1.0)
+    assert measures["n"][0] == 4.0          # not 6
+
+
+def test_a_group_with_nothing_classified_measures_nothing():
+    measures = grain_measures(_verdicts([None, None]), [100] * 2)
+    assert np.isnan(measures["good"][0])
+    assert np.isnan(measures["oos"][0])
+    assert measures["n"][0] == 0.0
 
 
 # ── Turning the measures into a verdict ──────────────────────────────────────

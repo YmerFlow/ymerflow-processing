@@ -364,3 +364,67 @@ the one artifact they read.
 So the export writes unclassified as an **explicit label** rather than as a blank, and states
 in its report what that label was. GeoPackage could carry a true NULL, but both formats write
 the same label so that two exports of one dataset do not disagree.
+
+---
+
+## Addition, 2026-08-17 — a weighted grade beside the verdict
+
+`03` gives every grain a verdict and, above, the fraction and contiguous run that a
+contract rule turns into one. That answers *does this pass*. It cannot answer *which of
+these failing lines is worst*, because once two lines are both Out of Spec they tie, and
+a reflight conversation has to order them.
+
+So each tier is also worth points — **Out of Spec 0, Marginal 1, in spec 2** — and a
+sounding's grade is the weighted mean across the checks that classified it. Line, flight
+and dataset grades are the mean of their soundings, taken over soundings rather than over
+lines so a two-sounding line does not weigh as much as a thousand-sounding one.
+
+**Weights are per check, and they have defaults**, unlike thresholds, which never do. The
+distinction is what the number decides: a threshold decides whether a sounding passes and
+so goes to a client as a contract deliverable, while a weight only orders which problems
+matter more. A wrong weight sorts a list badly; a wrong threshold mis-states a delivery.
+
+Height and attitude dominate because they change what the measurement *means* — a sounding
+flown too high or at a bad attitude couples to the ground differently, and no processing
+recovers it. Speed, spacing and transmitter stability are a quarter of that: they degrade
+coverage or repeatability without invalidating the physics. Altimeter agreement is weighted
+to zero — flagged, not graded, since one bad sensor should not mark down data that was flown
+correctly — and powerline noise likewise, since the ground's character is not the
+contractor's doing.
+
+Zero is not the same as absent. A weighted-out check still runs, still writes its verdict,
+still names itself among the reasons, and still feeds the instrument-health rollup.
+
+**The grade is not the gate, and this is the point that matters.** A mean dilutes: a
+sounding failing one lightly weighted check still grades well, which is exactly what an
+average does and exactly why it cannot decide anything. The worst-verdict column stays the
+pass/fail. A mean also aliases — a grade of 1.0 is either uniformly Marginal or half in spec
+and half out — so the per-tier fractions are written beside it rather than replaced by it.
+
+The 0/1/2 scale treats an ordinal thing as an interval one, asserting that Out of Spec to
+Marginal is worth the same as Marginal to in spec. That is a choice, not a measurement. It is
+kept even because no contract states an exchange rate, and inventing one would be the only
+unstated number in the QC path.
+
+---
+
+## Addition, 2026-08-17 — agreement with nominal is measured, not judged
+
+`03` treats transmitter current as one check. It is two questions, and only one of them is
+about data quality.
+
+**Stability** — is the current steady against its own mean — carries the verdict. What costs
+quality is the current *moving*, because then the excitation differs between soundings that
+are later stacked and compared.
+
+**Agreement with the declared nominal** does not. The current actually flown is recorded per
+sounding and carried into the normalization, so a transmitter holding steady away from its
+declared nominal produces perfectly self-consistent data. What is wrong is the system
+description, and everything downstream trusts that description — so it is worth knowing, and
+worth knowing separately.
+
+So the two never combine. The offset from nominal is always measured and written; a verdict
+appears only where thresholds were supplied, and it never joins the combined verdict. Like
+the powerline monitor, it is a reference measurement by default. What counts as too far from
+nominal is an operational judgement, and a default here would put a house number into a
+client deliverable.

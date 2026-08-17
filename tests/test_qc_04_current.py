@@ -19,6 +19,10 @@ from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 # measured values.
 SPEC = {"good_fraction": 0.01, "marginal_fraction": 0.03}
 
+#: Nominal agreement is unjudged unless asked for, so the tests that exercise it
+#: supply their own window. Detection sensitivity, not a contract term.
+NOMINAL = {"nominal_good_fraction": 0.10, "nominal_marginal_fraction": 0.20}
+
 # The fixture's declared nominals, from TxApproximateCurrent.
 LM_NOMINAL, HM_NOMINAL = 9.0, 110.0
 
@@ -72,7 +76,7 @@ def test_steady_but_off_nominal_is_stable_and_flagged_separately():
     away from what the system description declares. The data is self-consistent;
     the description is not describing this instrument."""
     dataset, report = transmitter_stability(
-        currents([9.0] * 10, hm=[136.0] * 10), **SPEC)
+        currents([9.0] * 10, hm=[136.0] * 10), **SPEC, **NOMINAL)
 
     assert report.distributions["stability"][GOOD] == 10          # rock steady
     assert list(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 10
@@ -82,20 +86,22 @@ def test_steady_but_off_nominal_is_stable_and_flagged_separately():
 
 
 def test_measured_above_nominal_counts_as_much_as_below():
-    high, _ = transmitter_stability(currents([9.0] * 5, hm=[143.0] * 5), **SPEC)
-    low, _ = transmitter_stability(currents([9.0] * 5, hm=[77.0] * 5), **SPEC)
+    high, _ = transmitter_stability(
+        currents([9.0] * 5, hm=[143.0] * 5), **SPEC, **NOMINAL)
+    low, _ = transmitter_stability(
+        currents([9.0] * 5, hm=[77.0] * 5), **SPEC, **NOMINAL)
     assert list(high.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
     assert list(low.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
 
 
 def test_a_small_offset_is_tolerated():
     dataset, _ = transmitter_stability(
-        currents([9.0] * 5, hm=[115.0] * 5), **SPEC)      # 4.5% high
+        currents([9.0] * 5, hm=[115.0] * 5), **SPEC, **NOMINAL)   # 4.5% high
     assert list(dataset.flightlines["qs_nom"]) == [GOOD] * 5
 
 
 def test_the_nominal_window_is_exposed():
-    """A round default, not a measured one, so it has to be adjustable."""
+    """No default at all, so it has to be given, and it has to bite."""
     steady_but_off = currents([9.0] * 5, hm=[121.0] * 5)          # 10% high
     strict, _ = transmitter_stability(steady_but_off, nominal_good_fraction=0.05,
                                       nominal_marginal_fraction=0.08, **SPEC)
@@ -107,10 +113,35 @@ def test_the_nominal_window_is_exposed():
     assert list(lenient.flightlines["qs_nom"]) == [GOOD] * 5
 
 
-def test_the_combined_verdict_takes_the_worse_of_the_two():
+def test_a_steady_transmitter_off_nominal_still_passes():
+    """The verdict is stability alone. A transmitter holding 143 A against a
+    110 A nominal flew perfectly well: the current is recorded per sounding and
+    carried into the normalization, so the data is self-consistent. What is
+    wrong is the system description, and that is not the survey's fault."""
     dataset, _ = transmitter_stability(
+        currents([9.0] * 5, hm=[143.0] * 5), **SPEC, **NOMINAL)
+
+    assert list(dataset.flightlines["qs_cur"]) == [GOOD] * 5      # not penalized
+    assert list(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5   # but noted
+
+
+def test_without_a_nominal_window_the_offset_is_measured_and_unjudged():
+    """Default behavior: a reference number, no verdict, no house threshold
+    riding into a deliverable."""
+    dataset, report = transmitter_stability(
         currents([9.0] * 5, hm=[143.0] * 5), **SPEC)
-    assert list(dataset.flightlines["qs_cur"]) == [OUT_OF_SPEC] * 5
+
+    assert "qs_nom" not in dataset.flightlines.columns
+    assert report.distributions["thresholds"]["nominal"] is None
+    assert any("left unjudged" in n for n in report.notes)
+    # Measured all the same, and written where an export can see it.
+    assert dataset.flightlines["nom_ch2"].iloc[0] == pytest.approx(0.3, abs=0.001)
+
+
+def test_half_a_nominal_window_is_an_error():
+    with pytest.raises(ValueError, match="both bounds"):
+        transmitter_stability(currents([9.0] * 5), nominal_good_fraction=0.1,
+                              **SPEC)
 
 
 def test_no_nominal_declared_means_no_nominal_verdict():
@@ -118,7 +149,7 @@ def test_no_nominal_declared_means_no_nominal_verdict():
     for channel in (1, 2):
         dataset.system.gex_dict[f"Channel{channel}"].pop("TxApproximateCurrent")
 
-    dataset, report = transmitter_stability(dataset, **SPEC)
+    dataset, report = transmitter_stability(dataset, **SPEC, **NOMINAL)
     assert "qs_nom" not in dataset.flightlines.columns
     assert any("declares no nominal current" in n for n in report.notes)
 
@@ -231,8 +262,8 @@ def test_the_per_sounding_verdict_columns_fit_a_shapefile_field():
     is a naming problem for the vector export to resolve centrally, not one for
     each check to work around.
     """
-    dataset, _ = transmitter_stability(currents([9.0] * 3), **SPEC)
-    for name in ("qs_cur", "qs_nom", "qs_cur_ch1"):
+    dataset, _ = transmitter_stability(currents([9.0] * 3), **SPEC, **NOMINAL)
+    for name in ("qs_cur", "qs_nom", "qs_cur_ch1", "nom_ch1"):
         assert name in dataset.flightlines.columns
         assert len(name) <= 10
 

@@ -29,7 +29,13 @@ import numpy as np
 import pandas as pd
 
 from ..dataset import find_flight_column  # noqa: F401  (re-exported for callers)
-from .thresholds import GOOD, OUT_OF_SPEC, TIERS
+from .thresholds import GOOD, MARGINAL, OUT_OF_SPEC, TIERS
+
+#: The measure each tier's fraction is written under, appended to a grain prefix
+#: to give ``ql_good``, ``qf_marg``, ``qd_oos`` and so on. Abbreviated so that
+#: every one of them clears the shapefile's ten-character field-name limit with
+#: the longest prefix attached.
+MEASURE_TIER = {"good": GOOD, "marg": MARGINAL, "oos": OUT_OF_SPEC}
 
 
 # ── Contiguous runs ──────────────────────────────────────────────────────────
@@ -246,12 +252,23 @@ def per_flight(verdicts, flights, lines=None, easting=None,
 
 def grain_measures(verdicts, groups, segments=None, easting=None, northing=None,
                    gap_tolerance: float = 0.0):
-    """Each group's fraction and worst run, broadcast onto every sounding of it.
+    """Each group's tier fractions and worst run, broadcast onto its soundings.
 
-    The two measures ``03`` asks for, at whatever grain the caller groups by —
-    line, flight, or the delivery as a whole — put where a client can see them.
-    They live in the report as well, but a report is not what someone opens in a
-    GIS, and the export is the artifact that leaves the building.
+    The measures ``03`` asks for, at whatever grain the caller groups by — line,
+    flight, or the delivery as a whole — put where a client can see them. They
+    live in the report as well, but a report is not what someone opens in a GIS,
+    and the export is the artifact that leaves the building.
+
+    **A fraction per tier, not just the failing one.** An earlier form wrote only
+    the out-of-spec fraction, which answers "how bad" but not "how good" — a line
+    reading 0.02 could be 98% Good or 98% Marginal, and those are different
+    deliveries. All three are written so the split is visible without going back
+    to the report.
+
+    They are fractions of *classified* soundings, so the three sum to 1 wherever
+    anything was classified at all. That makes them mutually derivable, which is
+    a fair objection to writing all three — but the arithmetic has to happen
+    somewhere, and a GIS is the worst place to ask for it.
 
     Broadcast rather than aggregated away because a vector export has one row
     per sounding: repeating the group's figure on each of its soundings is what
@@ -268,18 +285,35 @@ def grain_measures(verdicts, groups, segments=None, easting=None, northing=None,
     read as a pass or fail. These are measurements; turning them into a verdict
     needs thresholds, and those come from the contract.
 
-    Returns ``(fraction, run)`` as arrays the length of ``verdicts``.
+    Returns a mapping of measure name to an array the length of ``verdicts``:
+    one entry per tier in :data:`MEASURE_TIER`, plus ``run`` and ``n``. A mapping
+    rather than a tuple because the set of measures is now long enough that
+    positional unpacking would silently reorder if a tier were ever added.
     """
     summary = _rollup(verdicts, groups, easting, northing, segments=segments,
                       gap_tolerance=gap_tolerance)
     keys = pd.Series(np.asarray(groups)).astype(str)
 
-    def pick(field):
-        values = keys.map(lambda k: summary.get(k, {}).get(field))
+    def pick(getter):
+        values = keys.map(lambda k: getter(summary.get(k, {})))
         return pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
 
-    return (pick("fraction_out_of_spec"),
-            pick("longest_out_of_spec_run_closed_distance"))
+    def tier_fraction(tier):
+        def get(group):
+            classified = group.get("n_classified")
+            if not classified:
+                return None
+            return group["counts"][tier] / classified
+        return get
+
+    measures = {name: pick(tier_fraction(tier))
+                for name, tier in MEASURE_TIER.items()}
+    # The denominator, so three fractions summing to 1 cannot be mistaken for a
+    # fully classified line when half of it was never measured.
+    measures["n"] = pick(lambda g: g.get("n_classified"))
+    measures["run"] = pick(
+        lambda g: g.get("longest_out_of_spec_run_closed_distance"))
+    return measures
 
 
 def apply_rule(fraction, run, max_fraction=None, max_run=None):

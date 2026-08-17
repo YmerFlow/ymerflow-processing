@@ -67,7 +67,8 @@ def make_gex(moments=("LM", "HM"), n_gates=8, turns=(1.0, 4.0), currents=(9.0, 1
 
 
 def make_flightlines(n=40, n_lines=2, height=None, n_flights=None,
-                     pitch=None, roll=None, speed=None, seconds=None):
+                     pitch=None, roll=None, speed=None, seconds=None,
+                     second_altimeter=None):
     """A per-sounding attribute table with the columns QC actually reads.
 
     ``n_flights`` groups the lines into flights, the way a delivery holding
@@ -85,8 +86,8 @@ def make_flightlines(n=40, n_lines=2, height=None, n_flights=None,
         # distances are trivially checkable by hand.
         "x": np.tile(np.arange(per_line) * 10.0, n_lines)[:n],
         "y": np.repeat(np.arange(n_lines) * 1000.0, per_line)[:n],
-        "tx_altitude": np.asarray(height, dtype=float),
-        "topography": np.full(n, 250.0),
+        "tx_alt": np.asarray(height, dtype=float),
+        "topo": np.full(n, 250.0),
         # tilt_x is pitch (along flight), tilt_y is roll (across it). Default to
         # a small non-zero wobble: real attitude is never identically zero, and
         # qc_02 treats an all-zero series as a zeroed sensor rather than a
@@ -96,6 +97,10 @@ def make_flightlines(n=40, n_lines=2, height=None, n_flights=None,
         "tilt_y": np.linspace(1.0, -1.0, n) if roll is None
                   else np.asarray(roll, dtype=float),
     })
+    if second_altimeter is not None:
+        # A second, independent altimeter, for the checks that compare them.
+        # Absent by default: not every aircraft carries two.
+        frame["alt_two"] = np.asarray(second_altimeter, dtype=float)
     if speed is not None:
         frame["GdSpeed"] = np.asarray(speed, dtype=float)
     if seconds is not None:
@@ -112,7 +117,7 @@ def make_flightlines(n=40, n_lines=2, height=None, n_flights=None,
 def make_dataset(moments=("LM", "HM"), n=40, n_lines=2, n_gates=8,
                  height=None, naming="dbdt", with_gex=True, n_flights=None,
                  components=None, pitch=None, roll=None,
-                 speed=None, seconds=None):
+                 speed=None, seconds=None, second_altimeter=None):
     """A :class:`Dataset` with one array family per moment.
 
     ``naming`` picks which of the two conventions in circulation the arrays are
@@ -120,7 +125,7 @@ def make_dataset(moments=("LM", "HM"), n=40, n_lines=2, n_gates=8,
     Both must be discovered identically.
     """
     flightlines = make_flightlines(n, n_lines, height, n_flights, pitch, roll,
-                                   speed, seconds)
+                                   speed, seconds, second_altimeter)
 
     layer_data = {}
     for i in range(1, len(moments) + 1):

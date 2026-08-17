@@ -230,8 +230,8 @@ def test_gate_count_disagreement_is_reported(caplog):
 
 def test_copy_is_deep_and_independent(dual_moment):
     duplicate = dual_moment.copy()
-    duplicate.flightlines.loc[0, "tx_altitude"] = 999.0
-    assert dual_moment.flightlines.loc[0, "tx_altitude"] != 999.0
+    duplicate.flightlines.loc[0, "tx_alt"] = 999.0
+    assert dual_moment.flightlines.loc[0, "tx_alt"] != 999.0
 
 
 def test_copy_preserves_the_subclass():

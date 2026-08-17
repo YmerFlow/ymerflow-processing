@@ -13,6 +13,7 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing.core.pipeline import Pipeline, QCRunner
+from ymerflow_processing.core.qc.rollup import NO_REASON
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 ALL_THREE = """
@@ -39,7 +40,7 @@ def test_a_sounding_failing_three_checks_names_all_three():
     dataset, _ = run(ALL_THREE, dataset)
 
     reasons = list(dataset.flightlines["qs_reasons"])
-    assert reasons[:2] == ["", ""]
+    assert reasons[:2] == [NO_REASON, NO_REASON]
     assert set(reasons[2].split(";")) == {
         "height_above_ground", "system_attitude", "ground_speed"}
 
@@ -59,7 +60,7 @@ def test_one_reason_lists_only_that_one():
     dataset = make_dataset(n=2, n_lines=1, height=[30, 80], pitch=[0, 0],
                            roll=[0, 0], speed=[85, 85])
     dataset, _ = run(ALL_THREE, dataset)
-    assert list(dataset.flightlines["qs_reasons"]) == ["", "height_above_ground"]
+    assert list(dataset.flightlines["qs_reasons"]) == [NO_REASON, "height_above_ground"]
 
 
 def test_marginal_is_not_a_reason():
@@ -69,7 +70,7 @@ def test_marginal_is_not_a_reason():
     dataset, _ = run(ALL_THREE, dataset)
 
     assert dataset.flightlines["qs_height"][0] == MARGINAL
-    assert dataset.flightlines["qs_reasons"][0] == ""
+    assert dataset.flightlines["qs_reasons"][0] == NO_REASON
     assert dataset.flightlines["qs_verdict"][0] == MARGINAL
 
 
@@ -104,7 +105,7 @@ def test_the_sensor_fault_is_still_named_as_a_reason():
     """Highlighted, not hidden — it is just not a flying problem."""
     dataset = altimeter_dataset([30, 30], [30, 30], [30.1, 55])
     dataset, _ = run(WITH_ALTIMETERS, dataset)
-    assert list(dataset.flightlines["qs_reasons"]) == ["", "altimeter_agreement"]
+    assert list(dataset.flightlines["qs_reasons"]) == [NO_REASON, "altimeter_agreement"]
 
 
 def test_a_bad_flight_and_a_bad_sensor_are_both_visible():
@@ -171,7 +172,7 @@ def test_each_step_declares_its_own_verdict_column():
 def test_a_check_that_skipped_contributes_nothing():
     """No altimeter columns, so nothing declared and nothing rolled up from it."""
     dataset = make_dataset(n=2, n_lines=1, height=[30, 80])
-    dataset.flightlines.drop(columns=["tx_altitude"], inplace=True)
+    dataset.flightlines.drop(columns=["tx_alt"], inplace=True)
 
     dataset, report = run("kind: qc\nsteps: [{height_above_ground: "
                           "{good_max: 45, marginal_max: 65}}]", dataset)

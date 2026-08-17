@@ -68,7 +68,7 @@ def test_height_can_be_in_spec_while_the_altimeters_disagree():
     """qc_01 asks whether the height was right; this asks whether it is known.
     A height verdict computed from a failing sensor is confidently wrong."""
     dataset = altimeters(laser=[30.0], radar=[55.0])
-    dataset.flightlines["tx_altitude"] = [30.0]
+    dataset.flightlines["tx_alt"] = [30.0]
 
     dataset, _ = height_above_ground(dataset, good_max=45, marginal_max=65)
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)

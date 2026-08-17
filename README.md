@@ -107,7 +107,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **Channel discovery (R1).** The number of channels is read from the data, never assumed.
   One moment, two, three or four take the same path, and a survey with no array families at
   all — a scalar magnetometer — correctly reports none.
-- **`core/qc/`** — Good / Marginal / Out of Spec with four threshold kinds, per-line and
+- **`core/qc/`** — Good / Marginal / OOS with four threshold kinds, per-line and
   per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
 - **Seven checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
   qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing.
@@ -175,11 +175,30 @@ problem, since the current flown is recorded per sounding and carried into the
 normalization; what costs quality is the current *moving*. Both are measured, and a large
 nominal offset earns its own separate verdict.
 
+**qc_04's combined verdict was penalizing nominal disagreement** — the module docstring said
+stability carries the verdict and a nominal offset earns a separate one, and the code took the
+worse of the two, so a steady transmitter flying away from its declared nominal failed. Fixed
+to what the docstring said. The nominal thresholds also lost their defaults, since they were
+the only tier thresholds in the library carrying invented round numbers.
+
 **Per-line results are measures, not verdicts** — an earlier form wrote the worst verdict
 found anywhere on a line, which made one bad sounding in five hundred read as a failed line.
 Replaced by the fraction and the longest contiguous run at every grain, with a verdict only
 where a contract supplies a rule. `03` left this open; this resolves it by measuring and not
 deciding.
+
+**The Out of Spec tier is written as `OOS`** — `03` names the tier "Out of Spec", and the
+concept keeps that name in prose and in reports. What lands in the *data* cannot: the survey
+xyz format is whitespace-delimited with no quoting, so a value containing a space becomes
+three fields and the file will not parse back. A sounding with no reasons has the mirror
+problem — an empty string occupies no field at all — and is written `NONE`. Both are the
+format dictating the token, not a change of meaning.
+
+**A weighted grade beside the verdict** — recorded as a dated addition in `03` rather than a
+divergence, since it is new scope rather than a departure. Tiers are worth 0/1/2 points and
+each check carries a weight, so failing lines can be ordered rather than tying at Out of Spec.
+The grade never gates: a mean dilutes and aliases, so the worst-verdict column stays the
+pass/fail and the per-tier fractions are written beside the grade.
 
 **Findings are typed** — not in `03`. A check declares `flight`, `instrument` or
 `environment`, so a failing altimeter does not read as a badly flown line and a powerline

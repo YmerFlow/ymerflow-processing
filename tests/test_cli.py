@@ -14,10 +14,13 @@ from click.testing import CliRunner
 
 from conftest import make_dataset
 from ymerflow_processing.core import cli as cli_module
+from ymerflow_processing.core.dataset import load
 from ymerflow_processing.core.cli import (
     EXIT_GOOD, EXIT_MARGINAL, EXIT_NOT_STARTED, EXIT_OUT_OF_SPEC,
     EXIT_STEP_RAISED, cli,
 )
+from ymerflow_processing.core.qc.rollup import NO_REASON
+from ymerflow_processing.core.qc.thresholds import GOOD, OUT_OF_SPEC
 
 QC_PIPELINE = """
 kind: qc
@@ -240,11 +243,56 @@ def test_verdict_columns_survive_into_the_exported_dataset(
     out = tmp_path / "out"
     run_qc(pipeline_file(QC_PIPELINE), xyz, gex, out)
 
-    header = (out / "20260815.xyz").read_text().splitlines()[0]
-    assert "qs_height" in header          # the check's own verdict
-    assert "qs_verdict" in header         # the rollup across checks
-    assert "ql_frac" in header            # and the line's measures
-    assert "ql_run" in header
+    written = load(out / "20260815.xyz", gex).flightlines
+    assert "qs_height" in written         # the check's own verdict
+    assert "qs_verdict" in written        # the rollup across checks
+    assert "ql_oos" in written            # and the line's measures
+    assert "ql_good" in written
+    assert "ql_run" in written
+
+
+def test_the_written_file_parses_back(delivery, pipeline_file, tmp_path):
+    """The regression that says the output is a file and not just bytes.
+
+    An enriched xyz is whitespace-delimited with no quoting, so two things break
+    it and both did: a tier token containing a space becomes three fields, and
+    an empty string occupies no field at all. Either one and the header's column
+    count stops matching the rows, so the file the client receives will not open.
+
+    Reading it back is the only assertion that catches that. Asserting on the
+    header alone — which is what this file used to do — passes on a file no
+    parser can read.
+    """
+    xyz, gex = delivery(np.full(40, 80.0), n_lines=2, n_flights=1)
+    out = tmp_path / "out"
+    result = run_qc(pipeline_file(QC_PIPELINE), xyz, gex, out)
+    assert result.return_value == EXIT_OUT_OF_SPEC  # so verdicts are present
+
+    written = out / "20260815.xyz"
+    lines = [ln for ln in written.read_text().splitlines() if ln.strip()]
+    # The header is a comment line, so it carries a leading marker the data rows
+    # do not; every row after it must agree with every other.
+    widths = {len(ln.split()) for ln in lines[1:]}
+    assert len(widths) == 1, f"ragged file: rows have {sorted(widths)} fields"
+    assert widths == {len(lines[0].split()) - 1}, "rows do not match the header"
+
+    frame = load(written, gex).flightlines
+    assert (frame["qs_height"] == OUT_OF_SPEC).all()
+    assert (frame["qs_verdict"] == OUT_OF_SPEC).all()
+    # Every sounding carries a reason, including the ones with nothing to say.
+    assert frame["qs_reasons"].notna().all()
+
+
+def test_a_clean_delivery_round_trips_too(delivery, pipeline_file, tmp_path):
+    """The other half of the same bug: nothing wrong is still something to write."""
+    xyz, gex = delivery(np.full(40, 30.0), n_lines=2, n_flights=1)
+    out = tmp_path / "out"
+    result = run_qc(pipeline_file(QC_PIPELINE), xyz, gex, out)
+    assert result.return_value == EXIT_GOOD
+
+    frame = load(out / "20260815.xyz", gex).flightlines
+    assert (frame["qs_verdict"] == GOOD).all()
+    assert (frame["qs_reasons"] == NO_REASON).all()
 
 
 def test_re_running_replaces_that_delivery_and_leaves_others_alone(

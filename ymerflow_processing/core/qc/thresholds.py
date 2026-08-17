@@ -1,4 +1,4 @@
-"""The Good / Marginal / Out of Spec classification every QC check shares.
+"""The Good / Marginal / OOS classification every QC check shares.
 
 Carried over from that prior flight QC panel, which is our own prior work and has
 flown a real survey. Four threshold kinds, distinguished by the shape of the
@@ -39,11 +39,51 @@ import pandas as pd
 
 GOOD = "Good"
 MARGINAL = "Marginal"
-OUT_OF_SPEC = "Out of Spec"
+#: Abbreviated, and not for brevity's sake. The survey xyz format is
+#: whitespace-delimited with no quoting, so a value containing a space becomes
+#: three fields and the file it was written to will not parse back. "Out of
+#: Spec" made every enriched export unreadable. OOS is what the domain says
+#: aloud anyway, and it survives every format this library writes.
+OUT_OF_SPEC = "OOS"
 
 #: Ordered worst-last, so a Categorical built from it sorts and compares the way
 #: severity reads.
 TIERS = (GOOD, MARGINAL, OUT_OF_SPEC)
+
+#: Points per tier, so a grain can be averaged into a single grade. Two for
+#: in-spec, one for Marginal, none for Out of Spec.
+#:
+#: **This treats an ordinal scale as an interval one.** Scoring 0/1/2 asserts
+#: that the step from Out of Spec to Marginal is worth exactly as much as the
+#: step from Marginal to Good, and that is a choice rather than a measurement —
+#: arguably the first step is the one that matters, since it is where data
+#: becomes acceptable at all, while the second is comfort margin. The scale is
+#: kept even because no contract states a different exchange rate, and inventing
+#: one would be the only unstated number in the QC path.
+#:
+#: The consequence to keep in view: a mean aliases. A line averaging 1.0 is
+#: either uniformly Marginal or half Good and half Out of Spec, which are very
+#: different deliveries. That is why the score is reported *alongside* the
+#: per-tier fractions and the contiguous run rather than in place of them —
+#: see :func:`ymerflow_processing.core.qc.aggregate.grain_measures`.
+TIER_POINTS = {OUT_OF_SPEC: 0.0, MARGINAL: 1.0, GOOD: 2.0}
+
+#: The best score obtainable, so a reader can normalize without knowing the
+#: scale and a change of scale does not need chasing through call sites.
+MAX_POINTS = max(TIER_POINTS.values())
+
+
+def score(verdicts) -> np.ndarray:
+    """Each verdict as points, ``NaN`` where nothing was classified.
+
+    NaN rather than zero for the unmeasured: a sounding no check looked at has
+    no grade, and scoring it zero would make an unmeasured line indistinguishable
+    from an entirely failing one — the more alarming of the two readings, for
+    the case that carries the least evidence.
+    """
+    values = pd.Series(np.asarray(verdicts, dtype=object))
+    return pd.to_numeric(values.map(TIER_POINTS), errors="coerce").to_numpy(
+        dtype=float)
 
 CENTERED = "centered"
 ASCENDING = "ascending"
@@ -147,24 +187,24 @@ def describe(spec: dict, unit: str = "") -> dict[str, str]:
 
     if kind == CENTERED:
         g, m = spec["good"], spec["marginal"]
-        return {GOOD: f"Good (<=±{g:g}{suffix})",
-                MARGINAL: f"Marginal (±{g:g}-{m:g}{suffix})",
-                OUT_OF_SPEC: f"Out of Spec (>±{m:g}{suffix})"}
+        return {GOOD: f"{GOOD} (<=±{g:g}{suffix})",
+                MARGINAL: f"{MARGINAL} (±{g:g}-{m:g}{suffix})",
+                OUT_OF_SPEC: f"{OUT_OF_SPEC} (>±{m:g}{suffix})"}
     if kind == ASCENDING:
         g, m = spec["good_max"], spec["marginal_max"]
-        return {GOOD: f"Good (<={g:g}{suffix})",
-                MARGINAL: f"Marginal ({g:g}-{m:g}{suffix})",
-                OUT_OF_SPEC: f"Out of Spec (>{m:g}{suffix})"}
+        return {GOOD: f"{GOOD} (<={g:g}{suffix})",
+                MARGINAL: f"{MARGINAL} ({g:g}-{m:g}{suffix})",
+                OUT_OF_SPEC: f"{OUT_OF_SPEC} (>{m:g}{suffix})"}
     if kind == DESCENDING:
         g, m = spec["good_min"], spec["marginal_min"]
-        return {GOOD: f"Good (>={g:g}{suffix})",
-                MARGINAL: f"Marginal ({m:g}-{g:g}{suffix})",
-                OUT_OF_SPEC: f"Out of Spec (<{m:g}{suffix})"}
+        return {GOOD: f"{GOOD} (>={g:g}{suffix})",
+                MARGINAL: f"{MARGINAL} ({m:g}-{g:g}{suffix})",
+                OUT_OF_SPEC: f"{OUT_OF_SPEC} (<{m:g}{suffix})"}
     gl, gh = spec["good_min"], spec["good_max"]
     ml, mh = spec["marginal_min"], spec["marginal_max"]
-    return {GOOD: f"Good ({gl:g}-{gh:g}{suffix})",
-            MARGINAL: f"Marginal ({ml:g}-{gl:g}, {gh:g}-{mh:g}{suffix})",
-            OUT_OF_SPEC: f"Out of Spec (<{ml:g} or >{mh:g}{suffix})"}
+    return {GOOD: f"{GOOD} ({gl:g}-{gh:g}{suffix})",
+            MARGINAL: f"{MARGINAL} ({ml:g}-{gl:g}, {gh:g}-{mh:g}{suffix})",
+            OUT_OF_SPEC: f"{OUT_OF_SPEC} (<{ml:g} or >{mh:g}{suffix})"}
 
 
 def verdict_columns(frame) -> list[str]:
@@ -204,7 +244,7 @@ def worst_verdict(frame) -> str | None:
 def tier_counts(verdicts) -> dict[str, int]:
     """How many soundings landed in each tier, plus how many got no verdict.
 
-    Every tier appears even at zero — a reader should see "Out of Spec: 0"
+    Every tier appears even at zero — a reader should see "OOS: 0"
     rather than have to infer it from an absence.
     """
     series = pd.Series(pd.Categorical(verdicts, categories=TIERS, ordered=True))

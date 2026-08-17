@@ -4,9 +4,10 @@ Judges whether the transmitter held its output, and whether the system
 description describes the instrument that actually flew. Writes both verdicts as
 columns on ``flightlines`` and the jump events into the report.
 
-**What it does to the dataset:** adds a verdict per sounding per moment, a
-combined verdict, and a nominal-agreement verdict. It changes no measurement, no
-uncertainty and no mask (R6).
+**What it does to the dataset:** adds a stability verdict per sounding per
+moment, a combined stability verdict, the measured offset from nominal per
+moment, and a nominal-agreement verdict only if that comparison was given
+thresholds. It changes no measurement, no uncertainty and no mask (R6).
 
 Stability is the question; agreement with nominal is a second, weaker one
 --------------------------------------------------------------------------
@@ -16,10 +17,17 @@ transmitter holding 105 A against a 110 A nominal produces perfectly
 self-consistent data. What costs data quality is the current *moving*, because
 then the excitation differs between soundings that are later stacked and compared.
 
-So stability carries the verdict. A large offset from nominal earns its own,
-separate verdict — not because the data is wrong, but because the system
-description and the hardware disagree, and everything downstream trusts the
-description. A survey has been seen flying some 26 A away from its declared
+So stability carries the verdict, **alone**. A large offset from nominal earns
+its own separate column and never joins the combined verdict — not because the
+data is wrong, but because the system description and the hardware disagree, and
+everything downstream trusts the description. Folding it into the combined
+verdict would penalize a survey for a paperwork discrepancy, which is exactly
+what "noted, not penalized" rules out.
+
+Like qc_05, the comparison is a reference measurement by default: the offset is
+always computed and written, and a verdict appears only when thresholds are
+supplied. What counts as too far from nominal is an operational judgement, and
+guessing it here would put a house number into a client deliverable. A survey has been seen flying some 26 A away from its declared
 nominal; steady throughout, and still worth knowing before anyone computes a
 dipole moment from the declared figure.
 
@@ -59,9 +67,10 @@ The dipole moment a transmitter produces is proportional to its current
 fractional change in the moment driving the earth. Everything downstream that
 normalizes by moment inherits it.
 
-**Threshold values are contract or operational parameters**, so the stability
-window has no default. The nominal-agreement window defaults to 10% good and 20%
-marginal, which are round numbers rather than measured ones, and both are exposed.
+**Threshold values are contract or operational parameters, so none of them have
+defaults.** The stability window must be given for the check to classify
+anything; the nominal window is optional, and unset leaves the offset measured
+and unjudged.
 """
 
 from __future__ import annotations
@@ -174,12 +183,13 @@ def transmitter_stability(
     dataset,
     good_fraction: float,
     marginal_fraction: float,
-    nominal_good_fraction: float = 0.10,
-    nominal_marginal_fraction: float = 0.20,
+    nominal_good_fraction: float | None = None,
+    nominal_marginal_fraction: float | None = None,
     jump_fraction: float = 0.01,
     columns: dict | None = None,
     output_column: str = "qs_cur",
     nominal_column: str | None = "qs_nom",
+    nominal_offset_prefix: str | None = "nom_",
     per_moment_prefix: str | None = "qs_cur_",
     line_column: str | None = None,
     flight_column: str | None = None,
@@ -193,9 +203,11 @@ def transmitter_stability(
     :param marginal_fraction: Departure beyond which a sounding is Out of Spec.
     :param nominal_good_fraction: Departure of the *mean* current from the
         system description's declared nominal within which the description is
-        considered to describe this instrument. Both directions.
+        considered to describe this instrument. Both directions. **Left unset,
+        the offset is measured and no verdict is produced** — what counts as too
+        far from nominal is an operational judgement, not something to guess.
     :param nominal_marginal_fraction: Beyond which the disagreement is Out of
-        Spec. Defaults are round numbers, not measured ones — adjust per system.
+        Spec. Required if ``nominal_good_fraction`` is given.
     :param jump_fraction: Sounding-to-sounding change, as a fraction of the
         previous value, counted as a sudden step.
     :param columns: ``{channel key or moment name: column}``, when the current
@@ -268,8 +280,21 @@ def transmitter_stability(
 
     stability_spec = {"kind": CENTERED, "good": good_fraction,
                       "marginal": marginal_fraction}
-    nominal_spec = {"kind": CENTERED, "good": nominal_good_fraction,
-                    "marginal": nominal_marginal_fraction}
+    if nominal_good_fraction is None and nominal_marginal_fraction is not None:
+        raise ValueError(
+            "nominal_marginal_fraction was given without nominal_good_fraction; "
+            "a threshold needs both bounds."
+        )
+    if nominal_good_fraction is not None and nominal_marginal_fraction is None:
+        raise ValueError(
+            "nominal_good_fraction was given without nominal_marginal_fraction; "
+            "a threshold needs both bounds."
+        )
+    nominal_spec = (
+        {"kind": CENTERED, "good": nominal_good_fraction,
+         "marginal": nominal_marginal_fraction}
+        if nominal_good_fraction is not None else None
+    )
 
     per_moment, nominal_verdicts, moments_report = [], [], {}
     for channel in channels:
@@ -296,8 +321,18 @@ def transmitter_stability(
         offset = (float((reference - nominal) / abs(nominal))
                   if nominal and np.isfinite(reference) else None)
         if offset is not None:
-            nominal_verdicts.append(
-                classify(np.full(len(frame), offset), nominal_spec))
+            # Written whether or not it is judged, so the comparison is legible
+            # in an export rather than only in the report. Constant across the
+            # survey by construction: it is a property of the mean, not of any
+            # one sounding.
+            if nominal_offset_prefix:
+                name = f"{nominal_offset_prefix}{channel.key}"
+                if name in frame.columns:
+                    report.notes.append(f"Overwrote existing column {name!r}.")
+                frame[name] = offset
+            if nominal_spec is not None:
+                nominal_verdicts.append(
+                    classify(np.full(len(frame), offset), nominal_spec))
 
         jumps = detect_jumps(current, flights, jump_fraction)
         moments_report[str(channel)] = {
@@ -322,14 +357,22 @@ def transmitter_stability(
         if nominal_column in frame.columns:
             report.notes.append(f"Overwrote existing column {nominal_column!r}.")
         frame[nominal_column] = nominal_verdict
-    elif not nominal_verdicts:
+    elif nominal_spec is None:
+        report.notes.append(
+            "No nominal thresholds given, so agreement with the declared nominal "
+            "is measured and left unjudged. Supply nominal_good_fraction and "
+            "nominal_marginal_fraction to classify it."
+        )
+    else:
         report.notes.append(
             "The system description declares no nominal current; agreement with "
             "it is not judged."
         )
 
-    combined = (_worst([stability_verdict, nominal_verdict])
-                if nominal_verdict is not None else stability_verdict)
+    # Stability alone. A steady transmitter that sits away from its declared
+    # nominal produces self-consistent data, and combining the two here would
+    # let a description error fail a survey that flew correctly.
+    combined = stability_verdict
     if output_column in frame.columns:
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = combined
@@ -347,7 +390,10 @@ def transmitter_stability(
         "stability": tier_counts(stability_verdict),
         "thresholds": {
             "stability": describe(stability_spec, "fraction of mean"),
-            "nominal": describe(nominal_spec, "fraction of nominal"),
+            # Absent rather than empty when unset, so a report says plainly that
+            # nominal was measured and not judged.
+            "nominal": (describe(nominal_spec, "fraction of nominal")
+                        if nominal_spec is not None else None),
         },
         "per_moment": moments_report,
     }

@@ -81,7 +81,7 @@ def test_reports_the_distribution_before_and_after():
     _, report = height_above_ground(dataset, **SPEC)
 
     height = report.distributions["height"]
-    assert height["column"] == "tx_altitude"
+    assert height["column"] == "tx_alt"
     assert height["before"]["n"] == 10
     assert height["before"]["max"] == 80.0
     # "After" is what remains if the verdict were acted on.
@@ -152,7 +152,7 @@ def test_the_report_survives_serialization():
 def test_a_missing_height_column_is_a_note_not_an_error():
     """building_plans/03: one configuration, four contexts, no separate paths."""
     dataset = heights(30.0)
-    dataset.flightlines.drop(columns=["tx_altitude"], inplace=True)
+    dataset.flightlines.drop(columns=["tx_alt"], inplace=True)
 
     dataset, report = height_above_ground(dataset, **SPEC)
 
