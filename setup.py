@@ -45,6 +45,8 @@ setup(
             "ymerflow_processing.core.qc.qc_08_altimeter:altimeter_agreement",
             "sounding_density = "
             "ymerflow_processing.core.qc.qc_10_density:sounding_density",
+            "transmitter_stability = "
+            "ymerflow_processing.core.qc.qc_04_current:transmitter_stability",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [],
