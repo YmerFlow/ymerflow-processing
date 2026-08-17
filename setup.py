@@ -20,6 +20,7 @@ setup(
         "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz@master",
         "numpy",
         "pandas>=2.2",    # R5: built against pandas 3.x semantics
+        "geopandas",   # vector export, and R8 external inputs by type
         "pyyaml",
         "click",
     ],
@@ -32,6 +33,8 @@ setup(
         "ymerflow.processing.filters": [
             "select_channels = "
             "ymerflow_processing.core.select_channels:select_channels",
+            "export_vector = "
+            "ymerflow_processing.core.export_vector:export_vector",
         ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [
