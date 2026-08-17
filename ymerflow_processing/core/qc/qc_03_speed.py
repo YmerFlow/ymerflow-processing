@@ -135,8 +135,7 @@ def ground_speed(
     marginal_max: float,
     column: str | None = None,
     time_column: str | None = None,
-    output_column: str = "qc_speed",
-    line_verdict_column: str | None = "ql_speed",
+    output_column: str = "qs_speed",
     line_column: str | None = None,
     unit: str = "km/h",
     scale: float = MS_TO_KMH,
@@ -155,8 +154,6 @@ def ground_speed(
     :param time_column: Which column holds acquisition time, used only when
         deriving. Discovered if unset.
     :param output_column: Where the per-sounding verdict is written.
-    :param line_verdict_column: Where the worst verdict on each line is written,
-        denormalized for export. ``None`` to skip.
     :param line_column: Which column identifies the line. Discovered if unset.
     :param unit: Unit the thresholds are expressed in, for report text.
     :param scale: Multiplier from derived units — distance-units per second, so
@@ -267,11 +264,6 @@ def ground_speed(
     report.distributions["per_line"] = aggregate.per_line(
         verdicts, lines, easting, northing, gap_tolerance=gap_tolerance)
 
-    if line_verdict_column is not None:
-        if line_verdict_column in frame.columns:
-            report.notes.append(f"Overwrote existing column {line_verdict_column!r}.")
-        frame[line_verdict_column] = aggregate.worst_verdict_per_line(
-            verdicts, lines).to_numpy()
 
     log.info(
         "%s: %d soundings %s, %d Good / %d Marginal / %d Out of Spec",

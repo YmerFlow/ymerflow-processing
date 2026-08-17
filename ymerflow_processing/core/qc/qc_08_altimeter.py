@@ -67,9 +67,8 @@ def altimeter_agreement(
     columns,
     good_max: float,
     marginal_max: float,
-    output_column: str = "qc_altim",
+    output_column: str = "qs_altim",
     spread_column: str = "alt_spread",
-    line_verdict_column: str | None = "ql_altim",
     line_column: str | None = None,
     unit: str = "m",
     gap_tolerance: float = 0.0,
@@ -86,8 +85,6 @@ def altimeter_agreement(
     :param spread_column: Where the numeric spread is written. Kept because the
         verdict alone does not say *how far* apart they were, and because a
         later step may want to threshold it differently.
-    :param line_verdict_column: Where the worst verdict on each line is written,
-        denormalized for export. ``None`` to skip.
     :param line_column: Which column identifies the line. Discovered if unset.
     :param unit: Unit of the altimeter columns, for report text.
     :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
@@ -194,11 +191,6 @@ def altimeter_agreement(
     report.distributions["per_line"] = aggregate.per_line(
         verdicts, lines, easting, northing, gap_tolerance=gap_tolerance)
 
-    if line_verdict_column is not None:
-        if line_verdict_column in frame.columns:
-            report.notes.append(f"Overwrote existing column {line_verdict_column!r}.")
-        frame[line_verdict_column] = aggregate.worst_verdict_per_line(
-            verdicts, lines).to_numpy()
 
     log.info(
         "%s: %d soundings across %d altimeters, %d Good / %d Marginal / "

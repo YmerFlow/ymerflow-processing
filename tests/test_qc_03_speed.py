@@ -28,14 +28,14 @@ def speeds(*values, **kw):
 def test_too_slow_and_too_fast_are_both_out_of_spec():
     """The reason this is a window and not an ascending threshold."""
     dataset, _ = ground_speed(speeds(50, 65, 85, 110, 130), **SPEC)
-    assert list(dataset.flightlines["qc_speed"]) == [
+    assert list(dataset.flightlines["qs_speed"]) == [
         OUT_OF_SPEC, MARGINAL, GOOD, MARGINAL, OUT_OF_SPEC]
 
 
 def test_the_window_may_be_asymmetric():
     """What centered cannot express: the good band is not about zero."""
     dataset, _ = ground_speed(speeds(70, 100), **SPEC)
-    assert list(dataset.flightlines["qc_speed"]) == [GOOD, GOOD]
+    assert list(dataset.flightlines["qs_speed"]) == [GOOD, GOOD]
 
 
 def test_which_end_the_breach_was_at_is_reported():
@@ -62,14 +62,14 @@ def test_speed_is_derived_when_the_survey_records_none():
 
     assert report.distributions["speed"]["source"] == "derived from position and time"
     assert report.distributions["speed"]["before"]["max"] == pytest.approx(72.0)
-    assert list(dataset.flightlines["qc_speed"])[1:] == [GOOD] * 3
+    assert list(dataset.flightlines["qs_speed"])[1:] == [GOOD] * 3
 
 
 def test_the_first_sounding_of_a_line_has_no_speed():
     """Nothing preceded it, so there is no step to measure."""
     dataset = make_dataset(n=4, n_lines=1, seconds=[0, 0.5, 1.0, 1.5])
     dataset, _ = ground_speed(dataset, **SPEC)
-    assert pd.isna(dataset.flightlines["qc_speed"][0])
+    assert pd.isna(dataset.flightlines["qs_speed"][0])
 
 
 def test_derivation_does_not_cross_the_turn_between_lines():
@@ -82,7 +82,7 @@ def test_derivation_does_not_cross_the_turn_between_lines():
     dataset = make_dataset(n=6, n_lines=2, seconds=[0, 0.5, 1.0, 1.5, 2.0, 2.5])
     dataset, report = ground_speed(dataset, **SPEC)
 
-    verdicts = list(dataset.flightlines["qc_speed"])
+    verdicts = list(dataset.flightlines["qs_speed"])
     assert pd.isna(verdicts[0])          # first of line 100
     assert pd.isna(verdicts[3])          # first of line 101 — the turn
     assert verdicts[1:3] == [GOOD, GOOD]
@@ -129,23 +129,15 @@ def test_changes_no_measurement_uncertainty_or_mask():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
 
 
-def test_writes_the_denormalized_line_verdict():
-    dataset = make_dataset(n=6, n_lines=2, speed=[85] * 5 + [130])
-    dataset, _ = ground_speed(dataset, **SPEC)
-
-    verdict = dataset.flightlines["ql_speed"]
-    assert list(verdict[:3]) == [GOOD] * 3
-    assert list(verdict[3:]) == [OUT_OF_SPEC] * 3
-
 
 def test_re_running_is_idempotent_and_says_so():
     dataset = speeds(85, 130)
     dataset, first = ground_speed(dataset, **SPEC)
     dataset, second = ground_speed(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qc_speed"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
     assert not any("Overwrote" in n for n in first.notes)
-    assert any("qc_speed" in n and "Overwrote" in n for n in second.notes)
+    assert any("qs_speed" in n and "Overwrote" in n for n in second.notes)
 
 
 # ── The report (R3) ──────────────────────────────────────────────────────────
@@ -189,7 +181,7 @@ def test_neither_recorded_nor_derivable_is_a_note_not_an_error():
     dataset = make_dataset(n=3, n_lines=1)          # no speed, no time
     dataset, report = ground_speed(dataset, **SPEC)
 
-    assert "qc_speed" not in dataset.flightlines.columns
+    assert "qs_speed" not in dataset.flightlines.columns
     assert any("cannot be derived" in n for n in report.notes)
 
 
@@ -202,7 +194,7 @@ def test_an_explicitly_named_column_is_used():
     dataset = speeds(85)
     dataset.flightlines["gps_speed"] = [130.0]
     dataset, _ = ground_speed(dataset, column="gps_speed", **SPEC)
-    assert dataset.flightlines["qc_speed"][0] == OUT_OF_SPEC
+    assert dataset.flightlines["qs_speed"][0] == OUT_OF_SPEC
 
 
 def test_an_empty_dataset_reports_rather_than_raises():
@@ -218,7 +210,7 @@ def test_runs_without_any_channels():
 
     assert dataset.n_channels == 0
     dataset, _ = ground_speed(dataset, **SPEC)
-    assert list(dataset.flightlines["qc_speed"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
 
 
 # ── Registration and the runner ──────────────────────────────────────────────
@@ -242,7 +234,7 @@ def test_all_three_checks_run_from_one_pipeline():
 
     dataset, report = QCRunner(pipeline).run(dataset)
 
-    assert list(dataset.flightlines["qc_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qc_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
-    assert list(dataset.flightlines["qc_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
+    assert list(dataset.flightlines["qs_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
     assert len(report.steps) == 3

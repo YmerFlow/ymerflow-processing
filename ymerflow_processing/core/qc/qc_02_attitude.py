@@ -128,10 +128,9 @@ def system_attitude(
     marginal: float,
     pitch_column: str | None = None,
     roll_column: str | None = None,
-    pitch_output: str = "qc_pitch",
-    roll_output: str = "qc_roll",
-    output_column: str = "qc_tilt",
-    line_verdict_column: str | None = "ql_tilt",
+    pitch_output: str = "qs_pitch",
+    roll_output: str = "qs_roll",
+    output_column: str = "qs_tilt",
     line_column: str | None = None,
     unit: str = "deg",
     gap_tolerance: float = 0.0,
@@ -148,8 +147,6 @@ def system_attitude(
     :param roll_output: Likewise for roll.
     :param output_column: Where the combined verdict — the worse of the two —
         is written, so a later culling step has one column to threshold on.
-    :param line_verdict_column: Where the worst combined verdict on each line is
-        written, denormalized for export. ``None`` to skip.
     :param line_column: Which column identifies the line. Discovered if unset.
     :param unit: Unit of the attitude columns, used in report text only.
     :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
@@ -276,11 +273,6 @@ def system_attitude(
     report.distributions["per_line"] = aggregate.per_line(
         combined, lines, easting, northing, gap_tolerance=gap_tolerance)
 
-    if line_verdict_column is not None:
-        if line_verdict_column in frame.columns:
-            report.notes.append(f"Overwrote existing column {line_verdict_column!r}.")
-        frame[line_verdict_column] = aggregate.worst_verdict_per_line(
-            combined, lines).to_numpy()
 
     log.info(
         "%s: %d soundings, %d Good / %d Marginal / %d Out of Spec across %d line(s)",

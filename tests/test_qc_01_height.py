@@ -27,7 +27,7 @@ def test_writes_a_verdict_column_on_flightlines():
     dataset = heights(30.0, 50.0, 80.0)
     dataset, report = height_above_ground(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qc_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
     assert report.step == "height_above_ground"
 
 
@@ -43,20 +43,6 @@ def test_changes_no_measurement_uncertainty_or_mask():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
 
 
-def test_writes_the_denormalized_line_verdict():
-    """So an exported vector file shows which lines failed without a join."""
-    dataset = make_dataset(n=6, n_lines=2, height=[30.0, 30.0, 30.0, 30.0, 30.0, 80.0])
-    dataset, _ = height_above_ground(dataset, **SPEC)
-
-    line_verdict = dataset.flightlines["ql_height"]
-    assert list(line_verdict[:3]) == [GOOD] * 3
-    assert list(line_verdict[3:]) == [OUT_OF_SPEC] * 3
-
-
-def test_the_line_verdict_can_be_declined():
-    dataset = heights(30.0)
-    dataset, _ = height_above_ground(dataset, line_verdict_column=None, **SPEC)
-    assert "ql_height" not in dataset.flightlines.columns
 
 
 def test_the_output_column_is_nameable():
@@ -73,19 +59,19 @@ def test_re_running_is_idempotent_and_says_so():
     dataset, first = height_above_ground(dataset, **SPEC)
     dataset, second = height_above_ground(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qc_height"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
     assert not any("Overwrote" in n for n in first.notes)
-    assert any("Overwrote existing column 'qc_height'" in n for n in second.notes)
+    assert any("Overwrote existing column 'qs_height'" in n for n in second.notes)
 
 
 def test_a_changed_threshold_replaces_the_earlier_verdict():
     """The verdict is a fact; the threshold is what is legitimately revisable."""
     dataset = heights(50.0)
     dataset, _ = height_above_ground(dataset, good_max=45, marginal_max=65)
-    assert dataset.flightlines["qc_height"][0] == MARGINAL
+    assert dataset.flightlines["qs_height"][0] == MARGINAL
 
     dataset, _ = height_above_ground(dataset, good_max=55, marginal_max=65)
-    assert dataset.flightlines["qc_height"][0] == GOOD
+    assert dataset.flightlines["qs_height"][0] == GOOD
 
 
 # ── The report (R3) ──────────────────────────────────────────────────────────
@@ -170,7 +156,7 @@ def test_a_missing_height_column_is_a_note_not_an_error():
 
     dataset, report = height_above_ground(dataset, **SPEC)
 
-    assert "qc_height" not in dataset.flightlines.columns
+    assert "qs_height" not in dataset.flightlines.columns
     assert any("no height-above-ground column" in n.lower() for n in report.notes)
 
 
@@ -184,14 +170,14 @@ def test_an_explicitly_named_column_is_used():
     dataset = heights(30.0)
     dataset.flightlines["laser_agl"] = [90.0]
     dataset, _ = height_above_ground(dataset, column="laser_agl", **SPEC)
-    assert dataset.flightlines["qc_height"][0] == OUT_OF_SPEC
+    assert dataset.flightlines["qs_height"][0] == OUT_OF_SPEC
 
 
 def test_soundings_with_no_height_get_no_verdict():
     dataset = heights(30.0, np.nan, 80.0)
     dataset, report = height_above_ground(dataset, **SPEC)
 
-    assert pd.isna(dataset.flightlines["qc_height"][1])
+    assert pd.isna(dataset.flightlines["qs_height"][1])
     assert report.distributions["verdicts"]["unclassified"] == 1
 
 
@@ -211,7 +197,7 @@ def test_runs_without_any_channels_at_all():
 
     assert dataset.n_channels == 0
     dataset, report = height_above_ground(dataset, **SPEC)
-    assert list(dataset.flightlines["qc_height"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
 
 
 @pytest.mark.parametrize("moments", [("LM",), ("LM", "HM"), ("LM", "MM", "HM")])
@@ -237,7 +223,7 @@ def test_runs_from_a_yaml_pipeline_with_no_platform():
     """)
     dataset, report = QCRunner(pipeline).run(heights(30.0, 50.0, 80.0))
 
-    assert list(dataset.flightlines["qc_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
     assert len(report.steps) == 1
     assert report.steps[0].params == {"good_max": 45, "marginal_max": 65}
 

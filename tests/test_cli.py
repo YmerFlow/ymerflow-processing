@@ -241,8 +241,10 @@ def test_verdict_columns_survive_into_the_exported_dataset(
     run_qc(pipeline_file(QC_PIPELINE), xyz, gex, out)
 
     header = (out / "20260815.xyz").read_text().splitlines()[0]
-    assert "qc_height" in header
-    assert "ql_height" in header
+    assert "qs_height" in header          # the check's own verdict
+    assert "qs_verdict" in header         # the rollup across checks
+    assert "ql_frac" in header            # and the line's measures
+    assert "ql_run" in header
 
 
 def test_re_running_replaces_that_delivery_and_leaves_others_alone(

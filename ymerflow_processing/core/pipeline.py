@@ -362,7 +362,8 @@ class QCRunner(_Runner):
         # StepReport from this module, so a top-level import back into the qc
         # package would be a cycle waiting to happen as that package grows.
         from .qc.rollup import summarize_run
-        report.rollup = summarize_run(dataset, report.steps)
+        report.rollup = summarize_run(dataset, report.steps,
+                                      self.pipeline.document.get("rollup"))
         return dataset, report
 
 

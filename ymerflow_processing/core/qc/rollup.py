@@ -38,7 +38,19 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ..dataset import find_flight_column
+from .aggregate import apply_rule, grain_measures
 from .thresholds import OUT_OF_SPEC, TIERS
+
+#: The grains a verdict is summarized at, and the prefix each writes under.
+#: One letter per grain, so the scheme reads itself:
+#:
+#:     qs_  this sounding          qf_  its flight
+#:     ql_  its line               qd_  the delivery it arrived in
+#:
+#: A bare name with no prefix is a measurement rather than a verdict.
+GRAINS = ("line", "flight", "dataset")
+GRAIN_PREFIX = {"line": "ql_", "flight": "qf_", "dataset": "qd_"}
 
 #: Which finding kinds roll into which column. A check declaring some other kind
 #: still contributes its reasons, it simply does not feed a summary verdict.
@@ -88,12 +100,34 @@ def _reasons(frame, named_columns) -> list[str]:
     ]
 
 
+def _grain_groups(dataset, frame):
+    """What each coarser grain groups soundings by, and what bounds its runs.
+
+    Runs must never span the turn between two lines, so every grain coarser
+    than a line is segmented by line identity.
+    """
+    xyz = dataset.survey.xyz
+    line_column = xyz.line_id_column
+    lines = (frame[line_column].to_numpy()
+             if line_column and line_column in frame.columns else None)
+
+    flight_column = find_flight_column(frame)
+    flights = (frame[flight_column].to_numpy()
+               if flight_column is not None else None)
+
+    groups = {"line": lines, "flight": flights,
+              # One group covering everything: "how did this delivery do".
+              "dataset": np.zeros(len(frame), dtype=int)}
+    return groups, lines
+
+
 def summarize_run(
     dataset,
     step_reports,
-    verdict_column: str = "qc_verdict",
-    reasons_column: str = "qc_reasons",
-    sensor_column: str = "qc_sensor",
+    rollup: dict | None = None,
+    verdict_column: str = "qs_verdict",
+    reasons_column: str = "qs_reasons",
+    sensor_column: str = "qs_sensor",
 ) -> dict:
     """Write the cross-check rollup onto ``flightlines``.
 
@@ -104,11 +138,11 @@ def summarize_run(
     Three columns, all within the ten characters a shapefile allows for a field
     name, because these are what the export carries:
 
-    ``qc_verdict``
+    ``qs_verdict``
         Worst flight-quality verdict — what a map is colored by.
-    ``qc_reasons``
+    ``qs_reasons``
         Which checks flagged this sounding, e.g. ``height_above_ground;ground_speed``.
-    ``qc_sensor``
+    ``qs_sensor``
         Worst instrument-health verdict, kept apart so a failing altimeter does
         not read as a badly flown line.
 
@@ -135,12 +169,46 @@ def summarize_run(
     frame[sensor_column] = _worst_of(frame, instrument)
     frame[reasons_column] = _reasons(frame, [(s, c) for s, c, _ in contributing])
 
+    # Each coarser grain carries the two measures 03 asks for, and a verdict
+    # only where the contract supplied a rule to produce one.
+    settings = dict(rollup or {})
+    gap_tolerance = float(settings.get("gap_tolerance", 0.0) or 0.0)
+    groups, lines = _grain_groups(dataset, frame)
+    xyz = dataset.survey.xyz
+    has_xy = xyz.x_column in frame.columns and xyz.y_column in frame.columns
+    easting = frame[xyz.x_column].to_numpy() if has_xy else None
+    northing = frame[xyz.y_column].to_numpy() if has_xy else None
+
+    grains: dict = {}
+    for grain in GRAINS:
+        by = groups.get(grain)
+        if by is None:
+            continue
+        prefix = GRAIN_PREFIX[grain]
+        fraction, run = grain_measures(
+            frame[verdict_column], by,
+            segments=None if grain == "line" else lines,
+            easting=easting, northing=northing, gap_tolerance=gap_tolerance)
+        frame[f"{prefix}frac"] = fraction
+        frame[f"{prefix}run"] = run
+
+        rule = settings.get(grain) or {}
+        verdict = apply_rule(fraction, run, rule.get("max_fraction"),
+                             rule.get("max_run"))
+        written = {"fraction": f"{prefix}frac", "run": f"{prefix}run"}
+        if verdict is not None:
+            frame[f"{prefix}verdict"] = verdict
+            written["verdict"] = f"{prefix}verdict"
+        grains[grain] = {"columns": written, "rule": rule or None}
+
     return {
         "columns": {
             "verdict": verdict_column,
             "reasons": reasons_column,
             "sensor": sensor_column,
         },
+        "grains": grains,
+        "gap_tolerance": gap_tolerance,
         # What went into each, so a reader of the report can tell why a rollup
         # says what it says without re-running anything.
         "checks": {step: {"column": column, "finding": finding}

@@ -32,7 +32,7 @@ def test_disagreement_is_the_spread_and_higher_is_worse():
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
     assert list(dataset.flightlines["alt_spread"]) == [0.5, 2.0, 15.0]
-    assert list(dataset.flightlines["qc_altim"]) == [
+    assert list(dataset.flightlines["qs_altim"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -58,7 +58,7 @@ def test_a_lone_reading_has_no_verdict():
     dataset, report = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
     assert pd.isna(dataset.flightlines["alt_spread"][1])
-    assert pd.isna(dataset.flightlines["qc_altim"][1])
+    assert pd.isna(dataset.flightlines["qs_altim"][1])
     assert any("only one altimeter" in n for n in report.notes)
 
 
@@ -73,8 +73,8 @@ def test_height_can_be_in_spec_while_the_altimeters_disagree():
     dataset, _ = height_above_ground(dataset, good_max=45, marginal_max=65)
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
-    assert dataset.flightlines["qc_height"][0] == GOOD           # looks fine
-    assert dataset.flightlines["qc_altim"][0] == OUT_OF_SPEC  # but unknowable
+    assert dataset.flightlines["qs_height"][0] == GOOD           # looks fine
+    assert dataset.flightlines["qs_altim"][0] == OUT_OF_SPEC  # but unknowable
 
 
 # ── Refusing to do the wrong thing ───────────────────────────────────────────
@@ -142,4 +142,4 @@ def test_registered_and_runs_from_a_pipeline():
               marginal_max: 3.0
     """)
     dataset, report = QCRunner(pipeline).run(dataset)
-    assert list(dataset.flightlines["qc_altim"]) == [GOOD, OUT_OF_SPEC]
+    assert list(dataset.flightlines["qs_altim"]) == [GOOD, OUT_OF_SPEC]

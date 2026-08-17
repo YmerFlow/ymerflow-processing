@@ -178,10 +178,9 @@ def transmitter_stability(
     nominal_marginal_fraction: float = 0.20,
     jump_fraction: float = 0.01,
     columns: dict | None = None,
-    output_column: str = "qc_cur",
-    nominal_column: str | None = "qc_nom",
-    per_moment_prefix: str | None = "qc_cur_",
-    line_verdict_column: str | None = "ql_cur",
+    output_column: str = "qs_cur",
+    nominal_column: str | None = "qs_nom",
+    per_moment_prefix: str | None = "qs_cur_",
     line_column: str | None = None,
     flight_column: str | None = None,
     gap_tolerance: float = 0.0,
@@ -208,7 +207,6 @@ def transmitter_stability(
     :param per_moment_prefix: Prefix for the per-moment stability verdicts,
         suffixed with the channel key so the name stays inside the ten
         characters a shapefile field allows. ``None`` to skip them.
-    :param line_verdict_column: Where the worst verdict on each line is written.
     :param line_column: Which column identifies the line. Discovered if unset.
     :param flight_column: Which column identifies the flight, used to keep jump
         detection from flagging each flight's first sample. Discovered if unset.
@@ -375,11 +373,6 @@ def transmitter_stability(
     report.distributions["per_line"] = aggregate.per_line(
         combined, lines, easting, northing, gap_tolerance=gap_tolerance)
 
-    if line_verdict_column is not None:
-        if line_verdict_column in frame.columns:
-            report.notes.append(f"Overwrote existing column {line_verdict_column!r}.")
-        frame[line_verdict_column] = aggregate.worst_verdict_per_line(
-            combined, lines).to_numpy()
 
     log.info("%s: %d soundings across %d moment(s), %d Good / %d Marginal / "
              "%d Out of Spec", STEP, len(frame), len(per_moment),

@@ -61,8 +61,7 @@ def height_above_ground(
     good_max: float,
     marginal_max: float,
     column: str | None = None,
-    output_column: str = "qc_height",
-    line_verdict_column: str | None = "ql_height",
+    output_column: str = "qs_height",
     line_column: str | None = None,
     unit: str = "m",
     gap_tolerance: float = 0.0,
@@ -77,9 +76,6 @@ def height_above_ground(
     :param column: Which ``flightlines`` column holds height above ground. Left
         unset, it is discovered from the survey's own altitude column.
     :param output_column: Where the per-sounding verdict is written.
-    :param line_verdict_column: Where the worst verdict on each line is written,
-        denormalized so an exported vector file shows a client which lines failed
-        without a second table. ``None`` to skip it.
     :param line_column: Which column identifies the line. Discovered if unset.
     :param unit: Unit of the height column, used in report text only.
     :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
@@ -201,13 +197,6 @@ def height_above_ground(
     report.distributions["per_line"] = aggregate.per_line(
         verdicts, lines, easting, northing, gap_tolerance=gap_tolerance
     )
-
-    if line_verdict_column is not None:
-        if line_verdict_column in frame.columns:
-            report.notes.append(f"Overwrote existing column {line_verdict_column!r}.")
-        frame[line_verdict_column] = aggregate.worst_verdict_per_line(
-            verdicts, lines
-        ).to_numpy()
 
     log.info(
         "%s: %d soundings, %d Good / %d Marginal / %d Out of Spec across %d line(s)",

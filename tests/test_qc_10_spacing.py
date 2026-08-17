@@ -40,8 +40,8 @@ def test_the_turn_between_lines_is_not_a_gap_in_coverage():
     dataset, report = sounding_spacing(dataset, **SPEC)
 
     assert report.distributions["spacing"]["before"]["max"] == 10.0
-    assert list(dataset.flightlines["qc_spacing"])[3] is None or pd.isna(
-        dataset.flightlines["qc_spacing"][3])
+    assert list(dataset.flightlines["qs_spacing"])[3] is None or pd.isna(
+        dataset.flightlines["qs_spacing"][3])
 
 
 def test_density_is_the_inverse_of_spacing():
@@ -58,7 +58,7 @@ def test_wider_spacing_is_worse():
     dataset.flightlines["y"] = [0.0] * 4
 
     dataset, _ = sounding_spacing(dataset, **SPEC)
-    assert list(dataset.flightlines["qc_spacing"])[1:] == [
+    assert list(dataset.flightlines["qs_spacing"])[1:] == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -77,7 +77,7 @@ def test_a_repeated_position_has_no_verdict():
 
     dataset, report = sounding_spacing(dataset, **SPEC)
 
-    assert pd.isna(dataset.flightlines["qc_spacing"][1])
+    assert pd.isna(dataset.flightlines["qs_spacing"][1])
     assert any("same position" in n for n in report.notes)
 
 
@@ -93,8 +93,7 @@ def test_the_crs_unit_is_configurable():
 def test_writes_both_the_spacing_and_the_verdict():
     dataset = make_dataset(n=4, n_lines=1)
     dataset, _ = sounding_spacing(dataset, **SPEC)
-    assert {"spacing", "qc_spacing", "ql_spacing"} <= set(
-        dataset.flightlines.columns)
+    assert {"spacing", "qs_spacing"} <= set(dataset.flightlines.columns)
 
 
 def test_reports_the_measurement_both_ways_up():
@@ -138,7 +137,7 @@ def test_no_position_is_a_note_not_an_error():
 
     dataset, report = sounding_spacing(dataset, **SPEC)
 
-    assert "qc_spacing" not in dataset.flightlines.columns
+    assert "qs_spacing" not in dataset.flightlines.columns
     assert any("no position columns" in n.lower() for n in report.notes)
 
 
@@ -159,4 +158,4 @@ def test_registered_and_runs_from_a_pipeline():
           - sounding_spacing: {good_max: 12, marginal_max: 30}
     """)
     dataset, _ = QCRunner(pipeline).run(make_dataset(n=4, n_lines=1))
-    assert list(dataset.flightlines["qc_spacing"])[1:] == [GOOD] * 3
+    assert list(dataset.flightlines["qs_spacing"])[1:] == [GOOD] * 3

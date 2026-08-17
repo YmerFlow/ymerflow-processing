@@ -244,25 +244,69 @@ def per_flight(verdicts, flights, lines=None, easting=None,
                    gap_tolerance=gap_tolerance)
 
 
-def worst_verdict_per_line(verdicts, lines) -> pd.Series:
-    """The most severe verdict on each line, aligned back to every sounding.
+def grain_measures(verdicts, groups, segments=None, easting=None, northing=None,
+                   gap_tolerance: float = 0.0):
+    """Each group's fraction and worst run, broadcast onto every sounding of it.
 
-    ``03`` calls for the per-line verdict to be **denormalized** onto
-    ``flightlines`` — redundant against the per-sounding column, and worth it:
-    the exported vector file then shows a client which lines failed without them
-    needing to join a second table.
+    The two measures ``03`` asks for, at whatever grain the caller groups by —
+    line, flight, or the delivery as a whole — put where a client can see them.
+    They live in the report as well, but a report is not what someone opens in a
+    GIS, and the export is the artifact that leaves the building.
 
-    Deliberately the *worst* verdict and not a rule-based one, because the rule
-    is the open decision this module refuses to prejudge. "The worst thing that
-    happened on this line" is a fact; "this line fails" is a policy.
+    Broadcast rather than aggregated away because a vector export has one row
+    per sounding: repeating the group's figure on each of its soundings is what
+    lets a map be colored by it.
+
+    ``segments`` bounds the contiguous run, and should be the line identity at
+    every grain coarser than a line — a run is a stretch of continuous flying,
+    so it must not span the turn between two lines.
+
+    **Deliberately not a verdict.** An earlier form wrote the worst verdict found
+    anywhere on the line, which made one bad sounding in five hundred read
+    exactly like a line flown out of spec throughout — the crudest possible rule,
+    wearing the same vocabulary as the per-sounding verdict and so certain to be
+    read as a pass or fail. These are measurements; turning them into a verdict
+    needs thresholds, and those come from the contract.
+
+    Returns ``(fraction, run)`` as arrays the length of ``verdicts``.
     """
-    frame = pd.DataFrame({
-        "line": np.asarray(lines),
-        "verdict": pd.Categorical(verdicts, categories=TIERS, ordered=True),
-    })
-    # Categorical max is severity order, given the categories are ordered
-    # worst-last. NaN verdicts drop out rather than dominating.
-    worst = frame.groupby("line", observed=True)["verdict"].max()
-    return frame["line"].map(worst).astype(
-        pd.CategoricalDtype(categories=TIERS, ordered=True)
-    )
+    summary = _rollup(verdicts, groups, easting, northing, segments=segments,
+                      gap_tolerance=gap_tolerance)
+    keys = pd.Series(np.asarray(groups)).astype(str)
+
+    def pick(field):
+        values = keys.map(lambda k: summary.get(k, {}).get(field))
+        return pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
+
+    return (pick("fraction_out_of_spec"),
+            pick("longest_out_of_spec_run_closed_distance"))
+
+
+def apply_rule(fraction, run, max_fraction=None, max_run=None):
+    """Turn the two measures into a verdict, where a contract supplies one.
+
+    Out of Spec when **either** measure trips: they catch different problems —
+    degradation scattered across a line, versus one continuous stretch — so
+    requiring both would miss whichever case the contract was written for. A
+    single long breach on an otherwise clean line is usually the reflight case,
+    and a fraction alone would not see it.
+
+    Two states rather than three. A contract rule says whether the line is
+    acceptable; grading it Marginal as well would need a second pair of
+    thresholds nobody has stated.
+
+    Returns ``None`` when neither threshold is given — no rule, no verdict.
+    """
+    if max_fraction is None and max_run is None:
+        return None
+
+    fraction = np.asarray(fraction, dtype=float)
+    run = np.asarray(run, dtype=float)
+    failed = np.zeros(fraction.shape, dtype=bool)
+    if max_fraction is not None:
+        failed |= np.nan_to_num(fraction, nan=0.0) > max_fraction
+    if max_run is not None:
+        failed |= np.nan_to_num(run, nan=0.0) > max_run
+
+    return pd.Categorical(np.where(failed, OUT_OF_SPEC, GOOD),
+                          categories=TIERS, ordered=True)
