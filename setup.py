@@ -47,6 +47,8 @@ setup(
             "ymerflow_processing.core.qc.qc_10_spacing:sounding_spacing",
             "transmitter_stability = "
             "ymerflow_processing.core.qc.qc_04_current:transmitter_stability",
+            "powerline_noise = "
+            "ymerflow_processing.core.qc.qc_05_powerline:powerline_noise",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [],
