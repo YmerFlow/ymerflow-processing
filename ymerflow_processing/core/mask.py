@@ -298,6 +298,63 @@ def apply_policy(bad, start_gate: int = 0, spread_earlier: int = 0,
     return out
 
 
+def enable(dataset, channel, good, step_code: int) -> dict:
+    """Turn ``good`` back on in the channel's mask, and record who did it.
+
+    **The exception to subtractive culling, and deliberately hard to reach.**
+    Only two steps may call this: filter_21, which nominates gates outright, and
+    filter_33, which replays a manual edit. Everything else only ever removes,
+    which is what keeps order-independence and R4 idempotency nearly free and
+    what stops an automated step quietly undoing a human's judgement.
+
+    The legitimate case is not hypothetical: the early gates filter_20 disables
+    on the vendor's word are exactly what someone doing full primary-field
+    modeling needs back. Writing a mask rather than removing data is what makes
+    that possible at all.
+
+    Provenance records the restoring step's code, and the mask is what
+    disambiguates it: a non-zero code against a **culled** entry says why the
+    datum is off, and the same code against an **in-use** entry says it was
+    deliberately restored. The two arrays are read together, so no third
+    encoding is needed to tell "never culled" from "culled and put back".
+    """
+    key = resolve(dataset, channel)
+    mask = dataset.layer_data[key]
+    why = provenance(dataset, channel)
+
+    good = np.asarray(good, dtype=bool)
+    if good.shape != mask.shape:
+        raise ValueError(
+            f"Asked to enable {good.shape} for channel {channel.key}, whose "
+            f"mask is {mask.shape}."
+        )
+    if step_code <= 0 or step_code > 127:
+        raise ValueError(
+            f"A step code must be 1..127 so its negation fits an int8; "
+            f"got {step_code}"
+        )
+
+    dead = mask.to_numpy() == CULLED
+    restoring = good & dead                    # only what was actually off
+
+    values = mask.to_numpy(copy=True)
+    values[restoring] = IN_USE
+    dataset.layer_data[key] = pd.DataFrame(
+        values, index=mask.index, columns=mask.columns)
+
+    codes = why.to_numpy(copy=True)
+    codes[restoring] = step_code
+    dataset.layer_data[provenance_key(key)] = pd.DataFrame(
+        codes, index=why.index, columns=why.columns)
+
+    return {
+        "channel": str(channel),
+        "culled_before": int(dead.sum()),
+        "restored": int(restoring.sum()),
+        "in_use_after": int((values != CULLED).sum()),
+    }
+
+
 def cull(dataset, channel, bad, step_code: int, direct=None) -> dict:
     """Turn ``bad`` off in the channel's mask, and record who did it.
 

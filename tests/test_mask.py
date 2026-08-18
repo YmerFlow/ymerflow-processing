@@ -14,7 +14,7 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.core.mask import (
     CULLED, IN_USE, UNTOUCHED, apply_policy, cull, ensure, in_use,
-    PROVENANCE_PREFIX, provenance, provenance_key, summarize,
+    PROVENANCE_PREFIX, enable, provenance, provenance_key, summarize,
 )
 
 HEIGHT = 6
@@ -355,3 +355,63 @@ def test_no_nan_ever_reaches_a_mask():
         values = d.layer_data[channel.inuse_key].to_numpy()
         assert np.isfinite(values).all()
         assert set(np.unique(values)) <= {IN_USE, CULLED}
+
+
+# ── Enabling: the guarded exception ──────────────────────────────────────────
+
+def test_enable_turns_data_back_on():
+    d = dataset()
+    channel = d.channels[0]
+    bad = nothing_bad(); bad[:, :3] = True
+    cull(d, channel, bad, step_code=1)
+
+    good = np.zeros((HEIGHT, GATES), dtype=bool); good[:, :2] = True
+    report = enable(d, channel, good, step_code=21)
+
+    values = d.layer_data[channel.inuse_key].to_numpy()
+    assert (values[:, :2] == IN_USE).all()
+    assert (values[:, 2] == CULLED).all()          # not nominated
+    assert report["restored"] == HEIGHT * 2
+
+
+def test_enable_only_counts_what_was_actually_off():
+    """Measured against the mask as found, like everything else."""
+    d = dataset()
+    channel = d.channels[0]
+    bad = nothing_bad(); bad[:, 0] = True
+    cull(d, channel, bad, step_code=1)
+
+    good = np.ones((HEIGHT, GATES), dtype=bool)
+    assert enable(d, channel, good, step_code=21)["restored"] == HEIGHT
+
+
+def test_the_mask_disambiguates_a_provenance_code():
+    """A code against a culled entry says why it is off; the same code against
+    an in-use entry says it was deliberately restored."""
+    d = dataset()
+    channel = d.channels[0]
+    bad = nothing_bad(); bad[:, :2] = True
+    cull(d, channel, bad, step_code=7)
+    good = np.zeros((HEIGHT, GATES), dtype=bool); good[:, 0] = True
+    enable(d, channel, good, step_code=21)
+
+    live = d.layer_data[channel.inuse_key].to_numpy()
+    codes = d.layer_data[provenance_key(channel.inuse_key)].to_numpy()
+
+    assert codes[0, 0] == 21 and live[0, 0] == IN_USE      # restored
+    assert codes[0, 1] == 7 and live[0, 1] == CULLED       # why it is off
+    assert codes[0, 5] == UNTOUCHED and live[0, 5] == IN_USE
+
+
+def test_enable_rejects_a_bad_step_code():
+    d = dataset()
+    good = np.ones((HEIGHT, GATES), dtype=bool)
+    for code in (0, -1, 128):
+        with pytest.raises(ValueError, match="1..127"):
+            enable(d, d.channels[0], good, step_code=code)
+
+
+def test_enable_rejects_a_mismatched_shape():
+    d = dataset()
+    with pytest.raises(ValueError, match="whose\\s+mask is|mask is"):
+        enable(d, d.channels[0], np.ones((2, 2), dtype=bool), step_code=21)

@@ -1097,3 +1097,35 @@ number here would silently cull a client's data.
 
 `min_altitude` has no QC threshold to borrow, because qc_01 is one-sided. It stays unapplied
 rather than invented.
+
+## Addition, 2026-08-18 — filter_21 takes a set or a range, per channel
+
+`01` describes filter_21 as enabling or disabling "one nominated gate outright, by index."
+Two things were left open, and both are cheap to close.
+
+**A set or a range, not one gate.** One-at-a-time is a limit nobody wants, and R1's argument
+applies: the number of gates is data, so the number a person might nominate is too. Accepted
+forms are a single index, a list, or a `"first-last"` range, mixable.
+
+**A range is inclusive.** `"0-4"` names five gates. That sits one filter away from
+`RemoveInitialGates: 5`, which removes the same five — they agree on the outcome and differ in
+what they are, a span against a quantity, which is why one is inclusive at the top and the
+other is not. Worth stating because getting it wrong costs exactly one good gate, silently.
+
+**Indices are positions in the delivered window, 0-based** — the same origin as the gate-time
+axis, since the two are 1:1. They are *not* the vendor's own gate numbers: `libaarhusxyz`
+normalizes the origin away at parse time, so the vendor's numbering is not recoverable from a
+loaded dataset and cannot be what this addresses.
+
+**Two parameters, not one plus a direction flag.** R7's argument against booleans applies —
+`enable: false` reads as "do not enable" rather than "disable", and a reader should not have to
+work out which.
+
+**Enabling is a guarded exception, not a general capability.** `core/mask.py` grew an `enable`
+beside `cull`, callable only by this filter and filter_33. Everything else remains subtractive,
+which is what keeps idempotency nearly free and stops an automated step quietly undoing a
+human's judgement.
+
+The mask disambiguates a provenance code rather than a third encoding doing it: a non-zero code
+against a **culled** entry says why the datum is off, and the same code against an **in-use**
+entry says it was deliberately restored. The two arrays are read together anyway.
