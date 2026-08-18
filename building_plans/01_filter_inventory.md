@@ -1129,3 +1129,32 @@ human's judgement.
 The mask disambiguates a provenance code rather than a third encoding doing it: a non-zero code
 against a **culled** entry says why the datum is off, and the same code against an **in-use**
 entry says it was deliberately restored. The two arrays are read together anyway.
+
+## Addition, 2026-08-19 — the uncertainty array is already a fraction
+
+`01` describes filter_24 as disabling points "whose assigned uncertainty exceeds a threshold,
+**expressed as a fraction of the value**." That phrasing invites dividing the uncertainty by
+the value. Doing so is wrong, and wrong silently.
+
+In this format the uncertainty array already *is* the fraction — AarhusInv's relative standard
+deviation. The forward code confirms it by inverting the operation when it writes uncertainties
+back out:
+
+    std = np.abs(1 / self.inv.invProb.dmisfit.W.diagonal()
+                 / self.inv.invProb.dmisfit.data.dobs)
+
+Dividing by `dobs` to recover the stored value means the stored value was already relative. The
+system description agrees: `UniformDataSTD` is a plain `0.03` — three percent, not an amplitude.
+
+So the comparison is direct, and a threshold of `0.15` means "more than fifteen percent
+uncertainty", which is what an operator means when they say it. Dividing again against a
+response of order 1e-9 would produce a number around 1e7, or its inverse, and cull everything
+or nothing — with no error either way.
+
+The distribution of the compared values is reported for exactly this reason: a delivery
+carrying *absolute* uncertainties would show magnitudes nothing like a percentage, and be
+visible rather than quietly under-culled.
+
+**Uncertainty is not noise.** filter_24 culls what the processing claims to know about a point;
+filter_29 culls where the measurement sits below the ambient noise floor. Both can be true of
+the same datum and neither implies the other.

@@ -45,6 +45,10 @@ setup(
             "filter_20_initial_gates:disable_initial_gates",
             "cull_by_geometry = ymerflow_processing.core.cull."
             "filter_22_geometry:cull_by_geometry",
+            "cull_by_uncertainty = ymerflow_processing.core.cull."
+            "filter_24_uncertainty:cull_by_uncertainty",
+            "cull_negatives = ymerflow_processing.core.cull."
+            "filter_32_negatives:cull_negatives",
             "nominate_gates = ymerflow_processing.core.cull."
             "filter_21_nominate_gates:nominate_gates",
             "cull_sparse_soundings = ymerflow_processing.core.cull."

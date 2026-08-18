@@ -134,6 +134,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`nominate_gates`** (filter_21) — sets named gates either direction, per channel. One of
   only two steps permitted to turn data back on, which is what gives the early gates back to
   anyone doing full primary-field modelling.
+- **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
+  predicates through the shared policy. Negatives need no threshold at all, since zero is not
+  a number anyone chose.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 
