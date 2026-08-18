@@ -123,6 +123,11 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   (filter_20), which is **applied automatically** by `load()` and at the top of every run
   rather than listed in a pipeline — it reads the instrument's own statement about which of its
   samples can be inverted, which is part of reading the file correctly rather than a judgement.
+- **`cull_by_geometry`** (filter_22) — the first real predicate through the mask. Disables
+  whole soundings whose attitude or altitude broke the forward model's geometry assumption.
+  Its limits are restated rather than shared with QC, because a contract limit and a physical
+  one are different numbers — but each defaults to the corresponding QC out-of-spec boundary
+  where one was recorded.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 

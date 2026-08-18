@@ -1067,3 +1067,33 @@ had none — breaking exactly the promise lazy materialization exists to keep. A
 that disagrees with the delivery raises from the explicit step, where someone asked and is
 watching, but only warns from a load: raising there would make an unreadable file out of a
 readable one.
+
+## Addition, 2026-08-18 — culling limits are restated, and default from QC
+
+`01` observes that filter_22 "currently applies its own attitude and altitude thresholds" and
+suggests sharing them with the QC checks would be "a real simplification". The build restates
+them instead, and the reason is worth recording because the suggestion is tempting.
+
+**A contract limit and a physical limit are different numbers.** qc_01 asks whether the
+aircraft was flown as agreed; filter_22 asks whether the forward model's geometry assumption
+still holds. A sounding at 70 m against a 65 m contract is out of spec and still perfectly
+invertible. Forcing the two to be equal makes one of them wrong, and it is not obvious which —
+so the operator would be culling to a contract number or reporting compliance against a
+physics number, without either being stated.
+
+**But they are related**, and "where did QC stop calling this acceptable" is a sensible
+starting point for "where has the geometry broken down". So each limit defaults to the
+corresponding QC threshold where one was recorded — the **out-of-spec boundary**, not the Good
+one, since Marginal is where QC stopped accepting the sounding and Good is where it stopped
+being unremarkable. An explicit value always wins.
+
+That requires a threshold to outlive the run that chose it, since QC and culling are separate
+pipeline documents and usually separate invocations. So the QC checks now record what they
+judged against on the dataset itself, alongside the verdict-column registry.
+
+**No built-in limits.** Unset, with nothing recorded to default from, filter_22 raises. What
+counts as too tilted or too high is an operational judgement about an instrument, and a house
+number here would silently cull a client's data.
+
+`min_altitude` has no QC threshold to borrow, because qc_01 is one-sided. It stays unapplied
+rather than invented.

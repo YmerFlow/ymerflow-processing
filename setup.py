@@ -37,6 +37,8 @@ setup(
             "ymerflow_processing.core.export_vector:export_vector",
             "disable_initial_gates = ymerflow_processing.core.cull."
             "filter_20_initial_gates:disable_initial_gates",
+            "cull_by_geometry = ymerflow_processing.core.cull."
+            "filter_22_geometry:cull_by_geometry",
         ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [

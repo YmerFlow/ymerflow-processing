@@ -285,6 +285,59 @@ def labels(codes):
 #: names cannot contain spaces in this format, which makes that unambiguous.
 VERDICT_REGISTRY = "qc_verdict_columns"
 
+#: Where the thresholds a dataset was judged against are recorded.
+#:
+#: Culling and contract compliance are different questions, so a culling filter
+#: restates its own limits rather than reusing a QC check's — a sounding flown at
+#: 70 m against a 65 m contract is out of spec and still perfectly invertible.
+#: But the two are *related*, and a sensible starting point for "where has the
+#: geometry assumption broken down" is "where did QC stop calling it acceptable".
+#: So a filter can take a QC threshold as its default, which needs the number to
+#: outlive the run that chose it: QC and culling are separate pipeline documents,
+#: often separate invocations.
+#:
+#: Encoded rather than serialized because ``model_info`` round-trips as flat
+#: text — a dict arrives back as an unparseable repr. One space-separated entry
+#: per step, colon-separated fields, ``name=value`` for each parameter.
+THRESHOLD_REGISTRY = "qc_thresholds"
+
+
+def mark_thresholds(dataset, step: str, spec: dict) -> None:
+    """Record what ``step`` judged this dataset against."""
+    known = recorded_thresholds(dataset)
+    known[step] = dict(spec)
+    entries = []
+    for name, values in sorted(known.items()):
+        kind = values.get("kind", "")
+        params = ":".join(f"{k}={v:g}" for k, v in sorted(values.items())
+                          if k != "kind" and isinstance(v, (int, float)))
+        entries.append(f"{name}:{kind}:{params}")
+    dataset.survey.xyz.model_info[THRESHOLD_REGISTRY] = " ".join(entries)
+
+
+def recorded_thresholds(dataset) -> dict[str, dict]:
+    """Every step's threshold specification, as recorded on the dataset."""
+    raw = dataset.survey.xyz.model_info.get(THRESHOLD_REGISTRY) or ""
+    if not isinstance(raw, str):
+        raw = " ".join(map(str, raw))
+
+    out: dict[str, dict] = {}
+    for entry in raw.split():
+        step, _, rest = entry.partition(":")
+        kind, _, params = rest.partition(":")
+        if not step:
+            continue
+        spec: dict = {"kind": kind} if kind else {}
+        for pair in params.split(":"):
+            name, _, value = pair.partition("=")
+            if name and value:
+                try:
+                    spec[name] = float(value)
+                except ValueError:
+                    continue
+        out[step] = spec
+    return out
+
 
 def mark_verdicts(dataset, *names: str) -> None:
     """Record that these ``flightlines`` columns hold verdict codes."""

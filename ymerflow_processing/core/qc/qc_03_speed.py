@@ -60,7 +60,7 @@ from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
     GOOD, MARGINAL, OUT_OF_SPEC, WINDOW, classify, describe, is_tier,
-    mark_verdicts, tier_counts,
+    mark_thresholds, mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -224,6 +224,7 @@ def ground_speed(
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = verdicts
     mark_verdicts(dataset, output_column)
+    mark_thresholds(dataset, STEP, spec)
 
     report.verdict_column = output_column
     report.finding = "flight"

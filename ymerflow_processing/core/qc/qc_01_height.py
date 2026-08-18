@@ -49,7 +49,7 @@ from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
-    mark_verdicts, tier_counts,
+    mark_thresholds, mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -134,6 +134,7 @@ def height_above_ground(
     # inplace= and chained assignment, not ordinary column assignment.
     frame[output_column] = verdicts
     mark_verdicts(dataset, output_column)
+    mark_thresholds(dataset, STEP, spec)
 
     report.verdict_column = output_column
     report.finding = "flight"

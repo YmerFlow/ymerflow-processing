@@ -77,7 +77,7 @@ from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
     CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
-    mark_verdicts, tier_counts, worst_of,
+    mark_thresholds, mark_verdicts, tier_counts, worst_of,
 )
 
 log = logging.getLogger(__name__)
@@ -216,6 +216,7 @@ def system_attitude(
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = combined
     mark_verdicts(dataset, pitch_output, roll_output, output_column)
+    mark_thresholds(dataset, STEP, spec)
 
     report.verdict_column = output_column
     report.finding = "flight"
