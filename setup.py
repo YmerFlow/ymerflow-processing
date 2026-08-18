@@ -49,6 +49,13 @@ setup(
             "filter_24_uncertainty:cull_by_uncertainty",
             "cull_negatives = ymerflow_processing.core.cull."
             "filter_32_negatives:cull_negatives",
+            # filter_14-19: data management, one entry point each.
+            "copy_attribute = ymerflow_processing.core.manage:copy_attribute",
+            "copy_array = ymerflow_processing.core.manage:copy_array",
+            "rename_attribute = ymerflow_processing.core.manage:rename_attribute",
+            "rename_array = ymerflow_processing.core.manage:rename_array",
+            "remove_attribute = ymerflow_processing.core.manage:remove_attribute",
+            "remove_array = ymerflow_processing.core.manage:remove_array",
             "nominate_gates = ymerflow_processing.core.cull."
             "filter_21_nominate_gates:nominate_gates",
             "cull_sparse_soundings = ymerflow_processing.core.cull."
@@ -70,6 +77,8 @@ setup(
             "ymerflow_processing.core.qc.qc_04_current:transmitter_stability",
             "powerline_noise = "
             "ymerflow_processing.core.qc.qc_05_powerline:powerline_noise",
+            "culled_fraction = "
+            "ymerflow_processing.core.qc.qc_12_culled:culled_fraction",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [],

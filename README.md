@@ -109,8 +109,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   all — a scalar magnetometer — correctly reports none.
 - **`core/qc/`** — Good / Marginal / OOS with four threshold kinds, per-line and
   per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
-- **Seven checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
-  qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing.
+- **Eight checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
+  qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing, qc_12 culled fraction —
+  the last of which reads the mask culling wrote, and measures only what *this* pipeline
+  removed rather than what arrived already disabled.
 - **`core/inventory.py`** — the implicit first step of every run: what arrived, what was
   resolved into channels, and what was not. An array no channel claims is invisible rather
   than absent, and every channel-based step steps over it silently.
@@ -137,6 +139,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
+- **`core/manage.py`** (filter_14-19) — copy, rename and remove, for attributes and arrays.
+  Six entry points over one symmetry. They exist to work around import problems, not to do
+  geophysics, and a rename that takes a channel out of the model says so.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 
