@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_03_speed import (
     derive_speed, find_speed_column, ground_speed,
@@ -28,14 +28,14 @@ def speeds(*values, **kw):
 def test_too_slow_and_too_fast_are_both_out_of_spec():
     """The reason this is a window and not an ascending threshold."""
     dataset, _ = ground_speed(speeds(50, 65, 85, 110, 130), **SPEC)
-    assert list(dataset.flightlines["qs_speed"]) == [
+    assert tier_names(dataset.flightlines["qs_speed"]) == [
         OUT_OF_SPEC, MARGINAL, GOOD, MARGINAL, OUT_OF_SPEC]
 
 
 def test_the_window_may_be_asymmetric():
     """What centered cannot express: the good band is not about zero."""
     dataset, _ = ground_speed(speeds(70, 100), **SPEC)
-    assert list(dataset.flightlines["qs_speed"]) == [GOOD, GOOD]
+    assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, GOOD]
 
 
 def test_which_end_the_breach_was_at_is_reported():
@@ -62,7 +62,7 @@ def test_speed_is_derived_when_the_survey_records_none():
 
     assert report.distributions["speed"]["source"] == "derived from position and time"
     assert report.distributions["speed"]["before"]["max"] == pytest.approx(72.0)
-    assert list(dataset.flightlines["qs_speed"])[1:] == [GOOD] * 3
+    assert tier_names(dataset.flightlines["qs_speed"])[1:] == [GOOD] * 3
 
 
 def test_the_first_sounding_of_a_line_has_no_speed():
@@ -82,7 +82,7 @@ def test_derivation_does_not_cross_the_turn_between_lines():
     dataset = make_dataset(n=6, n_lines=2, seconds=[0, 0.5, 1.0, 1.5, 2.0, 2.5])
     dataset, report = ground_speed(dataset, **SPEC)
 
-    verdicts = list(dataset.flightlines["qs_speed"])
+    verdicts = tier_names(dataset.flightlines["qs_speed"])
     assert pd.isna(verdicts[0])          # first of line 100
     assert pd.isna(verdicts[3])          # first of line 101 — the turn
     assert verdicts[1:3] == [GOOD, GOOD]
@@ -135,7 +135,7 @@ def test_re_running_is_idempotent_and_says_so():
     dataset, first = ground_speed(dataset, **SPEC)
     dataset, second = ground_speed(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
     assert not any("Overwrote" in n for n in first.notes)
     assert any("qs_speed" in n and "Overwrote" in n for n in second.notes)
 
@@ -194,7 +194,7 @@ def test_an_explicitly_named_column_is_used():
     dataset = speeds(85)
     dataset.flightlines["gps_speed"] = [130.0]
     dataset, _ = ground_speed(dataset, column="gps_speed", **SPEC)
-    assert dataset.flightlines["qs_speed"][0] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_speed"])[0] == OUT_OF_SPEC
 
 
 def test_an_empty_dataset_reports_rather_than_raises():
@@ -210,7 +210,7 @@ def test_runs_without_any_channels():
 
     assert dataset.n_channels == 0
     dataset, _ = ground_speed(dataset, **SPEC)
-    assert list(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
 
 
 # ── Registration and the runner ──────────────────────────────────────────────
@@ -234,7 +234,7 @@ def test_all_three_checks_run_from_one_pipeline():
 
     dataset, report = QCRunner(pipeline).run(dataset)
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
-    assert list(dataset.flightlines["qs_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
+    assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
     assert len(report.steps) == 3

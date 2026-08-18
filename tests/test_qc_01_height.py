@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_01_height import height_above_ground
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -27,7 +27,7 @@ def test_writes_a_verdict_column_on_flightlines():
     dataset = heights(30.0, 50.0, 80.0)
     dataset, report = height_above_ground(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
     assert report.step == "height_above_ground"
 
 
@@ -59,7 +59,7 @@ def test_re_running_is_idempotent_and_says_so():
     dataset, first = height_above_ground(dataset, **SPEC)
     dataset, second = height_above_ground(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
     assert not any("Overwrote" in n for n in first.notes)
     assert any("Overwrote existing column 'qs_height'" in n for n in second.notes)
 
@@ -68,10 +68,10 @@ def test_a_changed_threshold_replaces_the_earlier_verdict():
     """The verdict is a fact; the threshold is what is legitimately revisable."""
     dataset = heights(50.0)
     dataset, _ = height_above_ground(dataset, good_max=45, marginal_max=65)
-    assert dataset.flightlines["qs_height"][0] == MARGINAL
+    assert tier_names(dataset.flightlines["qs_height"])[0] == MARGINAL
 
     dataset, _ = height_above_ground(dataset, good_max=55, marginal_max=65)
-    assert dataset.flightlines["qs_height"][0] == GOOD
+    assert tier_names(dataset.flightlines["qs_height"])[0] == GOOD
 
 
 # ── The report (R3) ──────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ def test_an_explicitly_named_column_is_used():
     dataset = heights(30.0)
     dataset.flightlines["laser_agl"] = [90.0]
     dataset, _ = height_above_ground(dataset, column="laser_agl", **SPEC)
-    assert dataset.flightlines["qs_height"][0] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_height"])[0] == OUT_OF_SPEC
 
 
 def test_soundings_with_no_height_get_no_verdict():
@@ -197,7 +197,7 @@ def test_runs_without_any_channels_at_all():
 
     assert dataset.n_channels == 0
     dataset, report = height_above_ground(dataset, **SPEC)
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
 
 
 @pytest.mark.parametrize("moments", [("LM",), ("LM", "HM"), ("LM", "MM", "HM")])
@@ -223,7 +223,7 @@ def test_runs_from_a_yaml_pipeline_with_no_platform():
     """)
     dataset, report = QCRunner(pipeline).run(heights(30.0, 50.0, 80.0))
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
     assert len(report.steps) == 1
     assert report.steps[0].params == {"good_max": 45, "marginal_max": 65}
 

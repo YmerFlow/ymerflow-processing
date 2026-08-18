@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_02_attitude import system_attitude
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -28,7 +28,7 @@ def test_deviation_either_way_is_equal():
     dataset = attitude([0, 5, -5, 6, -6, 9, -9], [0] * 7)
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_pitch"]) == [
+    assert tier_names(dataset.flightlines["qs_pitch"]) == [
         GOOD, GOOD, GOOD, MARGINAL, MARGINAL, OUT_OF_SPEC, OUT_OF_SPEC]
 
 
@@ -36,8 +36,8 @@ def test_the_two_axes_are_judged_independently():
     dataset = attitude(pitch=[0, 9], roll=[9, 0])
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_pitch"]) == [GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_roll"]) == [OUT_OF_SPEC, GOOD]
+    assert tier_names(dataset.flightlines["qs_pitch"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_roll"]) == [OUT_OF_SPEC, GOOD]
 
 
 def test_the_combined_verdict_is_the_worse_of_the_two():
@@ -45,7 +45,7 @@ def test_the_combined_verdict_is_the_worse_of_the_two():
     dataset = attitude(pitch=[0, 6, 0, 9], roll=[0, 0, 9, 6])
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_tilt"]) == [
+    assert tier_names(dataset.flightlines["qs_tilt"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC, OUT_OF_SPEC]
 
 
@@ -54,7 +54,7 @@ def test_a_sounding_missing_one_axis_has_no_attitude_verdict():
     dataset = attitude(pitch=[1.0, 1.0], roll=[1.0, np.nan])
     dataset, _ = system_attitude(dataset, **SPEC)
 
-    assert dataset.flightlines["qs_pitch"][1] == GOOD      # pitch is still judged
+    assert tier_names(dataset.flightlines["qs_pitch"])[1] == GOOD      # pitch is still judged
     assert pd.isna(dataset.flightlines["qs_roll"][1])
     assert pd.isna(dataset.flightlines["qs_tilt"][1])
 
@@ -73,7 +73,7 @@ def test_two_axes_inside_spec_can_combine_past_it():
     dataset = attitude([5.0], [5.0])
     dataset, report = system_attitude(dataset, **SPEC)
 
-    assert dataset.flightlines["qs_tilt"][0] == GOOD        # both axes pass
+    assert tier_names(dataset.flightlines["qs_tilt"])[0] == GOOD        # both axes pass
     assert report.distributions["total_tilt"]["before"]["max"] == pytest.approx(
         7.07, abs=0.01)                                         # yet 7.07 total
 
@@ -114,7 +114,7 @@ def test_a_genuinely_level_flight_is_not_flagged():
 def test_a_zeroed_axis_is_still_classified():
     """Flagged, not skipped — the verdict is what it is, with a caveat attached."""
     dataset, _ = system_attitude(attitude([0.0] * 3, [1.0] * 3), **SPEC)
-    assert list(dataset.flightlines["qs_pitch"]) == [GOOD] * 3
+    assert tier_names(dataset.flightlines["qs_pitch"]) == [GOOD] * 3
 
 
 # ── What it writes ───────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ def test_re_running_is_idempotent_and_says_so():
     dataset, first = system_attitude(dataset, **SPEC)
     dataset, second = system_attitude(dataset, **SPEC)
 
-    assert list(dataset.flightlines["qs_pitch"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_pitch"]) == [GOOD, OUT_OF_SPEC]
     assert not any("Overwrote" in n for n in first.notes)
     assert any("qs_pitch" in n and "Overwrote" in n for n in second.notes)
 
@@ -213,7 +213,7 @@ def test_one_axis_present_is_a_note_and_still_judged():
 
     dataset, report = system_attitude(dataset, **SPEC)
 
-    assert dataset.flightlines["qs_tilt"][0] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_tilt"])[0] == OUT_OF_SPEC
     assert any("that axis alone" in n for n in report.notes)
 
 
@@ -226,7 +226,7 @@ def test_an_explicitly_named_column_is_used():
     dataset = attitude([1.0], [1.0])
     dataset.flightlines["boom_pitch"] = [30.0]
     dataset, _ = system_attitude(dataset, pitch_column="boom_pitch", **SPEC)
-    assert dataset.flightlines["qs_pitch"][0] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_pitch"])[0] == OUT_OF_SPEC
 
 
 def test_an_empty_dataset_reports_rather_than_raises():
@@ -244,7 +244,7 @@ def test_runs_without_any_channels():
 
     assert dataset.n_channels == 0
     dataset, _ = system_attitude(dataset, **SPEC)
-    assert list(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC]
 
 
 # ── Registration and the runner ──────────────────────────────────────────────
@@ -266,6 +266,6 @@ def test_runs_alongside_qc_01_from_one_pipeline():
 
     dataset, report = QCRunner(pipeline).run(dataset)
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
     assert len(report.steps) == 2

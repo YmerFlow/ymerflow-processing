@@ -59,7 +59,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    GOOD, MARGINAL, OUT_OF_SPEC, WINDOW, classify, describe, tier_counts,
+    GOOD, MARGINAL, OUT_OF_SPEC, WINDOW, classify, describe, is_tier,
+    mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -222,13 +223,14 @@ def ground_speed(
     if output_column in frame.columns:
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = verdicts
+    mark_verdicts(dataset, output_column)
 
     report.verdict_column = output_column
     report.finding = "flight"
     counts = tier_counts(verdicts)
     report.soundings_affected = counts[OUT_OF_SPEC]
 
-    kept = np.asarray(verdicts != OUT_OF_SPEC)
+    kept = ~is_tier(verdicts, OUT_OF_SPEC)
     report.distributions = {
         "speed": {
             "source": source,

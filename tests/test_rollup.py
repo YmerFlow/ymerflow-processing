@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import Pipeline, QCRunner
 from ymerflow_processing.core.qc.rollup import NO_REASON
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -51,9 +51,9 @@ def test_the_per_check_columns_are_untouched():
                            roll=[0, 0], speed=[85, 140])
     dataset, _ = run(ALL_THREE, dataset)
 
-    assert list(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, OUT_OF_SPEC]
 
 
 def test_one_reason_lists_only_that_one():
@@ -69,9 +69,9 @@ def test_marginal_is_not_a_reason():
                            speed=[85])
     dataset, _ = run(ALL_THREE, dataset)
 
-    assert dataset.flightlines["qs_height"][0] == MARGINAL
+    assert tier_names(dataset.flightlines["qs_height"])[0] == MARGINAL
     assert dataset.flightlines["qs_reasons"][0] == NO_REASON
-    assert dataset.flightlines["qs_verdict"][0] == MARGINAL
+    assert tier_names(dataset.flightlines["qs_verdict"])[0] == MARGINAL
 
 
 # ── Flight quality and instrument health stay apart ──────────────────────────
@@ -96,8 +96,8 @@ def test_a_dead_sensor_does_not_read_as_a_bad_flight():
     dataset = altimeter_dataset([30, 30, 30], [30, 30, 30], [30.1, 55, 55])
     dataset, _ = run(WITH_ALTIMETERS, dataset)
 
-    assert list(dataset.flightlines["qs_verdict"]) == [GOOD] * 3
-    assert list(dataset.flightlines["qs_sensor"]) == [
+    assert tier_names(dataset.flightlines["qs_verdict"]) == [GOOD] * 3
+    assert tier_names(dataset.flightlines["qs_sensor"]) == [
         GOOD, OUT_OF_SPEC, OUT_OF_SPEC]
 
 
@@ -112,8 +112,8 @@ def test_a_bad_flight_and_a_bad_sensor_are_both_visible():
     dataset = altimeter_dataset([30, 80], [30, 30], [30.1, 55])
     dataset, _ = run(WITH_ALTIMETERS, dataset)
 
-    assert list(dataset.flightlines["qs_verdict"]) == [GOOD, OUT_OF_SPEC]
-    assert list(dataset.flightlines["qs_sensor"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_verdict"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_sensor"]) == [GOOD, OUT_OF_SPEC]
     assert set(dataset.flightlines["qs_reasons"][1].split(";")) == {
         "height_above_ground", "altimeter_agreement"}
 
@@ -124,7 +124,7 @@ def test_the_verdict_is_the_worst_across_flight_checks():
     dataset = make_dataset(n=3, n_lines=1, height=[30, 50, 80], pitch=[0] * 3,
                            roll=[0] * 3, speed=[85] * 3)
     dataset, _ = run(ALL_THREE, dataset)
-    assert list(dataset.flightlines["qs_verdict"]) == [
+    assert tier_names(dataset.flightlines["qs_verdict"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -136,7 +136,7 @@ def test_an_unmeasured_check_does_not_suppress_a_certain_finding():
     dataset, _ = run(ALL_THREE, dataset)
 
     assert pd.isna(dataset.flightlines["qs_height"][0])
-    assert dataset.flightlines["qs_verdict"][0] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_verdict"])[0] == OUT_OF_SPEC
 
 
 def test_a_sounding_no_check_could_judge_has_no_verdict():

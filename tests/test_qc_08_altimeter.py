@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_01_height import height_above_ground
 from ymerflow_processing.core.qc.qc_08_altimeter import altimeter_agreement
@@ -32,7 +32,7 @@ def test_disagreement_is_the_spread_and_higher_is_worse():
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
     assert list(dataset.flightlines["alt_spread"]) == [0.5, 2.0, 15.0]
-    assert list(dataset.flightlines["qs_altim"]) == [
+    assert tier_names(dataset.flightlines["qs_altim"]) == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -73,8 +73,8 @@ def test_height_can_be_in_spec_while_the_altimeters_disagree():
     dataset, _ = height_above_ground(dataset, good_max=45, marginal_max=65)
     dataset, _ = altimeter_agreement(dataset, ["laser", "radar"], **SPEC)
 
-    assert dataset.flightlines["qs_height"][0] == GOOD           # looks fine
-    assert dataset.flightlines["qs_altim"][0] == OUT_OF_SPEC  # but unknowable
+    assert tier_names(dataset.flightlines["qs_height"])[0] == GOOD           # looks fine
+    assert tier_names(dataset.flightlines["qs_altim"])[0] == OUT_OF_SPEC  # but unknowable
 
 
 # ── Refusing to do the wrong thing ───────────────────────────────────────────
@@ -142,4 +142,4 @@ def test_registered_and_runs_from_a_pipeline():
               marginal_max: 3.0
     """)
     dataset, report = QCRunner(pipeline).run(dataset)
-    assert list(dataset.flightlines["qs_altim"]) == [GOOD, OUT_OF_SPEC]
+    assert tier_names(dataset.flightlines["qs_altim"]) == [GOOD, OUT_OF_SPEC]

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_05_powerline import (
     find_powerline_column, local_excess, powerline_noise,
@@ -48,7 +48,7 @@ def test_with_thresholds_it_classifies():
     values[100:104] += 400
     dataset, report = powerline_noise(monitor(values), **SPEC)
 
-    assert dataset.flightlines["qs_pline"][101] == OUT_OF_SPEC
+    assert tier_names(dataset.flightlines["qs_pline"])[101] == OUT_OF_SPEC
     assert report.verdict_column == "qs_pline"
     assert report.finding == "environment"
 
@@ -70,8 +70,8 @@ def test_a_crossing_is_found_at_any_baseline():
     dataset, _ = powerline_noise(monitor(values), **SPEC)
     verdicts = dataset.flightlines["qs_pline"]
 
-    assert verdicts[81] == OUT_OF_SPEC
-    assert verdicts[301] == OUT_OF_SPEC
+    assert tier_names(verdicts)[81] == OUT_OF_SPEC
+    assert tier_names(verdicts)[301] == OUT_OF_SPEC
 
 
 def test_a_change_of_region_is_not_a_peak():
@@ -182,8 +182,8 @@ def test_it_feeds_neither_the_flight_nor_the_sensor_verdict():
     """)).run(dataset)
 
     row = dataset.flightlines.iloc[101]
-    assert row["qs_pline"] == OUT_OF_SPEC
-    assert row["qs_verdict"] == GOOD          # the flying was fine
+    assert tier_names([row["qs_pline"]])[0] == OUT_OF_SPEC
+    assert tier_names([row["qs_verdict"]])[0] == GOOD          # the flying was fine
     assert pd.isna(row["qs_sensor"])          # no instrument check ran
     assert "powerline_noise" in row["qs_reasons"]
 

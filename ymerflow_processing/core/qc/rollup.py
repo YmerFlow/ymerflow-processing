@@ -40,7 +40,9 @@ import pandas as pd
 
 from ..dataset import find_flight_column
 from .aggregate import apply_rule, grain_measures
-from .thresholds import MAX_POINTS, OUT_OF_SPEC, TIERS, score
+from .thresholds import (
+    MAX_POINTS, OUT_OF_SPEC, is_tier, mark_verdicts, score, worst_of,
+)
 
 #: The grains a verdict is summarized at, and the prefix each writes under.
 #: One letter per grain, so the scheme reads itself:
@@ -108,7 +110,7 @@ DEFAULT_WEIGHTS = {
 UNWEIGHTED = 1.0
 
 
-def _worst_of(frame, columns) -> pd.Categorical:
+def _worst_of(frame, columns) -> np.ndarray:
     """The most severe verdict across ``columns``, per sounding.
 
     Missing only where *every* contributing column is missing. Unlike the two
@@ -118,14 +120,8 @@ def _worst_of(frame, columns) -> pd.Categorical:
     finding that is already certain.
     """
     if not columns:
-        return pd.Categorical([None] * len(frame), categories=TIERS, ordered=True)
-
-    codes = np.vstack([
-        pd.Categorical(frame[c], categories=TIERS, ordered=True).codes
-        for c in columns
-    ])
-    worst = codes.max(axis=0)               # -1 only if every column is -1
-    return pd.Categorical.from_codes(worst, categories=TIERS, ordered=True)
+        return np.full(len(frame), np.nan)
+    return worst_of([frame[c] for c in columns])
 
 
 def _score_of(frame, named_columns, weights) -> np.ndarray:
@@ -198,8 +194,7 @@ def _reasons(frame, named_columns) -> list[str]:
     all, so the row comes back one column short and the file will not parse.
     """
     flags = {
-        name: (pd.Categorical(frame[column], categories=TIERS, ordered=True)
-               == OUT_OF_SPEC)
+        name: is_tier(frame[column], OUT_OF_SPEC)
         for name, column in named_columns
     }
     if not flags:
@@ -278,6 +273,7 @@ def summarize_run(
 
     frame[verdict_column] = _worst_of(frame, flight)
     frame[sensor_column] = _worst_of(frame, instrument)
+    mark_verdicts(dataset, verdict_column, sensor_column)
     frame[reasons_column] = _reasons(frame, [(s, c) for s, c, _ in contributing])
 
     settings = dict(rollup or {})
@@ -343,6 +339,7 @@ def summarize_run(
                              rule.get("max_fraction"), rule.get("max_run"))
         if verdict is not None:
             frame[f"{prefix}verdict"] = verdict
+            mark_verdicts(dataset, f"{prefix}verdict")
             written["verdict"] = f"{prefix}verdict"
         grains[grain] = {"columns": written, "rule": rule or None}
 

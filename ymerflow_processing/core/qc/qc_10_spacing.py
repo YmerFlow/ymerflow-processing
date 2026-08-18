@@ -64,7 +64,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, tier_counts,
+    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
+    mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -176,13 +177,14 @@ def sounding_spacing(
             report.notes.append(f"Overwrote existing column {name!r}.")
     frame[spacing_column] = spacing
     frame[output_column] = verdicts
+    mark_verdicts(dataset, output_column)
 
     report.verdict_column = output_column
     report.finding = "flight"
     counts = tier_counts(verdicts)
     report.soundings_affected = counts[OUT_OF_SPEC]
 
-    kept = np.asarray(verdicts != OUT_OF_SPEC)
+    kept = ~is_tier(verdicts, OUT_OF_SPEC)
     report.distributions = {
         "density": {
             "unit": "soundings/km",

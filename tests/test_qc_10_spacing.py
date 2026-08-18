@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_10_spacing import (
     along_line_spacing, sounding_spacing,
@@ -40,7 +40,7 @@ def test_the_turn_between_lines_is_not_a_gap_in_coverage():
     dataset, report = sounding_spacing(dataset, **SPEC)
 
     assert report.distributions["spacing"]["before"]["max"] == 10.0
-    assert list(dataset.flightlines["qs_spacing"])[3] is None or pd.isna(
+    assert tier_names(dataset.flightlines["qs_spacing"])[3] is None or pd.isna(
         dataset.flightlines["qs_spacing"][3])
 
 
@@ -58,7 +58,7 @@ def test_wider_spacing_is_worse():
     dataset.flightlines["y"] = [0.0] * 4
 
     dataset, _ = sounding_spacing(dataset, **SPEC)
-    assert list(dataset.flightlines["qs_spacing"])[1:] == [
+    assert tier_names(dataset.flightlines["qs_spacing"])[1:] == [
         GOOD, MARGINAL, OUT_OF_SPEC]
 
 
@@ -158,4 +158,4 @@ def test_registered_and_runs_from_a_pipeline():
           - sounding_spacing: {good_max: 12, marginal_max: 30}
     """)
     dataset, _ = QCRunner(pipeline).run(make_dataset(n=4, n_lines=1))
-    assert list(dataset.flightlines["qs_spacing"])[1:] == [GOOD] * 3
+    assert tier_names(dataset.flightlines["qs_spacing"])[1:] == [GOOD] * 3

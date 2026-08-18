@@ -94,7 +94,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, tier_counts,
+    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
+    mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -256,6 +257,7 @@ def powerline_noise(
         if output_column in frame.columns:
             report.notes.append(f"Overwrote existing column {output_column!r}.")
         frame[output_column] = verdicts
+        mark_verdicts(dataset, output_column)
 
         report.verdict_column = output_column
         # A powerline is a fact about the ground: not the contractor's doing,
@@ -271,7 +273,7 @@ def powerline_noise(
             "Supply good_max and marginal_max to classify it."
         )
 
-    kept = (np.asarray(verdicts != OUT_OF_SPEC) if verdicts is not None
+    kept = (~is_tier(verdicts, OUT_OF_SPEC) if verdicts is not None
             else np.ones(len(frame), dtype=bool))
     report.distributions = {
         "excess": {

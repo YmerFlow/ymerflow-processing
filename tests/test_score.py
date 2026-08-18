@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import Pipeline, QCRunner
 from ymerflow_processing.core.qc.rollup import (
     DEFAULT_WEIGHTS, UNWEIGHTED, summarize_run,
@@ -68,7 +68,7 @@ def test_a_light_check_failing_grades_well_and_still_fails():
     """, height=np.full(40, 30.0), speed=np.full(40, 45.0))
 
     row = dataset.flightlines.iloc[0]
-    assert row["qs_verdict"] == OUT_OF_SPEC          # the gate is unmoved
+    assert tier_names([row["qs_verdict"]])[0] == OUT_OF_SPEC          # the gate is unmoved
     assert row["qs_score"] == pytest.approx(4.0 / 2.25)
     assert row["qs_score"] > 0.75 * MAX_POINTS       # and the grade barely dips
 
@@ -84,7 +84,7 @@ def test_a_heavy_check_failing_drags_the_grade_down_hard():
     """, height=np.full(40, 90.0), speed=np.full(40, 20.0))
 
     row = dataset.flightlines.iloc[0]
-    assert row["qs_verdict"] == OUT_OF_SPEC
+    assert tier_names([row["qs_verdict"]])[0] == OUT_OF_SPEC
     assert row["qs_score"] == pytest.approx(0.5 / 2.25)
     assert row["qs_score"] < 0.25 * MAX_POINTS
 
@@ -97,7 +97,7 @@ def test_a_clean_sounding_scores_the_maximum():
     """, height=np.full(40, 30.0))
 
     assert (dataset.flightlines["qs_score"] == MAX_POINTS).all()
-    assert (dataset.flightlines["qs_verdict"] == GOOD).all()
+    assert set(tier_names(dataset.flightlines["qs_verdict"])) == {GOOD}
 
 
 # ── Weights ──────────────────────────────────────────────────────────────────

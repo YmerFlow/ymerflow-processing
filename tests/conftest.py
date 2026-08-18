@@ -20,7 +20,20 @@ from libaarhusxyz.gex import GEX
 from libaarhusxyz.xyz import XYZ
 
 from ymerflow_processing.core.dataset import Dataset
+from ymerflow_processing.core.qc.thresholds import labels
 from ymerflow_processing.em.tem.method import TEMMethod
+
+
+def tier_names(codes):
+    """Verdict codes back to tier names, for readable assertions.
+
+    Verdicts are stored as float32 codes so the frontend can plot them — a
+    string column fails its ``ArrayBuffer.isView`` filter and never appears at
+    all. Tests still assert in the vocabulary the domain uses, because
+    ``== [GOOD, GOOD, OOS]`` says what a test means and ``== [2.0, 2.0, 0.0]``
+    does not.
+    """
+    return labels(codes)
 
 
 def make_gex(moments=("LM", "HM"), n_gates=8, turns=(1.0, 4.0), currents=(9.0, 110.0),

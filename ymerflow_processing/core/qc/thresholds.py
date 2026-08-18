@@ -34,6 +34,8 @@ the rule they are computed by needs to be one anybody can state.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -76,14 +78,19 @@ MAX_POINTS = max(TIER_POINTS.values())
 def score(verdicts) -> np.ndarray:
     """Each verdict as points, ``NaN`` where nothing was classified.
 
+    Now that verdicts are stored as codes on this very scale, this is the
+    identity for anything :func:`classify` produced, and kept only so callers
+    read as what they mean and so a label-valued input still works.
+
     NaN rather than zero for the unmeasured: a sounding no check looked at has
     no grade, and scoring it zero would make an unmeasured line indistinguishable
     from an entirely failing one — the more alarming of the two readings, for
     the case that carries the least evidence.
     """
     values = pd.Series(np.asarray(verdicts, dtype=object))
-    return pd.to_numeric(values.map(TIER_POINTS), errors="coerce").to_numpy(
-        dtype=float)
+    numeric = pd.to_numeric(values, errors="coerce")
+    return numeric.where(numeric.notna(),
+                         values.map(TIER_POINTS)).to_numpy(dtype=float)
 
 CENTERED = "centered"
 ASCENDING = "ascending"
@@ -138,17 +145,32 @@ def validate_spec(spec: dict) -> str:
     return kind
 
 
-def classify(values, spec: dict) -> pd.Categorical:
-    """Classify ``values`` as Good / Marginal / Out of Spec against ``spec``.
+def classify(values, spec: dict) -> np.ndarray:
+    """Classify ``values`` against ``spec``, as verdict codes.
 
-    Missing values stay missing — a sounding with no measurement has no verdict,
-    which is different from failing one. Returns an ordered
-    :class:`pandas.Categorical` so that "worse than Marginal" is expressible
-    directly and the column sorts by severity.
+    Returns ``float32`` codes on the :data:`TIER_POINTS` scale — 0 Out of Spec,
+    1 Marginal, 2 Good — with ``NaN`` where nothing was measured. A sounding
+    with no measurement has no verdict, which is different from failing one.
+
+    **Numeric rather than labelled, because a string column is invisible
+    downstream.** YmerFlow's plot layer enumerates what it can draw with
+    ``Object.keys(fl).filter(k => ArrayBuffer.isView(fl[k]))`` and then coerces
+    through ``toFloat32Array``. A column of labels is not a typed array after the
+    msgpack round-trip, so it fails that filter and never appears at all — not
+    awkward to plot, absent. Any numeric column is available to every plot the
+    moment it is written, with nothing to register anywhere.
+
+    ``float32`` rather than an integer type because integers cannot carry
+    ``NaN``, and "not evaluated" has to be representable. Float32 holds integers
+    exactly to 2^24, so the codes are never approximate.
+
+    The labels are not lost: :func:`describe` puts the legend in the step report,
+    and the vector exports translate back on the way out, since a GIS is read by
+    people rather than by a plot axis.
     """
     kind = validate_spec(spec)
     values = np.asarray(values, dtype=float)
-    out = np.full(values.shape, None, dtype=object)
+    out = np.full(values.shape, np.nan, dtype=np.float32)
     valid = np.isfinite(values)
 
     if kind == CENTERED:
@@ -169,11 +191,11 @@ def classify(values, spec: dict) -> pd.Categorical:
     # Assigned worst-first so each better class overwrites: every valid value
     # ends up in exactly one tier, and Marginal is by construction the band
     # between the two, never a separate test that could disagree with them.
-    out[valid] = OUT_OF_SPEC
-    out[valid & marginal] = MARGINAL
-    out[valid & good] = GOOD
+    out[valid] = TIER_POINTS[OUT_OF_SPEC]
+    out[valid & marginal] = TIER_POINTS[MARGINAL]
+    out[valid & good] = TIER_POINTS[GOOD]
 
-    return pd.Categorical(out, categories=TIERS, ordered=True)
+    return out
 
 
 def describe(spec: dict, unit: str = "") -> dict[str, str]:
@@ -207,47 +229,105 @@ def describe(spec: dict, unit: str = "") -> dict[str, str]:
             OUT_OF_SPEC: f"{OUT_OF_SPEC} (<{ml:g} or >{mh:g}{suffix})"}
 
 
-def verdict_columns(frame) -> list[str]:
-    """Every column holding a Good / Marginal / Out of Spec verdict.
+def is_tier(codes, tier: str) -> np.ndarray:
+    """Which entries of ``codes`` are in ``tier``. Unclassified is never in one.
 
-    Recognized by dtype rather than by name, so a check contributed by another
-    package is found without registering its column anywhere. Any check writing
-    a verdict through :func:`classify` produces exactly this dtype.
+    Replaces comparing a column to a label. ``NaN == anything`` is false, which
+    is the wanted answer: a sounding nobody classified is not Out of Spec, and
+    is not Good either.
     """
-    if frame is None:
-        return []
-    return [
-        name for name in frame.columns
-        if isinstance(frame[name].dtype, pd.CategoricalDtype)
-        and tuple(frame[name].dtype.categories) == TIERS
-    ]
+    return np.asarray(codes, dtype=float) == TIER_POINTS[tier]
 
 
-def worst_verdict(frame) -> str | None:
-    """The most severe verdict anywhere in ``frame``, or ``None`` if unjudged.
+def worst_of(arrays, require_all: bool = False) -> np.ndarray:
+    """The most severe code per position, across several verdict columns.
 
-    What a caller needs to answer "did anything fail?" across every check that
-    ran, without knowing which checks those were.
+    Severity is *lowest*, since the scale runs worst-to-best.
+
+    By default missing only where *every* column is missing, because separate
+    checks ask independent questions: a sounding whose height was never measured
+    but whose speed was grossly out of spec is out of spec, and waiting on the
+    unmeasured one would suppress a finding already certain.
+
+    ``require_all`` inverts that, giving missing where *any* column is missing.
+    That is right when the columns are components of one measurement rather than
+    separate questions — a sounding whose roll was not recorded has an unknown
+    attitude, and reporting its pitch verdict as its attitude verdict would
+    claim more than was measured.
     """
-    worst = None
-    for name in verdict_columns(frame):
-        column = frame[name].dropna()
-        if column.empty:
-            continue
-        # Categories are ordered worst-last, so max is severity.
-        candidate = column.max()
-        if worst is None or TIERS.index(candidate) > TIERS.index(worst):
-            worst = candidate
+    stack = np.vstack([np.asarray(a, dtype=float) for a in arrays])
+    with warnings.catch_warnings():
+        # An all-NaN column is the ordinary "nothing classified this" case, not
+        # something to warn about.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        worst = np.nanmin(stack, axis=0)
+    if require_all:
+        worst[np.isnan(stack).any(axis=0)] = np.nan
     return worst
 
 
-def tier_counts(verdicts) -> dict[str, int]:
+def labels(codes):
+    """Codes back to their tier names, for anything read by a person.
+
+    ``None`` where unclassified, which every vector driver can write; the
+    exports replace it with an explicit label of their own, since shapefile
+    cannot distinguish a null from an empty string.
+    """
+    lookup = {v: k for k, v in TIER_POINTS.items()}
+    return [lookup.get(v) for v in np.asarray(codes, dtype=float)]
+
+
+#: Where the set of verdict columns is recorded, so a file loaded back from disk
+#: can say which of its numeric columns are verdicts rather than measurements.
+#: ``ql_verdict`` is one and ``ql_score`` is not, and no naming rule separates
+#: them — encoding verdicts as numbers is what took the dtype away as an answer.
+#: ``model_info`` round-trips as text, so this is stored space-joined; column
+#: names cannot contain spaces in this format, which makes that unambiguous.
+VERDICT_REGISTRY = "qc_verdict_columns"
+
+
+def mark_verdicts(dataset, *names: str) -> None:
+    """Record that these ``flightlines`` columns hold verdict codes."""
+    info = dataset.survey.xyz.model_info
+    known = _registered(info)
+    for name in names:
+        if name and name not in known:
+            known.append(name)
+    info[VERDICT_REGISTRY] = " ".join(known)
+
+
+def _registered(info) -> list[str]:
+    raw = info.get(VERDICT_REGISTRY) or ""
+    if isinstance(raw, str):
+        return raw.split()
+    return [str(name) for name in raw]
+
+
+def verdict_columns(dataset) -> list[str]:
+    """The recorded verdict columns still present in ``flightlines``."""
+    frame = dataset.flightlines
+    if frame is None:
+        return []
+    return [n for n in _registered(dataset.survey.xyz.model_info)
+            if n in frame.columns]
+
+
+def worst_verdict(codes) -> str | None:
+    """The most severe tier present, or ``None`` if nothing was classified."""
+    values = np.asarray(codes, dtype=float)
+    values = values[np.isfinite(values)]
+    if not values.size:
+        return None
+    return {v: k for k, v in TIER_POINTS.items()}.get(float(values.min()))
+
+
+def tier_counts(codes) -> dict[str, int]:
     """How many soundings landed in each tier, plus how many got no verdict.
 
     Every tier appears even at zero — a reader should see "OOS: 0"
     rather than have to infer it from an absence.
     """
-    series = pd.Series(pd.Categorical(verdicts, categories=TIERS, ordered=True))
-    counts = {tier: int((series == tier).sum()) for tier in TIERS}
-    counts["unclassified"] = int(series.isna().sum())
+    values = np.asarray(codes, dtype=float)
+    counts = {tier: int(is_tier(values, tier).sum()) for tier in TIERS}
+    counts["unclassified"] = int(np.isnan(values).sum())
     return counts

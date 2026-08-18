@@ -428,3 +428,50 @@ appears only where thresholds were supplied, and it never joins the combined ver
 the powerline monitor, it is a reference measurement by default. What counts as too far from
 nominal is an operational judgement, and a default here would put a house number into a
 client deliverable.
+
+---
+
+## Addition, 2026-08-18 — verdicts are stored as numbers
+
+`03` treats a verdict as a classification and says nothing about how it is stored, which left
+the obvious reading: write the tier name into the column. That reading does not survive
+contact with the platform this library feeds.
+
+**A label column is invisible, not merely awkward.** YmerFlow's plot layer enumerates what it
+can draw with `Object.keys(fl).filter(k => ArrayBuffer.isView(fl[k]))` and coerces the result
+through `toFloat32Array`. A column of names is not a typed array after the msgpack round-trip,
+so it fails that filter and never appears in the list of plottable columns at all. A QC map
+built on it would have no QC on it, with nothing reporting a fault in either direction.
+
+The good half of the same mechanism: the enumeration has no allow-list, so **any numeric
+column is available to every plot the moment it is written** — no schema to register, no
+backend change, nothing to coordinate between repositories.
+
+So verdicts are `float32` codes. `float32` and not an integer type because "not evaluated" has
+to be representable and integers cannot carry `NaN`; float32 holds integers exactly far past
+the range in use, so the codes are never approximate.
+
+**The scale is the one the grade already uses** — Out of Spec 0, Marginal 1, in spec 2. The
+alternative ordering was proposed and declined: a file carrying verdict codes ascending toward
+bad *and* grades ascending toward good would have two numeric scales pointing opposite ways,
+and a colorscale wired to the wrong one renders out-of-spec soundings as good. Confidently
+wrong is worse than absent. One scale, higher is better, and the domain is fixed at 0..2 rather
+than derived from the data — a flight containing no out-of-spec soundings must not rescale and
+paint Marginal in the failing color.
+
+**Unevaluated is `NaN`**, not a sentinel. A sentinel invites arithmetic mistakes and has to be
+known about by every reader; `NaN` is already handled by anything that handles floats, and it
+is in no tier at all rather than being quietly counted as one.
+
+**The labels are not lost.** The legend goes in the step report, which R3 already provides, so
+a fourth tier would never become a change in another repository. The vector exports translate
+back on the way out, because a GeoPackage or shapefile is opened by a person and `0` in a
+legend is worse than useless where `OOS` explains itself.
+
+**What this costs: the dataset now has to record which of its columns are verdicts.** Storing
+them as numbers removed the dtype that used to answer that question, and no naming rule
+replaces it — `ql_verdict` is a verdict and `ql_score`, `ql_oos` and `ql_n` are not. So the
+set is recorded on the dataset and round-trips with it, since the export runs on a file loaded
+back from disk with no report to consult.
+
+Read off YmerFlow's own frontend, not off any predecessor library.

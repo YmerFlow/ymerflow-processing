@@ -76,7 +76,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, TIERS, classify, describe, tier_counts,
+    CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
+    mark_verdicts, tier_counts, worst_of,
 )
 
 log = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ log = logging.getLogger(__name__)
 STEP = "system_attitude"
 
 
-def _worst(*verdicts) -> pd.Categorical:
+def _worst(*verdicts) -> np.ndarray:
     """The most severe of several verdicts, per sounding.
 
     Missing where *any* contributing axis is missing: a sounding whose roll was
@@ -93,11 +94,7 @@ def _worst(*verdicts) -> pd.Categorical:
     not record at all are simply not passed in — that is a different thing from a
     sounding whose value is absent.
     """
-    codes = np.vstack([pd.Categorical(v, categories=TIERS, ordered=True).codes
-                       for v in verdicts])
-    worst = codes.max(axis=0)
-    worst[(codes < 0).any(axis=0)] = -1        # any axis unknown -> unknown
-    return pd.Categorical.from_codes(worst, categories=TIERS, ordered=True)
+    return worst_of(verdicts, require_all=True)
 
 
 def _total_tilt(pitch, roll) -> np.ndarray:
@@ -218,6 +215,7 @@ def system_attitude(
     if output_column in frame.columns:
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = combined
+    mark_verdicts(dataset, pitch_output, roll_output, output_column)
 
     report.verdict_column = output_column
     report.finding = "flight"
@@ -226,7 +224,7 @@ def system_attitude(
 
     # R3's distribution, before and after. A QC check removes nothing, so
     # "after" is read as what would remain if the verdict were acted on.
-    kept = np.asarray(combined != OUT_OF_SPEC)
+    kept = ~is_tier(combined, OUT_OF_SPEC)
     report.distributions = {
         "verdicts": counts,
         "thresholds": describe(spec, unit),

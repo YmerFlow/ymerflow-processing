@@ -84,7 +84,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, TIERS, classify, describe, tier_counts,
+    CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
+    mark_verdicts, tier_counts, worst_of,
 )
 
 log = logging.getLogger(__name__)
@@ -171,12 +172,9 @@ def _fractional_offset(values, reference: float) -> np.ndarray:
     return (np.asarray(values, dtype=float) - reference) / abs(reference)
 
 
-def _worst(frames) -> pd.Categorical:
+def _worst(frames) -> np.ndarray:
     """Worst verdict across several, per sounding; missing only if all are."""
-    codes = np.vstack([pd.Categorical(f, categories=TIERS, ordered=True).codes
-                       for f in frames])
-    return pd.Categorical.from_codes(codes.max(axis=0), categories=TIERS,
-                                     ordered=True)
+    return worst_of(frames)
 
 
 def transmitter_stability(
@@ -314,6 +312,7 @@ def transmitter_stability(
             if name in frame.columns:
                 report.notes.append(f"Overwrote existing column {name!r}.")
             frame[name] = stability
+            mark_verdicts(dataset, name)
 
         # Nominal agreement: the *mean* against what the system description
         # declares. A property of the survey, broadcast so it exports.
@@ -357,6 +356,7 @@ def transmitter_stability(
         if nominal_column in frame.columns:
             report.notes.append(f"Overwrote existing column {nominal_column!r}.")
         frame[nominal_column] = nominal_verdict
+        mark_verdicts(dataset, nominal_column)
     elif nominal_spec is None:
         report.notes.append(
             "No nominal thresholds given, so agreement with the declared nominal "
@@ -376,6 +376,7 @@ def transmitter_stability(
     if output_column in frame.columns:
         report.notes.append(f"Overwrote existing column {output_column!r}.")
     frame[output_column] = combined
+    mark_verdicts(dataset, output_column)
 
     report.verdict_column = output_column
     # Equipment, not flying: an unstable transmitter is a maintenance

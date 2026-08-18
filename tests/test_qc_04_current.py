@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset
+from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_04_current import (
     detect_jumps, find_current_columns, transmitter_stability,
@@ -41,20 +41,20 @@ def currents(lm, hm=None, n_flights=1, **kw):
 
 def test_a_steady_transmitter_passes():
     dataset, _ = transmitter_stability(currents([9.0] * 10), **SPEC)
-    assert list(dataset.flightlines["qs_cur"]) == [GOOD] * 10
+    assert tier_names(dataset.flightlines["qs_cur"]) == [GOOD] * 10
 
 
 def test_drift_away_from_the_mean_is_flagged():
     # Mean is 9.0; the ends sit 5% away.
     dataset, _ = transmitter_stability(
         currents([8.55, 9.0, 9.0, 9.0, 9.45]), **SPEC)
-    assert list(dataset.flightlines["qs_cur_ch1"]) == [
+    assert tier_names(dataset.flightlines["qs_cur_ch1"]) == [
         OUT_OF_SPEC, GOOD, GOOD, GOOD, OUT_OF_SPEC]
 
 
 def test_departure_either_way_counts_equally():
     dataset, _ = transmitter_stability(currents([8.82, 9.0, 9.18]), **SPEC)
-    verdicts = list(dataset.flightlines["qs_cur_ch1"])
+    verdicts = tier_names(dataset.flightlines["qs_cur_ch1"])
     assert verdicts[0] == verdicts[2] == MARGINAL
 
 
@@ -64,7 +64,7 @@ def test_a_wildly_unstable_transmitter_is_caught():
     swinging = [9.0, 9.9, 8.1, 9.9, 8.1, 9.9, 8.1]        # +/-10%
     dataset, _ = transmitter_stability(currents(swinging), **SPEC)
 
-    verdicts = list(dataset.flightlines["qs_cur_ch1"])
+    verdicts = tier_names(dataset.flightlines["qs_cur_ch1"])
     assert verdicts.count(OUT_OF_SPEC) == 6
     assert np.std(swinging) > 0.8      # two sigma spans the whole range
 
@@ -79,7 +79,7 @@ def test_steady_but_off_nominal_is_stable_and_flagged_separately():
         currents([9.0] * 10, hm=[136.0] * 10), **SPEC, **NOMINAL)
 
     assert report.distributions["stability"][GOOD] == 10          # rock steady
-    assert list(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 10
+    assert tier_names(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 10
     offset = report.distributions["per_moment"]["ch2 (HM/z)"][
         "nominal_offset_fraction"]
     assert offset == pytest.approx(0.236, abs=0.001)
@@ -90,14 +90,14 @@ def test_measured_above_nominal_counts_as_much_as_below():
         currents([9.0] * 5, hm=[143.0] * 5), **SPEC, **NOMINAL)
     low, _ = transmitter_stability(
         currents([9.0] * 5, hm=[77.0] * 5), **SPEC, **NOMINAL)
-    assert list(high.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
-    assert list(low.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
+    assert tier_names(high.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
+    assert tier_names(low.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
 
 
 def test_a_small_offset_is_tolerated():
     dataset, _ = transmitter_stability(
         currents([9.0] * 5, hm=[115.0] * 5), **SPEC, **NOMINAL)   # 4.5% high
-    assert list(dataset.flightlines["qs_nom"]) == [GOOD] * 5
+    assert tier_names(dataset.flightlines["qs_nom"]) == [GOOD] * 5
 
 
 def test_the_nominal_window_is_exposed():
@@ -105,12 +105,12 @@ def test_the_nominal_window_is_exposed():
     steady_but_off = currents([9.0] * 5, hm=[121.0] * 5)          # 10% high
     strict, _ = transmitter_stability(steady_but_off, nominal_good_fraction=0.05,
                                       nominal_marginal_fraction=0.08, **SPEC)
-    assert list(strict.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
+    assert tier_names(strict.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5
 
     lenient, _ = transmitter_stability(currents([9.0] * 5, hm=[121.0] * 5),
                                        nominal_good_fraction=0.25,
                                        nominal_marginal_fraction=0.5, **SPEC)
-    assert list(lenient.flightlines["qs_nom"]) == [GOOD] * 5
+    assert tier_names(lenient.flightlines["qs_nom"]) == [GOOD] * 5
 
 
 def test_a_steady_transmitter_off_nominal_still_passes():
@@ -121,8 +121,8 @@ def test_a_steady_transmitter_off_nominal_still_passes():
     dataset, _ = transmitter_stability(
         currents([9.0] * 5, hm=[143.0] * 5), **SPEC, **NOMINAL)
 
-    assert list(dataset.flightlines["qs_cur"]) == [GOOD] * 5      # not penalized
-    assert list(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5   # but noted
+    assert tier_names(dataset.flightlines["qs_cur"]) == [GOOD] * 5      # not penalized
+    assert tier_names(dataset.flightlines["qs_nom"]) == [OUT_OF_SPEC] * 5   # but noted
 
 
 def test_without_a_nominal_window_the_offset_is_measured_and_unjudged():
@@ -295,6 +295,6 @@ def test_registered_and_runs_from_a_pipeline():
     """)
     dataset, report = QCRunner(pipeline).run(dataset)
 
-    assert list(dataset.flightlines["qs_cur"]) == [GOOD] * 4
+    assert tier_names(dataset.flightlines["qs_cur"]) == [GOOD] * 4
     # An instrument finding, so it feeds qs_sensor rather than qs_verdict.
-    assert list(dataset.flightlines["qs_sensor"]) == [GOOD] * 4
+    assert tier_names(dataset.flightlines["qs_sensor"]) == [GOOD] * 4

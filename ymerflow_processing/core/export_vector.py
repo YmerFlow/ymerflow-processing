@@ -68,6 +68,7 @@ import numpy as np
 import pandas as pd
 
 from .pipeline import StepReport
+from .qc.thresholds import labels, verdict_columns
 
 log = logging.getLogger(__name__)
 
@@ -113,13 +114,31 @@ def truncation_collisions(columns, limit: int = SHAPEFILE_NAME_LIMIT) -> dict:
     return {short: names for short, names in seen.items() if len(names) > 1}
 
 
-def _labelled(frame: pd.DataFrame, unclassified: str) -> pd.DataFrame:
-    """Verdict columns with their absences spelled out rather than left blank."""
+def _labelled(frame: pd.DataFrame, verdicts: list[str],
+              unclassified: str) -> pd.DataFrame:
+    """Verdict codes written back as tier names, absences spelled out.
+
+    The one place the numeric encoding is undone. Verdicts are stored as codes
+    because a string column is invisible to the plot layer, but this file is
+    opened in a GIS by a person, and ``0`` in a legend is worse than useless
+    where ``OOS`` is self-explanatory.
+
+    Unclassified becomes an explicit label rather than a null, because shapefile
+    cannot distinguish NULL from empty — "not measured" and "measured and fine"
+    would arrive as the same thing in the one artifact a client actually reads.
+    Both drivers write the same label so two exports of one dataset cannot
+    disagree.
+
+    ``verdicts`` names the columns to translate; it cannot be inferred, since
+    encoding verdicts as numbers made them indistinguishable by dtype from the
+    measurements sitting beside them.
+    """
     out = frame.copy()
-    for name in out.columns:
-        column = out[name]
-        if isinstance(column.dtype, pd.CategoricalDtype):
-            out[name] = column.astype(object).where(column.notna(), unclassified)
+    for name in verdicts:
+        if name not in out.columns:
+            continue
+        names = pd.Series(labels(out[name]), index=out.index, dtype=object)
+        out[name] = names.where(names.notna(), unclassified)
     return out
 
 
@@ -214,6 +233,11 @@ def export_vector(
         report.notes.append("No position columns; nothing to place. Not exported.")
         return dataset, report
 
+    # Which columns hold verdict codes rather than measurements. Read from the
+    # dataset's own record rather than inferred: the two are both float32 and
+    # nothing in the values distinguishes ql_verdict from ql_score.
+    verdicts = verdict_columns(dataset)
+
     wanted = list(columns) if columns else [
         c for c in frame.columns if c not in (xyz.x_column, xyz.y_column)]
     missing = [c for c in wanted if c not in frame.columns]
@@ -221,7 +245,7 @@ def export_vector(
         raise KeyError(
             f"No column(s) {', '.join(map(repr, missing))} in flightlines.")
 
-    attributes = _labelled(frame[wanted], unclassified)
+    attributes = _labelled(frame[wanted], verdicts, unclassified)
 
     if is_shapefile:
         collisions = truncation_collisions(attributes.columns)
@@ -280,7 +304,7 @@ def export_vector(
             return LineString(coordinates) if len(coordinates) > 1 else None
 
         records, geometries = _line_features(
-            _labelled(frame, unclassified), line_column, geometry_of)
+            _labelled(frame, verdicts, unclassified), line_column, geometry_of)
         if geometries:
             flightlines = gpd.GeoDataFrame(records, geometry=geometries,
                                            crs=source)

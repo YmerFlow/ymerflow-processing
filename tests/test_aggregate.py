@@ -6,11 +6,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from conftest import tier_names
+
 from ymerflow_processing.core.qc.aggregate import (
     apply_rule, find_flight_column, grain_measures, longest_run, per_flight,
     per_line,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.core.qc.thresholds import (
+    GOOD, MARGINAL, OUT_OF_SPEC, TIER_POINTS,
+)
 
 
 # ── Contiguous runs ──────────────────────────────────────────────────────────
@@ -43,8 +47,10 @@ def test_a_scattered_total_and_one_stretch_are_distinguished():
 # ── Per-line summary ─────────────────────────────────────────────────────────
 
 def _verdicts(sequence):
-    return pd.Categorical(sequence, categories=[GOOD, MARGINAL, OUT_OF_SPEC],
-                          ordered=True)
+    """A verdict column, built the way a check builds one: float32 codes with
+    NaN for unclassified, not labels."""
+    return np.array([np.nan if v is None else TIER_POINTS[v] for v in sequence],
+                    dtype=np.float32)
 
 
 def test_per_line_counts_and_fractions():
@@ -168,23 +174,23 @@ def test_either_measure_can_trip_the_rule():
     scattered = apply_rule([0.9], [20.0], max_fraction=0.05, max_run=1000)
     one_stretch = apply_rule([0.02], [5000.0], max_fraction=0.05, max_run=1000)
 
-    assert scattered[0] == OUT_OF_SPEC        # broadly bad, never long
-    assert one_stretch[0] == OUT_OF_SPEC      # briefly bad, but continuously
+    assert tier_names(scattered)[0] == OUT_OF_SPEC        # broadly bad, never long
+    assert tier_names(one_stretch)[0] == OUT_OF_SPEC   # briefly bad, continuously
 
 
 def test_a_line_inside_both_thresholds_passes():
     verdict = apply_rule([0.02], [20.0], max_fraction=0.05, max_run=1000)
-    assert verdict[0] == GOOD
+    assert tier_names(verdict)[0] == GOOD
 
 
 def test_one_threshold_alone_is_enough_to_have_a_rule():
-    assert apply_rule([0.9], [0.0], max_fraction=0.05)[0] == OUT_OF_SPEC
-    assert apply_rule([0.0], [5000.0], max_run=1000)[0] == OUT_OF_SPEC
+    assert tier_names(apply_rule([0.9], [0.0], max_fraction=0.05))[0] == OUT_OF_SPEC
+    assert tier_names(apply_rule([0.0], [5000.0], max_run=1000))[0] == OUT_OF_SPEC
 
 
 def test_an_unmeasurable_group_does_not_fail():
     """A line nothing could be judged on has no fraction; that is not a breach."""
-    assert apply_rule([np.nan], [np.nan], max_fraction=0.05)[0] == GOOD
+    assert tier_names(apply_rule([np.nan], [np.nan], max_fraction=0.05))[0] == GOOD
 
 
 # ── Per flight ───────────────────────────────────────────────────────────────

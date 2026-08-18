@@ -48,7 +48,8 @@ from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
 from .thresholds import (
-    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, tier_counts,
+    ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
+    mark_verdicts, tier_counts,
 )
 
 log = logging.getLogger(__name__)
@@ -132,6 +133,7 @@ def height_above_ground(
     # Assigned through the frame the dataset holds, not a copy: R5 rules out
     # inplace= and chained assignment, not ordinary column assignment.
     frame[output_column] = verdicts
+    mark_verdicts(dataset, output_column)
 
     report.verdict_column = output_column
     report.finding = "flight"
@@ -144,7 +146,7 @@ def height_above_ground(
     # "after" is read as *what would remain if the verdict were acted on* —
     # which is the comparison that makes a threshold judgeable. Stated because
     # it is an interpretation, not an obvious reading.
-    kept = np.asarray(verdicts != OUT_OF_SPEC)
+    kept = ~is_tier(verdicts, OUT_OF_SPEC)
     report.distributions = {
         "height": {
             "column": height_column,

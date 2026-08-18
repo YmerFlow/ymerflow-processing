@@ -29,7 +29,9 @@ import numpy as np
 import pandas as pd
 
 from ..dataset import find_flight_column  # noqa: F401  (re-exported for callers)
-from .thresholds import GOOD, MARGINAL, OUT_OF_SPEC, TIERS
+from .thresholds import (
+    GOOD, MARGINAL, OUT_OF_SPEC, TIER_POINTS, TIERS, is_tier,
+)
 
 #: The measure each tier's fraction is written under, appended to a grain prefix
 #: to give ``ql_good``, ``qf_marg``, ``qd_oos`` and so on. Abbreviated so that
@@ -149,7 +151,7 @@ def _longest_run_within(rows, segments, gap_tolerance: float = 0.0):
         worst_distance = worst_closed_distance = None
 
     for part in parts:
-        flags = (part["verdict"] == OUT_OF_SPEC).to_numpy()
+        flags = is_tier(part["verdict"], OUT_OF_SPEC)
         x = part["x"].to_numpy() if has_xy else None
         y = part["y"].to_numpy() if has_xy else None
 
@@ -173,7 +175,7 @@ def _longest_run_within(rows, segments, gap_tolerance: float = 0.0):
 def _frame(verdicts, groups, easting, northing, segments=None):
     frame = pd.DataFrame({
         "group": np.asarray(groups),
-        "verdict": pd.Categorical(verdicts, categories=TIERS, ordered=True),
+        "verdict": np.asarray(verdicts, dtype=float),
     })
     if easting is not None and northing is not None:
         frame["x"] = np.asarray(easting, dtype=float)
@@ -199,15 +201,17 @@ def _rollup(verdicts, groups, easting=None, northing=None,
         summary[str(group)] = {
             "n_soundings": int(len(rows)),
             "n_classified": classified,
-            "counts": {tier: int((rows["verdict"] == tier).sum()) for tier in TIERS},
+            "counts": {tier: int(is_tier(rows["verdict"], tier).sum())
+                       for tier in TIERS},
             # Fractions are of *classified* soundings: a line half of which was
             # never measured should not read as half in spec.
             "fraction_out_of_spec": (
-                float((rows["verdict"] == OUT_OF_SPEC).sum() / classified)
+                float(is_tier(rows["verdict"], OUT_OF_SPEC).sum() / classified)
                 if classified else None
             ),
             "fraction_not_good": (
-                float((rows["verdict"] != GOOD).sum() / classified)
+                float((~is_tier(rows["verdict"], GOOD)
+                       & rows["verdict"].notna()).sum() / classified)
                 if classified else None
             ),
             "longest_out_of_spec_run": run_soundings,
@@ -342,5 +346,5 @@ def apply_rule(fraction, run, max_fraction=None, max_run=None):
     if max_run is not None:
         failed |= np.nan_to_num(run, nan=0.0) > max_run
 
-    return pd.Categorical(np.where(failed, OUT_OF_SPEC, GOOD),
-                          categories=TIERS, ordered=True)
+    return np.where(failed, TIER_POINTS[OUT_OF_SPEC],
+                    TIER_POINTS[GOOD]).astype(np.float32)

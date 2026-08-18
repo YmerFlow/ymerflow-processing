@@ -14,6 +14,7 @@ from click.testing import CliRunner
 
 from conftest import make_dataset
 from ymerflow_processing.core import cli as cli_module
+from conftest import tier_names
 from ymerflow_processing.core.dataset import load
 from ymerflow_processing.core.cli import (
     EXIT_GOOD, EXIT_MARGINAL, EXIT_NOT_STARTED, EXIT_OUT_OF_SPEC,
@@ -270,15 +271,18 @@ def test_the_written_file_parses_back(delivery, pipeline_file, tmp_path):
 
     written = out / "20260815.xyz"
     lines = [ln for ln in written.read_text().splitlines() if ln.strip()]
-    # The header is a comment line, so it carries a leading marker the data rows
-    # do not; every row after it must agree with every other.
-    widths = {len(ln.split()) for ln in lines[1:]}
+    # Comment lines carry a leading marker and are not rows: the column header
+    # is one, and so is any metadata the dataset records about itself. Every
+    # actual row must agree with every other and with the header.
+    comments = [ln for ln in lines if ln.lstrip().startswith("/")]
+    rows = [ln for ln in lines if not ln.lstrip().startswith("/")]
+    widths = {len(ln.split()) for ln in rows}
     assert len(widths) == 1, f"ragged file: rows have {sorted(widths)} fields"
-    assert widths == {len(lines[0].split()) - 1}, "rows do not match the header"
+    assert widths == {len(comments[-1].split()) - 1}, "rows do not match the header"
 
     frame = load(written, gex).flightlines
-    assert (frame["qs_height"] == OUT_OF_SPEC).all()
-    assert (frame["qs_verdict"] == OUT_OF_SPEC).all()
+    assert set(tier_names(frame["qs_height"])) == {OUT_OF_SPEC}
+    assert set(tier_names(frame["qs_verdict"])) == {OUT_OF_SPEC}
     # Every sounding carries a reason, including the ones with nothing to say.
     assert frame["qs_reasons"].notna().all()
 
@@ -291,7 +295,7 @@ def test_a_clean_delivery_round_trips_too(delivery, pipeline_file, tmp_path):
     assert result.return_value == EXIT_GOOD
 
     frame = load(out / "20260815.xyz", gex).flightlines
-    assert (frame["qs_verdict"] == GOOD).all()
+    assert set(tier_names(frame["qs_verdict"])) == {GOOD}
     assert (frame["qs_reasons"] == NO_REASON).all()
 
 

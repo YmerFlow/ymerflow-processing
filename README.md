@@ -194,6 +194,12 @@ three fields and the file will not parse back. A sounding with no reasons has th
 problem — an empty string occupies no field at all — and is written `NONE`. Both are the
 format dictating the token, not a change of meaning.
 
+**Verdicts are stored as numeric codes** — recorded as a dated addition in `03`. A label column
+fails the plot layer's typed-array filter and is invisible to it entirely, so verdicts are
+`float32` on the same 0-2 scale as the grade, with `NaN` for unevaluated. The legend lives in the
+step report and the vector exports translate back to names. Because that removed the dtype that
+identified a verdict column, the dataset now records the set explicitly and round-trips it.
+
 **A weighted grade beside the verdict** — recorded as a dated addition in `03` rather than a
 divergence, since it is new scope rather than a departure. Tiers are worth 0/1/2 points and
 each check carries a weight, so failing lines can be ordered rather than tying at Out of Spec.
