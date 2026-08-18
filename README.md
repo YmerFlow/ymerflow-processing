@@ -128,6 +128,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   Its limits are restated rather than shared with QC, because a contract limit and a physical
   one are different numbers — but each defaults to the corresponding QC out-of-spec boundary
   where one was recorded.
+- **`cull_sparse_soundings`** (filter_23) — disables soundings left with too few usable gates
+  to constrain a model. The first step whose *answer* depends on pipeline order, so it belongs
+  last: run first it has nothing to find.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 
