@@ -161,6 +161,17 @@ collide silently, so this is a constraint on new checks rather than a stylistic 
 
 ---
 
+## NumPy
+
+**Both majors are supported, deliberately.** Development happens against numpy 2, but the
+inversion stack this library feeds still runs on 1.x, so `numpy` carries no floor and the code
+uses no numpy-2-only API. The full suite is run against both before anything is committed —
+the aliases numpy 2.0 removed (`np.NaN`, `np.Inf`, `np.infty` and the rest) appear nowhere, and
+that is worth re-checking rather than assuming, since the failure is silent on whichever major
+you happen to be developing on.
+
+---
+
 ## Deviations from `building_plans/`
 
 The plans are the clean-room input and are not revised. Where the build diverged, it is

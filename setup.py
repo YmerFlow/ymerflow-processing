@@ -18,6 +18,12 @@ setup(
         # A direct reference cannot be uploaded to PyPI, so publishing this
         # package would first require publishing the fork under its own name.
         "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz@master",
+        # Deliberately unpinned, and deliberately compatible with both majors.
+        # numpy 2 is what this is developed against, but the inversion stack it
+        # feeds still runs on 1.x, so a floor here would strand the environment
+        # this library actually has to work in. That is a constraint on the code
+        # rather than on the dependency: no numpy-2-only API, and the suite is
+        # run against both before anything is committed.
         "numpy",
         "pandas>=2.2",    # R5: built against pandas 3.x semantics
         "geopandas",   # vector export, and R8 external inputs by type
