@@ -14,7 +14,7 @@ from click.testing import CliRunner
 
 from conftest import make_dataset
 from ymerflow_processing.core import cli as cli_module
-from conftest import tier_names
+from conftest import named, step, tier_names
 from ymerflow_processing.core.dataset import load
 from ymerflow_processing.core.cli import (
     EXIT_GOOD, EXIT_MARGINAL, EXIT_NOT_STARTED, EXIT_OUT_OF_SPEC,
@@ -234,7 +234,10 @@ def test_the_report_records_the_pipeline_that_produced_it(
 
     report = _report(out)
     assert report["pipeline"]["kind"] == "qc"
-    assert report["steps"][0]["params"] == {"good_max": 45, "marginal_max": 65}
+    assert step(report, "height_above_ground")["params"] == {
+        "good_max": 45, "marginal_max": 65}
+    # Every run opens by accounting for the delivery.
+    assert named(report)[0] == "inventory"
 
 
 def test_verdict_columns_survive_into_the_exported_dataset(
@@ -318,7 +321,8 @@ def test_re_running_replaces_that_delivery_and_leaves_others_alone(
     result = run_qc(relaxed, first, gex, out)
 
     assert result.return_value == EXIT_GOOD
-    assert _report(out, "20260815")["steps"][0]["params"]["good_max"] == 95
+    assert step(_report(out, "20260815"),
+                "height_above_ground")["params"]["good_max"] == 95
     # The other delivery is untouched, so the drift series survives.
     assert _report(out, "20260816")["identity"] == "20260816"
 

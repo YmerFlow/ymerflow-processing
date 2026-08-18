@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset, tier_names
+from conftest import make_dataset, tier_names, step
 from ymerflow_processing.core.pipeline import Pipeline, QCRunner
 from ymerflow_processing.core.qc.rollup import NO_REASON
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -186,7 +186,7 @@ def test_the_rollup_survives_serialization():
     _, report = run(WITH_ALTIMETERS, dataset)
     restored = json.loads(json.dumps(report.to_dict()))
     assert restored["rollup"]["columns"]["verdict"] == "qs_verdict"
-    assert restored["steps"][1]["finding"] == "instrument"
+    assert step(restored, "altimeter_agreement")["finding"] == "instrument"
 
 
 def test_the_column_names_fit_a_shapefile_field():

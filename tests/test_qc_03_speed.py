@@ -237,4 +237,4 @@ def test_all_three_checks_run_from_one_pipeline():
     assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
     assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
     assert tier_names(dataset.flightlines["qs_speed"]) == [GOOD, GOOD, OUT_OF_SPEC]
-    assert len(report.steps) == 3
+    assert len(report.steps) == 4      # three checks, plus the inventory

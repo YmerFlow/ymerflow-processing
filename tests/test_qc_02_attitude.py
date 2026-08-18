@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset, tier_names
+from conftest import make_dataset, named, step, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_02_attitude import system_attitude
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -268,4 +268,5 @@ def test_runs_alongside_qc_01_from_one_pipeline():
 
     assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, GOOD, OUT_OF_SPEC]
     assert tier_names(dataset.flightlines["qs_tilt"]) == [GOOD, OUT_OF_SPEC, GOOD]
-    assert len(report.steps) == 2
+    assert named(report) == ["inventory", "height_above_ground",
+                             "system_attitude"]

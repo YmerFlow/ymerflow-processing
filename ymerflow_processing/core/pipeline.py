@@ -318,10 +318,33 @@ class _Runner:
 
     group: str = ""
 
-    def __init__(self, pipeline: Pipeline, steps: dict[str, Callable] | None = None):
+    def __init__(self, pipeline: Pipeline, steps: dict[str, Callable] | None = None,
+                 inventory: bool = True):
         self.pipeline = pipeline
         self.steps = steps if steps is not None else load_steps(self.group)
         self.pipeline.validate(self.steps)
+        self.inventory = inventory
+
+    def _open(self, dataset, report):
+        """Account for the delivery before any step acts on it.
+
+        Implicit rather than something a pipeline has to remember, because the
+        thing it exists to surface — data the channel model cannot account for —
+        is exactly what nobody thinks to ask about. A step that only runs when
+        requested would never run on the delivery that needed it.
+
+        Reads only, so it is safe in a QC pipeline where R6 promises the data
+        comes out byte-identical.
+        """
+        if not self.inventory:
+            return dataset
+        # Imported here rather than at module scope: inventory imports
+        # StepReport from this module.
+        from .inventory import inventory as take_inventory
+        dataset, step_report = take_inventory(dataset)
+        step_report.params = {"implicit": True}
+        report.steps.append(step_report)
+        return dataset
 
 
 class ProcessingRunner(_Runner):
@@ -331,6 +354,7 @@ class ProcessingRunner(_Runner):
 
     def run(self, dataset):
         report = RunReport(pipeline=self.pipeline.document)
+        dataset = self._open(dataset, report)
         for index, (name, params) in enumerate(self.pipeline.steps, start=1):
             log.info("step %d/%d: %s", index, len(self.pipeline.steps), name)
             dataset, step_report = self.steps[name](dataset, **params)
@@ -352,6 +376,7 @@ class QCRunner(_Runner):
 
     def run(self, dataset):
         report = RunReport(pipeline=self.pipeline.document)
+        dataset = self._open(dataset, report)
         for index, (name, params) in enumerate(self.pipeline.steps, start=1):
             log.info("check %d/%d: %s", index, len(self.pipeline.steps), name)
             dataset, step_report = self.steps[name](dataset, **params)

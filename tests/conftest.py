@@ -24,6 +24,27 @@ from ymerflow_processing.core.qc.thresholds import labels
 from ymerflow_processing.em.tem.method import TEMMethod
 
 
+def step(report, name):
+    """One step's report, by name.
+
+    By name rather than by position, because every run opens with an implicit
+    inventory and a pipeline may grow implicit steps again — a test asserting on
+    ``steps[0]`` is asserting on the ordering rather than on the step it means.
+    """
+    steps = report["steps"] if isinstance(report, dict) else report.steps
+    for entry in steps:
+        found = entry["step"] if isinstance(entry, dict) else entry.step
+        if found == name:
+            return entry
+    raise AssertionError(f"No step {name!r} in the report. Ran: {named(report)}")
+
+
+def named(report):
+    """Every step that ran, in order."""
+    steps = report["steps"] if isinstance(report, dict) else report.steps
+    return [e["step"] if isinstance(e, dict) else e.step for e in steps]
+
+
 def tier_names(codes):
     """Verdict codes back to tier names, for readable assertions.
 

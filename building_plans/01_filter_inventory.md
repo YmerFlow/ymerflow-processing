@@ -989,3 +989,47 @@ they changed.
 filter_10 uses a flat kernel. A tapered kernel preserves narrow targets substantially better
 for a modest cost in noise reduction, and is not offered by the incumbent desktop tool.
 Tracked as `Ymerflow#60`.
+
+---
+
+## Addition, 2026-08-18 — every run opens with an inventory
+
+`01` describes filters as steps a pipeline lists. It assumes, without saying so, that the
+channel model is a complete account of the delivery. It is not, and the gap is silent.
+
+**Steps operate through `Channel.array_keys`.** An array no channel claims is not skipped —
+it is *unreachable*. Every channel-based step steps over it, which looks exactly like
+success. `select_channels(criterion="component", keep=["z"])` reported "nothing removed"
+while a non-Z gate array sat untouched in `layer_data`: true of channels, false of the file,
+and the docstring's promise that a forward code "will not merely ignore X and Y, it will fail
+on them" was not being kept.
+
+**How an array ends up claimed by nobody.** SkyTEM's data files carry a horizontal component,
+but **the GEX and the ALC are built for the Z component only**. Nothing declares the horizontal
+one, so discovery never registers it. A
+dual-moment delivery then carries three gate arrays against two declared channels.
+
+Undeclared is not unusable. That array is real, coherently signed, and decays into noise like
+a response rather than like junk. The incumbent toolchain discards it; that is a limitation of
+the toolchain, not a property of the data.
+
+So **every run opens with an inventory**, implicitly, before any step acts: what arrived, what
+was resolved into channels, and what was not. Implicit rather than something a pipeline lists,
+because the thing it exists to surface is precisely what nobody thinks to ask about — a step
+that ran only when requested would never run on the delivery that needed it.
+
+It reads and changes nothing, which is what makes it safe at the top of a QC pipeline where R6
+promises the data comes out byte-identical.
+
+**Unresolved arrays are reported, not removed.** `select_channels` gained `drop_unclaimed` for
+when an operator has looked and wants them gone. Refusing outright was considered and rejected:
+the hazard is unconfirmed — the consumers we actually use read specific keys by channel and
+would most likely ignore an extra array — and refusing on an unconfirmed hazard would block
+real deliveries. Deleting by default was rejected for the stronger reason that it destroys data
+we do not understand.
+
+The recovery path for such an array is to **describe it** — amend the system description so
+discovery can claim it — rather than to delete it. Tested against a hypothetical GEX channel
+declaring `ReceiverPolarizationXYZ=X` sharing the high moment's dipole moment: the existing
+component-versus-moment split handles it correctly with no change to the channel model. The gap
+was only ever in what happens to arrays outside the model.

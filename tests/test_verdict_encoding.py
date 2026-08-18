@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset, tier_names
+from conftest import make_dataset, step, tier_names
 from ymerflow_processing.core.dataset import load
 from ymerflow_processing.core.pipeline import Pipeline, QCRunner
 from ymerflow_processing.core.qc.thresholds import (
@@ -184,7 +184,7 @@ def test_the_report_carries_the_legend_rather_than_the_column():
     gives every step a structured record to carry it, so a fourth tier would
     never become a frontend change."""
     _, report = run(np.full(20, 30.0))
-    thresholds = report.steps[0].distributions["thresholds"]
+    thresholds = step(report, "height_above_ground").distributions["thresholds"]
 
     assert set(thresholds) == {GOOD, MARGINAL, OUT_OF_SPEC}
     assert thresholds[GOOD].startswith(GOOD)

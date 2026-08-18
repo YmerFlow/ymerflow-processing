@@ -73,7 +73,35 @@ def _matches(value, keep: set[str]) -> bool:
     return value is not None and str(value).strip().lower() in keep
 
 
-def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = True):
+def unclaimed_arrays(dataset) -> dict[str, tuple]:
+    """Gate-shaped ``layer_data`` entries that no channel claims, and their shapes.
+
+    These exist. SkyTEM's data files carry a horizontal component, but **both**
+    the GEX and the ALC are built for the Z component only. Nothing declares
+    the horizontal one, so channel
+    discovery never registers it, and it is invisible to every step that works
+    through :attr:`Channel.array_keys`.
+
+    Detected by shape rather than by name, because a name that matched anything
+    we recognize would have been claimed already. Anything the same shape as a
+    claimed gate array is the only signal available.
+
+    **What it is cannot be determined here.** It is unclaimed precisely because
+    it is undeclared; those are the same fact. So this reports, and the caller
+    decides.
+    """
+    claimed = {key for channel in dataset.channels for key in channel.array_keys}
+    shapes = {dataset.layer_data[k].shape for k in claimed
+              if k in dataset.layer_data}
+    if not shapes:
+        return {}
+    return {key: tuple(frame.shape)
+            for key, frame in dataset.layer_data.items()
+            if key not in claimed and frame.shape in shapes}
+
+
+def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = True,
+                    drop_unclaimed: bool = False):
     """Keep only the channels whose ``criterion`` value is in ``keep``.
 
     :param criterion: How channels are chosen — ``component`` (``x``/``y``/``z``,
@@ -84,6 +112,11 @@ def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = Tr
     :param drop_system_blocks: Also remove the discarded channels' blocks from
         the system description, so it does not go on declaring channels whose
         data has gone. Set false to leave the system description alone.
+    :param drop_unclaimed: Also remove gate-shaped arrays that no channel claims
+        — see :func:`unclaimed_arrays`. Off by default: such an array is
+        undeclared rather than empty, and at least one of them is real coherent
+        signal that the incumbent toolchain merely discards, so deleting it
+        unasked would be worse than leaving it. It is always reported.
 
     Returns ``(dataset, StepReport)``.
 
@@ -91,6 +124,11 @@ def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = Tr
     almost always a typo or a wrong assumption about the data, and a dataset with
     no data in it fails much later and much less clearly. It raises here instead,
     naming what was actually present.
+
+    **It cannot promise the result contains only what you asked for.** Selection
+    works through the channel model, and an array no channel claims is outside
+    it — so a delivery carrying an undeclared component keeps it unless
+    ``drop_unclaimed`` says otherwise. That is reported rather than assumed away.
     """
     report = StepReport(step=STEP)
 
@@ -128,14 +166,34 @@ def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = Tr
         }
     }
 
+    unclaimed = unclaimed_arrays(dataset)
+    if unclaimed:
+        listing = ", ".join(f"{k} {v}" for k, v in sorted(unclaimed.items()))
+        report.distributions["unclaimed_arrays"] = dict(sorted(unclaimed.items()))
+        report.notes.append(
+            f"{len(unclaimed)} gate-shaped array(s) are claimed by no channel "
+            f"and are outside this selection: {listing}. A vendor may ship a "
+            f"component it omits from the system description, so this may be "
+            f"real data. Pass drop_unclaimed to remove them."
+        )
+
+    removed = []
+    if unclaimed and drop_unclaimed:
+        for key in unclaimed:
+            del dataset.layer_data[key]
+            removed.append(key)
+        report.notes.append(
+            f"Removed {len(unclaimed)} unclaimed array(s) as asked."
+        )
+
     if not discarded:
         report.notes.append(
             f"Every channel already has {criterion} in {sorted(wanted)}; "
-            "nothing removed."
+            f"no channel was removed."
         )
+        report.distributions["arrays_removed"] = removed
         return dataset, report
 
-    removed = []
     for channel in discarded:
         for key in channel.array_keys:
             if key in dataset.layer_data:

@@ -7,6 +7,8 @@ dataset, because the inversion reads the file, not our discovery.
 
 from __future__ import annotations
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from conftest import make_dataset
@@ -153,7 +155,7 @@ def test_keeping_everything_changes_nothing_and_says_so(dual_moment):
     dataset, report = select_channels(dual_moment, criterion="component", keep=["z"])
 
     assert set(dataset.layer_data) == before
-    assert any("nothing removed" in n for n in report.notes)
+    assert any("no channel was removed" in n for n in report.notes)
 
 
 def test_a_dataset_with_no_channels_is_a_note_not_an_error():
@@ -180,4 +182,79 @@ def test_runs_from_a_yaml_pipeline():
     dataset, report = ProcessingRunner(pipeline).run(three_component())
 
     assert [str(c) for c in dataset.channels] == ["ch6 (HM/z)"]
-    assert len(report.steps) == 2
+    assert len(report.steps) == 3      # two steps, plus the inventory
+
+
+# ── Arrays outside the channel model ─────────────────────────────────────────
+
+def _with_stowaway(**kw):
+    """A delivery carrying a gate-shaped array no channel claims — SkyTEM's
+    horizontal component, omitted from both the GEX and the ALC by design."""
+    dataset = make_dataset(n=6, n_lines=1, n_gates=8, **kw)
+    dataset.layer_data["dbdt_x_ch2gt"] = pd.DataFrame(np.full((6, 8), -3e-10))
+    return dataset
+
+
+def test_an_unclaimed_array_is_reported_rather_than_passed_over():
+    """The bug this closes: the step said "nothing removed" while a non-Z array
+    sat in layer_data. True of channels, false of the file."""
+    dataset, report = select_channels(_with_stowaway(), criterion="component",
+                                      keep=["z"])
+
+    assert report.distributions["unclaimed_arrays"] == {"dbdt_x_ch2gt": (6, 8)}
+    assert any("claimed by no channel" in n for n in report.notes)
+
+
+def test_it_no_longer_claims_nothing_was_removed():
+    """The old note was the misleading part — it described channels while
+    reading as a statement about the dataset."""
+    _, report = select_channels(_with_stowaway(), criterion="component",
+                                keep=["z"])
+    assert not any("nothing removed" in n for n in report.notes)
+    assert any("no channel was removed" in n for n in report.notes)
+
+
+def test_an_unclaimed_array_survives_by_default():
+    """It is undeclared rather than empty, and at least one such array is real
+    coherent signal the incumbent toolchain merely discards. Deleting it unasked
+    would be worse than leaving it."""
+    dataset, _ = select_channels(_with_stowaway(), criterion="component",
+                                 keep=["z"])
+    assert "dbdt_x_ch2gt" in dataset.layer_data
+
+
+def test_it_can_be_dropped_on_request():
+    dataset, report = select_channels(_with_stowaway(), criterion="component",
+                                      keep=["z"], drop_unclaimed=True)
+
+    assert "dbdt_x_ch2gt" not in dataset.layer_data
+    assert "dbdt_x_ch2gt" in report.distributions["arrays_removed"]
+    assert any("as asked" in n for n in report.notes)
+
+
+def test_dropping_unclaimed_leaves_the_kept_channels_alone():
+    dataset, _ = select_channels(_with_stowaway(), criterion="component",
+                                 keep=["z"], drop_unclaimed=True)
+
+    assert "dbdt_ch1gt" in dataset.layer_data
+    assert "dbdt_ch2gt" in dataset.layer_data
+    assert len(dataset.channels) == 2
+
+
+def test_an_unclaimed_array_is_reported_even_when_channels_are_removed():
+    """The two are independent: dropping a moment says nothing about an array
+    that was never in the model."""
+    dataset, report = select_channels(_with_stowaway(), criterion="moment",
+                                      keep=["LM"])
+
+    assert "dbdt_x_ch2gt" in report.distributions["unclaimed_arrays"]
+    assert "dbdt_x_ch2gt" in dataset.layer_data          # not dropped by default
+    assert "dbdt_ch2gt" not in dataset.layer_data        # the HM channel did go
+
+
+def test_a_clean_delivery_reports_no_unclaimed_arrays():
+    dataset = make_dataset(n=6, n_lines=1, n_gates=8)
+    _, report = select_channels(dataset, criterion="component", keep=["z"])
+
+    assert "unclaimed_arrays" not in report.distributions
+    assert not any("claimed by no channel" in n for n in report.notes)

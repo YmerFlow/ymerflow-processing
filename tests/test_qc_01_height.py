@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import make_dataset, tier_names
+from conftest import make_dataset, named, step, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
 from ymerflow_processing.core.qc.qc_01_height import height_above_ground
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
@@ -224,8 +224,9 @@ def test_runs_from_a_yaml_pipeline_with_no_platform():
     dataset, report = QCRunner(pipeline).run(heights(30.0, 50.0, 80.0))
 
     assert tier_names(dataset.flightlines["qs_height"]) == [GOOD, MARGINAL, OUT_OF_SPEC]
-    assert len(report.steps) == 1
-    assert report.steps[0].params == {"good_max": 45, "marginal_max": 65}
+    assert named(report) == ["inventory", "height_above_ground"]
+    assert step(report, "height_above_ground").params == {
+        "good_max": 45, "marginal_max": 65}
 
 
 def test_an_unknown_check_fails_before_running_anything():
