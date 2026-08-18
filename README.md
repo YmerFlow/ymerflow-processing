@@ -111,8 +111,13 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
 - **Seven checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
   qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing.
-- **One filter**: `select_channels`, which reduces a delivery to the channels an inversion
-  accepts — component or moment, by the R7 `criterion` idiom.
+- **`core/mask.py`** — the in-use mask (R6's second clause) and the culling policy every
+  predicate shares: start gate, spread-earlier, tail disabling, applied once rather than
+  thirteen times. Per-datum provenance rides alongside, recording which step removed each
+  point and whether it was a direct hit or collateral.
+- **Filters**: `select_channels`, which reduces a delivery to the channels an inversion
+  accepts by the R7 `criterion` idiom; `export_vector`; and `disable_initial_gates`
+  (filter_20), the first culling step through the mask.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 

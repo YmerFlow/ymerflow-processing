@@ -103,9 +103,43 @@ PROVENANCE_SUFFIX = "_why"
 UNTOUCHED = 0
 
 
+#: Where the provenance codes are explained, so an array of 20s and -24s can be
+#: read back later. The same lesson the verdict legend taught: a column of
+#: numbers with no key is worse than no column, and the file has to carry its
+#: own legend because whoever opens it will not have the run report.
+STEP_REGISTRY = "cull_step_codes"
+
+
 def provenance_key(inuse_key: str) -> str:
     """Where the provenance for ``inuse_key`` lives."""
     return f"{inuse_key}{PROVENANCE_SUFFIX}"
+
+
+def mark_step(dataset, code: int, step: str) -> None:
+    """Record which step a provenance code stands for."""
+    known = step_codes(dataset)
+    if known.get(code) not in (None, step):
+        raise ValueError(
+            f"Provenance code {code} is already recorded as "
+            f"{known[code]!r}; {step!r} cannot reuse it. Each culling step "
+            f"needs its own code."
+        )
+    known[code] = step
+    dataset.survey.xyz.model_info[STEP_REGISTRY] = " ".join(
+        f"{c}:{n}" for c, n in sorted(known.items()))
+
+
+def step_codes(dataset) -> dict[int, str]:
+    """Provenance code to step name, as recorded on the dataset."""
+    raw = dataset.survey.xyz.model_info.get(STEP_REGISTRY) or ""
+    if not isinstance(raw, str):
+        raw = " ".join(map(str, raw))
+    out: dict[int, str] = {}
+    for entry in raw.split():
+        code, _, name = entry.partition(":")
+        if name:
+            out[int(code)] = name
+    return out
 
 
 def resolve(dataset, channel) -> str:
