@@ -585,8 +585,29 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
 
     Missing files are reported here rather than surfacing from inside
     ``libaarhusxyz`` as something less obvious.
+
+    **The system description's declaration is applied here.** A GEX that
+    declares initial gates unusable has those gates disabled in the in-use mask
+    before the dataset is returned — this is the moment the two files become one
+    thing, and it is what makes "what is in the system description is what you
+    get" a true statement rather than an instruction someone has to follow.
+
+    It is not a culling decision and does not read as one: nobody chose a
+    threshold, the instrument stated which of its own samples cannot be
+    inverted. Left to a pipeline step it is the easiest thing in the library to
+    forget, and forgetting it is silent — the inversion runs, converges, and is
+    confidently wrong about the shallow section.
+
+    ``filter_21`` puts them back for anyone doing full primary-field modeling,
+    which is why this writes a mask rather than removing anything.
     """
     for role, path in (("survey", xyz), ("system description", gex)):
         if not Path(path).exists():
             raise FileNotFoundError(f"No {role} at {path}")
-    return Dataset(libaarhusxyz.Survey(str(xyz), str(gex)), normalization, crs)
+    dataset = Dataset(libaarhusxyz.Survey(str(xyz), str(gex)), normalization, crs)
+
+    # Imported here rather than at module scope: the culling package imports
+    # Dataset, so a top-level import back would be a cycle.
+    from .cull.filter_20_initial_gates import honor_system_description
+    honor_system_description(dataset)
+    return dataset

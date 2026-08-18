@@ -31,16 +31,28 @@ ways to get this wrong, both silent:
 - Trimming the data columns. Everything here is captured in the mask, and
   nothing in the pipeline may narrow a gate axis.
 
-Why a filter and not the importer
----------------------------------
-It is arguably a correction rather than a quality judgement, which is an argument
-for applying it at import so data always arrives "as the vendor intended". As a
-filter it is better: visible in the flow, versioned, re-runnable, reversible, and
-a standalone run gets it without the platform. ``01`` had it as a filter and that
-is where it stays.
+A mandate, not a step someone remembers
+---------------------------------------
+This is **applied automatically** — by :func:`ymerflow_processing.core.dataset.load`
+when a survey and a system description are joined, and again at the top of every
+pipeline run for a dataset built some other way. It is not something a pipeline
+opts into.
 
-It is idempotent with an importer that also applies it, because culling is
-subtractive — running both leaves exactly the same mask as running either.
+The reason is that it is not a judgement. Every other culling filter decides
+something: a threshold was chosen, a predicate objected, an operator could
+reasonably disagree. This one reads the instrument's own statement about which of
+its samples are usable. Data outside that window is not data anyone decided to
+drop — it is samples the vendor already said cannot be inverted. Applying it is
+part of reading the file correctly, in the same way the gate times are.
+
+Left optional it is the single easiest thing to forget, and forgetting it is
+silent: the inversion runs, converges, and is confidently wrong about the
+shallow section. So "what is in the system description is what you get."
+
+It remains registered as an explicit step for the case the automatic pass cannot
+serve — a delivery whose description is known to be wrong, where ``gates:``
+overrides the declared count. Running it again changes nothing, because culling
+is subtractive.
 
 Reversible, and deliberately so
 -------------------------------
@@ -91,6 +103,30 @@ def declared_initial_gates(dataset, channel) -> int | None:
     return int(declared)
 
 
+def honor_system_description(dataset):
+    """Apply the declaration, quietly, wherever a dataset comes into being.
+
+    The mandate form: no report, no parameters, nothing to configure. Returns
+    the number of gate-samples disabled, so a caller can say whether anything
+    happened without this needing to know how to say it.
+
+    Safe to call repeatedly — culling is subtractive, so this is a no-op on a
+    dataset that already has it.
+    """
+    try:
+        _, report = disable_initial_gates(dataset)
+    except ValueError:
+        # A description that disagrees with the delivery is worth raising from
+        # an explicit step, where someone asked and is watching. Raising it from
+        # a load would make an unreadable file out of a readable one, so the
+        # explicit step is left to report it properly.
+        log.warning("%s: the system description disagrees with the delivery; "
+                    "the declared initial gates were not applied. Run the step "
+                    "explicitly to see the detail.", STEP)
+        return 0
+    return (report.distributions or {}).get("removed", 0)
+
+
 def disable_initial_gates(dataset, gates: dict | int | None = None):
     """Disable each channel's declared initial gates in the in-use mask.
 
@@ -121,7 +157,9 @@ def disable_initial_gates(dataset, gates: dict | int | None = None):
             undeclared.append(str(channel))
             continue
 
-        width = ensure(dataset, channel).shape[1]
+        # From the data array, not the mask: asking the mask would materialize
+        # one, and a channel declaring zero should leave the delivery untouched.
+        width = dataset.layer_data[channel.data_key].shape[1]
         count = int(count or 0)
         if count < 0:
             raise ValueError(
@@ -135,6 +173,15 @@ def disable_initial_gates(dataset, gates: dict | int | None = None):
                 f"disagree, which is a fact about the data worth knowing "
                 f"rather than something to clamp silently."
             )
+
+        if count == 0:
+            # Nothing to disable, and materializing a mask to say so would
+            # write arrays into a delivery that had none — which is exactly the
+            # promise lazy materialization exists to keep. Declaring zero is a
+            # real answer, so it is still reported.
+            per_channel[str(channel)] = {"channel": str(channel), "removed": 0,
+                                         "declared": declared, "applied": 0}
+            continue
 
         # Position-based, and the whole column for those gates. The .loc
         # equivalent is inclusive on integer labels and would take one gate too
@@ -158,8 +205,9 @@ def disable_initial_gates(dataset, gates: dict | int | None = None):
     if not per_channel:
         return dataset, report
 
-    mark_step(dataset, STEP_CODE, STEP)
     removed = sum(c["removed"] for c in per_channel.values())
+    if removed:
+        mark_step(dataset, STEP_CODE, STEP)
     report.soundings_affected = 0        # gates, not soundings; see distributions
     report.distributions = {
         "per_channel": per_channel,

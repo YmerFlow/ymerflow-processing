@@ -94,10 +94,15 @@ log = logging.getLogger(__name__)
 IN_USE = 1
 CULLED = 0
 
-#: Where per-datum provenance is stored, one array per channel alongside the
-#: mask it explains. ``{inuse_key}`` is substituted, so it travels with the
-#: channel under either naming convention.
-PROVENANCE_SUFFIX = "_why"
+#: Prefixed onto a mask key to name its provenance array.
+#:
+#: A **prefix**, not a suffix, and that is not cosmetic. Channel naming patterns
+#: are anchored at the start of a key — ``^dbdt_inuse_ch(\d+)`` — so a suffixed
+#: ``dbdt_inuse_ch1gt_why`` still matches the in-use pattern and discovery finds
+#: two candidates for one channel's mask. It warned and picked correctly, but a
+#: name that can be mistaken for the thing it describes is a trap waiting for a
+#: pattern change. Prefixing puts it outside every anchored pattern.
+PROVENANCE_PREFIX = "why_"
 
 #: No step has claimed this datum.
 UNTOUCHED = 0
@@ -112,7 +117,7 @@ STEP_REGISTRY = "cull_step_codes"
 
 def provenance_key(inuse_key: str) -> str:
     """Where the provenance for ``inuse_key`` lives."""
-    return f"{inuse_key}{PROVENANCE_SUFFIX}"
+    return f"{PROVENANCE_PREFIX}{inuse_key}"
 
 
 def mark_step(dataset, code: int, step: str) -> None:

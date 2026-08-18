@@ -336,11 +336,18 @@ class _Runner:
         Reads only, so it is safe in a QC pipeline where R6 promises the data
         comes out byte-identical.
         """
+        # Imported here rather than at module scope: both import StepReport
+        # from this module.
+        from .cull.filter_20_initial_gates import honor_system_description
+        from .inventory import inventory as take_inventory
+
+        # A dataset built without load() — a fixture, or one the platform
+        # assembled — has not had the declaration applied yet. Subtractive, so
+        # this is a no-op on one that has.
+        honor_system_description(dataset)
+
         if not self.inventory:
             return dataset
-        # Imported here rather than at module scope: inventory imports
-        # StepReport from this module.
-        from .inventory import inventory as take_inventory
         dataset, step_report = take_inventory(dataset)
         step_report.params = {"implicit": True}
         report.steps.append(step_report)

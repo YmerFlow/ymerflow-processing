@@ -1033,3 +1033,37 @@ discovery can claim it — rather than to delete it. Tested against a hypothetic
 declaring `ReceiverPolarizationXYZ=X` sharing the high moment's dipole moment: the existing
 component-versus-moment split handles it correctly with no change to the channel model. The gap
 was only ever in what happens to arrays outside the model.
+
+## Addition, 2026-08-18 — filter_20 is a mandate, not a step
+
+`01` lists filter_20 among the culling filters, and above it observes that it is "arguably a
+correction rather than a quality judgment." That instinct was right, and it has a consequence
+the inventory made obvious: **it is applied automatically, not listed in a pipeline.**
+
+Every other culling filter decides something. A threshold was chosen, a predicate objected, an
+operator could reasonably disagree. filter_20 reads the instrument's own statement about which
+of its samples can be inverted at all. Data outside that window is not data anyone decided to
+drop — it is samples the vendor already said are contaminated by the transmitter turn-off.
+Applying it is part of reading the file correctly, in the same way the gate times are.
+
+Left optional it is the single easiest thing in the library to forget, and forgetting it is
+**silent**: the inversion runs, converges, and is confidently wrong about the shallow section.
+Nothing fails, so nothing prompts anyone to look.
+
+So the declaration is applied in `load()` — the moment a survey and a system description become
+one thing, which is exactly where "what is in the system description is what you get" becomes a
+true statement rather than an instruction someone has to follow — and again at the top of every
+run, for a dataset assembled some other way. Both are no-ops on a dataset that already has it,
+because culling is subtractive.
+
+It stays registered as an explicit step for the one case the automatic pass cannot serve: a
+delivery whose description is known to be wrong, where the declared count is overridden. And
+filter_21 puts the gates back for anyone doing full primary-field modeling, which is the reason
+this writes a mask rather than removing anything.
+
+**Two consequences worth stating.** A channel declaring *zero* initial gates must not
+materialize an in-use array to say so, or the mandate would write arrays into a delivery that
+had none — breaking exactly the promise lazy materialization exists to keep. And a description
+that disagrees with the delivery raises from the explicit step, where someone asked and is
+watching, but only warns from a load: raising there would make an unreadable file out of a
+readable one.

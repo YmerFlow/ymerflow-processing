@@ -120,7 +120,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   point and whether it was a direct hit or collateral.
 - **Filters**: `select_channels`, which reduces a delivery to the channels an inversion
   accepts by the R7 `criterion` idiom; `export_vector`; and `disable_initial_gates`
-  (filter_20), the first culling step through the mask.
+  (filter_20), which is **applied automatically** by `load()` and at the top of every run
+  rather than listed in a pipeline — it reads the instrument's own statement about which of its
+  samples can be inverted, which is part of reading the file correctly rather than a judgement.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
   dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
 

@@ -14,7 +14,7 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.core.mask import (
     CULLED, IN_USE, UNTOUCHED, apply_policy, cull, ensure, in_use,
-    provenance, provenance_key, summarize,
+    PROVENANCE_PREFIX, provenance, provenance_key, summarize,
 )
 
 HEIGHT = 6
@@ -247,6 +247,21 @@ def test_a_sounding_losing_its_last_gate_is_reported():
 
 
 # ── Provenance ───────────────────────────────────────────────────────────────
+
+def test_the_provenance_array_cannot_be_mistaken_for_a_mask():
+    """Naming patterns are anchored at the start of a key, so a suffix would
+    leave the provenance array matching the in-use pattern and discovery would
+    find two candidates for one channel's mask."""
+    d = dataset()
+    channel = d.channels[0]
+    provenance(d, channel)
+
+    key = provenance_key(channel.inuse_key)
+    assert key.startswith(PROVENANCE_PREFIX)
+    # Rediscovery still resolves exactly one mask per channel.
+    assert [c.inuse_key for c in d.channels] == [
+        "dbdt_inuse_ch1gt", "dbdt_inuse_ch2gt"]
+
 
 def test_provenance_names_the_step_that_removed_each_datum():
     d = dataset()
