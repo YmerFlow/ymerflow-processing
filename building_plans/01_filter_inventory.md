@@ -1316,3 +1316,21 @@ The perturbation's spread is `uncertainty × |value|`, because the stored uncert
 relative. Drawing from the relative figure directly would put noise of order one on every datum
 whatever its magnitude. A gate whose assigned uncertainty has passed one receives a perturbation
 larger than the datum itself — correct, and what makes a synthetic look like real late-time data.
+
+### Correction, 2026-08-19 — filter_13's seed defaults to 42
+
+The addition above says "**The seed is required.**" That is no longer true, and the reasoning
+that produced it was overstated.
+
+The argument for requiring it was that a default makes two "independent" realizations identical.
+That is true, but it is **detectable rather than silent**: the seed is recorded on the dataset
+and in the report, and the report now says whether it was *given* or *defaulted*. Weighed
+against friction on the common case — one synthetic dataset — requiring it was the wrong trade.
+
+The seed defaults to **42**, and the reason is not numerical. Measured, the worst correlation
+between PCG64 streams from seeds 1 to 8 is 0.014 at twenty thousand samples, which is noise;
+no seed is better than another. What 42 offers is that it reads as *nobody chose this*, where an
+arbitrary-looking number reads as though someone did and had a reason. That is an auditing
+property, and it is the only basis on which one seed beats another.
+
+Independent realizations still need their own seeds, and a defaulted run says so in its notes.

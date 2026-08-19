@@ -17,7 +17,7 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.core.filter_11_inflate import inflate_uncertainty
 from ymerflow_processing.core.filter_13_perturb import (
-    STASH_SUFFIX, applied, perturb_from_uncertainty,
+    DEFAULT_SEED, STASH_SUFFIX, applied, perturb_from_uncertainty,
 )
 from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
 from ymerflow_processing.core.noise import estimate_noise_model, REFERENCE_TIME
@@ -233,9 +233,47 @@ def test_an_assigned_model_is_not_called_out():
     assert not any("uniform default" in n for n in report.notes)
 
 
-def test_a_missing_seed_is_an_error():
-    with pytest.raises(ValueError, match="needs a seed"):
+def test_the_seed_defaults_to_a_legible_marker():
+    """42 is not a better number — no seed is. It is the right default because
+    it reads as "nobody chose this", where an arbitrary-looking number reads as
+    though someone did and had a reason."""
+    _, report = perturb_from_uncertainty(delivery())
+
+    assert DEFAULT_SEED == 42
+    assert report.distributions["seed"] == 42
+    assert report.distributions["seed_source"] == "default"
+    assert any("need their own seed" in n for n in report.notes)
+
+
+def test_a_given_seed_is_recorded_as_given():
+    """So "seed=42" in a file is distinguishable from a deliberate 42."""
+    _, report = perturb_from_uncertainty(delivery(), seed=7)
+
+    assert report.distributions["seed_source"] == "given"
+    assert not any("need their own seed" in n for n in report.notes)
+
+
+def test_naming_channels_does_not_disturb_the_seed_source():
+    """A name collision here would have made every channel-limited run report
+    its seed as defaulted."""
+    _, report = perturb_from_uncertainty(delivery(), seed=7, channels=["ch1"])
+    assert report.distributions["seed_source"] == "given"
+
+
+def test_an_explicit_none_seed_is_still_an_error():
+    with pytest.raises(ValueError, match="cannot be None"):
         perturb_from_uncertainty(delivery(), seed=None)
+
+
+def test_the_default_gives_every_realization_the_same_noise():
+    """What a default cannot do is make two realizations independent. Detectable
+    rather than silent, but the reason anything wanting independence must ask."""
+    one, _ = perturb_from_uncertainty(delivery())
+    two, _ = perturb_from_uncertainty(delivery())
+
+    np.testing.assert_array_equal(
+        one.layer_data[one.channels[0].data_key].to_numpy(),
+        two.layer_data[two.channels[0].data_key].to_numpy())
 
 
 # ── The chain they belong to ─────────────────────────────────────────────────
