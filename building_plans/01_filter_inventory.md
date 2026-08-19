@@ -1158,3 +1158,32 @@ visible rather than quietly under-culled.
 **Uncertainty is not noise.** filter_24 culls what the processing claims to know about a point;
 filter_29 culls where the measurement sits below the ambient noise floor. Both can be true of
 the same datum and neither implies the other.
+
+## Addition, 2026-08-19 — two constraints on a free-form line label
+
+`01` decides filter_01–04 collapse into `Classify lines` and `Select lines`, and that
+`line_type` values stay **free-form** so a survey can define its own categories. That
+flexibility is kept. Two limits on it were not foreseeable when the decision was made.
+
+**A label may not contain whitespace.** The survey xyz format is whitespace-delimited with no
+quoting, so `"High Altitude"` becomes two fields and the file it is written to will not parse
+back. This is the same defect that made every enriched export unreadable when a verdict tier
+contained a space, and it is refused at the point the label is *set* rather than discovered at
+the point the file is read — the error suggests the hyphenated form.
+
+**A label is a string, so the plot layer cannot draw it.** YmerFlow's plot layer enumerates
+columns that are typed arrays; a label column is not one, so it never appears as a plottable
+channel. Verdicts solved this by being numeric with a fixed legend, and `line_type` cannot
+follow, because the vocabulary is deliberately open — a per-dataset code registry would have to
+invent stable codes for values nobody has declared yet.
+
+That is an acceptable loss rather than a problem to solve: `line_type` exports to GeoPackage and
+shapefile, which is where someone actually wants to symbolise on it, and it is readable in the
+xyz. It is simply not available as a plot channel, and that is worth knowing rather than
+discovering.
+
+**Selecting drops soundings from every array together.** `flightlines` and each `layer_data`
+array are subset positionally in one pass and reindexed as one, so nothing can end up
+addressing a different sounding than its neighbour. An array whose row count does not match the
+sounding count is left alone and reported — it is not indexed by sounding, and guessing would
+be worse than saying so.

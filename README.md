@@ -139,6 +139,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
+- **`core/lines.py`** (filter_01-04, collapsed to two by `01`'s decision) — `classify_lines`
+  labels flightlines by height threshold or by name; `select_lines` reduces the dataset to the
+  ones wanted, moving every array with the soundings so nothing can misalign.
 - **`core/manage.py`** (filter_14-19) — copy, rename and remove, for attributes and arrays.
   Six entry points over one symmetry. They exist to work around import problems, not to do
   geophysics, and a rename that takes a channel out of the model says so.

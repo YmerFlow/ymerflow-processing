@@ -49,6 +49,9 @@ setup(
             "filter_24_uncertainty:cull_by_uncertainty",
             "cull_negatives = ymerflow_processing.core.cull."
             "filter_32_negatives:cull_negatives",
+            # filter_01-04: line selection, collapsed to two by 01's decision.
+            "classify_lines = ymerflow_processing.core.lines:classify_lines",
+            "select_lines = ymerflow_processing.core.lines:select_lines",
             # filter_14-19: data management, one entry point each.
             "copy_attribute = ymerflow_processing.core.manage:copy_attribute",
             "copy_array = ymerflow_processing.core.manage:copy_array",
