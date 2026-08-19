@@ -139,6 +139,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
+- **`apply_manual_edits`** (filter_33) — replays a hand-authored in-use diff, which is what
+  makes the chain reproducible in the presence of human judgement. The second and last step
+  permitted to turn data back on.
 - **`core/lines.py`** (filter_01-04, collapsed to two by `01`'s decision) — `classify_lines`
   labels flightlines by height threshold or by name; `select_lines` reduces the dataset to the
   ones wanted, moving every array with the soundings so nothing can misalign.

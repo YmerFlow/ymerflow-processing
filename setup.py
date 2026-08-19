@@ -49,6 +49,8 @@ setup(
             "filter_24_uncertainty:cull_by_uncertainty",
             "cull_negatives = ymerflow_processing.core.cull."
             "filter_32_negatives:cull_negatives",
+            "apply_manual_edits = ymerflow_processing.core.cull."
+            "filter_33_manual_edits:apply_manual_edits",
             # filter_01-04: line selection, collapsed to two by 01's decision.
             "classify_lines = ymerflow_processing.core.lines:classify_lines",
             "select_lines = ymerflow_processing.core.lines:select_lines",

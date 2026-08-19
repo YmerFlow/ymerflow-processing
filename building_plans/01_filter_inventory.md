@@ -1187,3 +1187,26 @@ array are subset positionally in one pass and reindexed as one, so nothing can e
 addressing a different sounding than its neighbour. An array whose row count does not match the
 sounding count is left alone and reported — it is not indexed by sounding, and guessing would
 be worse than saying so.
+
+## Addition, 2026-08-19 — filter_33's checkpoint is a name, not a file
+
+`01` decides the checkpoint and the edit stay one step, because "a diff is meaningless without
+knowing which state it is a difference from" and splitting them would require inventing a
+reference to replace one that is implicit in the pairing. That decision stands.
+
+What the checkpoint *is* needed clarifying. `01` says the step "saves it as a named intermediate
+result", which reads as writing a snapshot file. Here it is a **name recorded on the run**, and
+nothing is written.
+
+Materialising and versioning intermediate state is the platform's job — it already creates a
+process version per edit, which is how the diff reaches the pipeline in the first place. A
+library that wrote snapshot files as a side effect of filtering would be doing that job badly
+and in a second place. What this owes is the name, so the pairing survives into the record; a
+run without one is noted, since a diff whose reference state is unnamed cannot be checked
+against the state it was authored on.
+
+**The addressing is what makes replay safe, so it is validated rather than trusted.** An edit
+naming a sounding index outside the dataset was authored against a different state, and applying
+it would edit the wrong soundings silently. That raises. A row-count disagreement between
+`apply_idx` and an override array raises for the same reason. A *gate*-count disagreement is
+noted and skipped rather than raising, since one mismatched channel need not stop the others.
