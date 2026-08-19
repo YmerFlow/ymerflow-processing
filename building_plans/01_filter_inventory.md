@@ -1210,3 +1210,41 @@ naming a sounding index outside the dataset was authored against a different sta
 it would edit the wrong soundings silently. That raises. A row-count disagreement between
 `apply_idx` and an override array raises for the same reason. A *gate*-count disagreement is
 noted and skipped rather than raising, since one mismatched channel need not stop the others.
+
+## Addition, 2026-08-19 — filter_05 holds elevation, not altitude
+
+`01` says filter_05 "corrects instrument altitude and topographic elevation so that heights are
+expressed consistently relative to the ground surface". It does not say which of the two is
+held fixed while the other moves, and the two readings give different answers for every
+sounding in a survey.
+
+**Altitude is distance above the ground. Elevation is distance above (or below) the geoid.**
+`libaarhusxyz` states the relation between them by plotting `alt_column + z_column` as the
+instrument's position, so:
+
+    instrument elevation = ground elevation + altitude
+
+Read as a definition, that settles it. **The instrument's elevation is held fixed and altitude
+is recomputed.** The aircraft was where it was — that is GPS, an absolute measurement against a
+datum. What a better terrain model changes is not where the aircraft flew but how far above the
+ground it flew.
+
+The alternative is available as `preserve="altitude"` and is the wrong default. In a SkyTEM
+delivery the normalizer maps `dem_lidar` to `topo` and `height_lidar` to `tx_altitude` — **both
+come from the same lidar**, so the delivered ground elevation already carries whatever the
+altimeter got wrong. Holding altitude fixed would preserve exactly the error this filter exists
+to remove.
+
+**A vertical datum mismatch looks like terrain error and is not.** GPS reports height above the
+ellipsoid; terrain models are usually above the geoid, and the separation is tens of metres in
+places. This library has no geoid model and cannot resolve it — but it can be *seen*, because
+the two have opposite signatures. A datum mismatch is a large median offset with a **small**
+spread: the whole survey shifted by nearly the same amount. Genuine terrain error is a small
+median with a **large** spread. Both figures are reported and neither is judged, because where
+the boundary lies depends on the terrain and a house number would either cry wolf on real
+relief or wave through an error that puts every sounding tens of metres wrong.
+
+**Outside the model's coverage, both columns go to NaN** rather than keeping delivered values.
+Keeping them would leave one dataset carrying two definitions of ground with nothing marking
+which is which, and a later check grading that column would be comparing against a datum it
+cannot know. The delivered values are stashed either way, so nothing is lost.

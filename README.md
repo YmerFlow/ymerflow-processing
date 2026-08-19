@@ -139,6 +139,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
+- **`core/terrain.py`** (filter_05) — samples a terrain model and re-expresses altitude
+  against it, holding the instrument's elevation fixed. Reports the offset's median and spread
+  together, because a vertical datum mismatch and genuine terrain error have opposite
+  signatures in those two numbers.
 - **`apply_manual_edits`** (filter_33) — replays a hand-authored in-use diff, which is what
   makes the chain reproducible in the presence of human judgement. The second and last step
   permitted to turn data back on.

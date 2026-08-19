@@ -24,6 +24,34 @@ from ymerflow_processing.core.qc.thresholds import labels
 from ymerflow_processing.em.tem.method import TEMMethod
 
 
+def make_terrain(path, elevation=200.0, bounds=(-100, -100, 1000, 1000),
+                 cell=10.0, nodata=-9999.0, crs="EPSG:32612", holes=None):
+    """A terrain model on disk: a constant surface, optionally with nodata.
+
+    Written rather than mocked, because the interesting failures are rasterio's
+    — CRS mismatch, nodata, and sampling outside the footprint — and a mock
+    would assert against my idea of them rather than against the library.
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    left, bottom, right, top = bounds
+    width = int(np.ceil((right - left) / cell))
+    height = int(np.ceil((top - bottom) / cell))
+    grid = np.full((height, width), float(elevation), dtype="float32")
+    for row, column in (holes or []):
+        grid[row, column] = nodata
+
+    with rasterio.open(
+        path, "w", driver="GTiff", height=height, width=width, count=1,
+        dtype="float32", crs=crs, nodata=nodata,
+        transform=from_origin(left, top, cell, cell),
+    ) as handle:
+        handle.write(grid, 1)
+    return path
+
+
 def step(report, name):
     """One step's report, by name.
 

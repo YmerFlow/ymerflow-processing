@@ -27,6 +27,7 @@ setup(
         "numpy",
         "pandas>=2.2",    # R5: built against pandas 3.x semantics
         "geopandas",   # vector export, and R8 external inputs by type
+        "rasterio",    # filter_05 samples a terrain model
         "pyyaml",
         "click",
     ],
@@ -51,6 +52,7 @@ setup(
             "filter_32_negatives:cull_negatives",
             "apply_manual_edits = ymerflow_processing.core.cull."
             "filter_33_manual_edits:apply_manual_edits",
+            "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
             # filter_01-04: line selection, collapsed to two by 01's decision.
             "classify_lines = ymerflow_processing.core.lines:classify_lines",
             "select_lines = ymerflow_processing.core.lines:select_lines",
