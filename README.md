@@ -139,6 +139,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
+- **`core/noise.py`** (R9) — one noise model, estimated from the sounding-to-sounding scatter
+  at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
+  (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
+  to run without one, which is what makes the defect R9 exists for unrepresentable.
 - **`core/terrain.py`** (filter_05) — samples a terrain model and re-expresses altitude
   against it, holding the instrument's elevation fixed. Reports the offset's median and spread
   together, because a vertical datum mismatch and genuine terrain error have opposite

@@ -53,6 +53,12 @@ setup(
             "apply_manual_edits = ymerflow_processing.core.cull."
             "filter_33_manual_edits:apply_manual_edits",
             "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
+            # R9: one noise model on the dataset; filter_12 and filter_29 read it.
+            "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
+            "assign_uncertainty = "
+            "ymerflow_processing.core.filter_12_uncertainty:assign_uncertainty",
+            "cull_below_noise_floor = ymerflow_processing.core.cull."
+            "filter_29_noise_floor:cull_below_noise_floor",
             # filter_01-04: line selection, collapsed to two by 01's decision.
             "classify_lines = ymerflow_processing.core.lines:classify_lines",
             "select_lines = ymerflow_processing.core.lines:select_lines",

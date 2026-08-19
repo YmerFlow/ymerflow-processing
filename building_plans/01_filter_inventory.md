@@ -1248,3 +1248,35 @@ relief or wave through an error that puts every sounding tens of metres wrong.
 Keeping them would leave one dataset carrying two definitions of ground with nothing marking
 which is which, and a later check grading that column would be comparing against a datum it
 cannot know. The delivered values are stashed either way, so nothing is lost.
+
+## Addition, 2026-08-19 — how the floor is estimated, and one filter that may be redundant
+
+R9 says the floor is "estimated from late gates" and leaves the method open. Two choices had to
+be made.
+
+**Estimated from the scatter, not from the level.** At late gates the measured value is signal
+*plus* noise, and taking its magnitude as the noise counts whatever response remains. What
+separates them is that **geology varies smoothly along a line and noise does not** — so the
+sounding-to-sounding difference at a late gate is noise-dominated even where signal is still
+present. The floor is the robust scatter of consecutive differences, divided by `sqrt(2)`
+because differencing two independent samples adds their variances, and taken as a median
+absolute deviation so a few spikes do not inflate the floor that is meant to detect them.
+
+Verified by recovery rather than by inspection: against a synthetic transient with a known
+5e-10 floor and −0.5 slope, the estimator returns 4.7e-10 and −0.49, and a hundredfold stronger
+signal over the same ambient noise does not move it.
+
+**Which gates are "late" is a parameter with a stated default** — the last third, with a floor
+of three so a slope can be fitted at all. There is no principled number here, so the per-gate
+scatter is reported and the choice is checkable rather than trusted.
+
+**filter_29 may be redundant with filter_12, and that is worth saying out loud.** On a dataset
+whose uncertainties were assigned from the model, a gate below the floor already carries a
+relative uncertainty past one, and any inversion that weights by uncertainty has already
+discounted it. filter_29 removes it outright instead, which matters for a consumer that
+thresholds on the mask rather than weighting, and for anyone reading how much of a sounding was
+real. Both are kept, and the overlap is stated rather than left for someone to discover.
+
+Its `margin` is a multiplier on the shared floor rather than a floor of its own — which is the
+whole point of R9, since a second number could drift away from the one filter_12 assigned
+uncertainty with.
