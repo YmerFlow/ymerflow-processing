@@ -1280,3 +1280,39 @@ real. Both are kept, and the overlap is stated rather than left for someone to d
 Its `margin` is a multiplier on the shared floor rather than a floor of its own — which is the
 whole point of R9, since a second number could drift away from the one filter_12 assigned
 uncertainty with.
+
+## Addition, 2026-08-19 — filter_11 adds arithmetically, and filter_13 refuses to run twice
+
+**filter_11 adds arithmetically, not in quadrature.** Combining two *independent* uncertainties
+is a quadrature sum, and this is not that: `01` says "adds" and "negative values reduce it", and
+a negative cannot be subtracted in quadrature without going imaginary at the crossing point.
+
+Arithmetic is also what makes the parameter mean what an operator says aloud — "add two
+percent" moves 3% to 5%, not to 3.6%. The trade is that it does not compose the way independent
+errors do, which is correct: a number someone chose is not an independent error. That is the
+same distinction that keeps filter_11 and filter_12 apart at all — one adjusts, the other
+asserts a physical model.
+
+Uncertainty is clamped at zero rather than allowed negative. A negative uncertainty travelling
+downstream would be squared by something and come back as a plausible positive, which is worse
+than an error.
+
+**filter_13's ordering hazard is enforced, not documented.** `01` asks that "the rebuild should
+make a wrong ordering detectable rather than silently producing plausible nonsense". Three
+things do that:
+
+- **It refuses to run twice.** Perturbing an already-perturbed dataset makes it noisier by
+  roughly √2 and the result looks exactly like data. The application is recorded on the dataset
+  with its seed, and a second pass raises unless explicitly asked for.
+- **It says so when every uncertainty in a channel is identical.** That is the signature of a
+  uniform default from the system description rather than an assigned model, which usually
+  means filter_12 has not run. Noise drawn from it is flat in relative terms, so late gates come
+  out as clean as early ones — precisely what the absolute floor exists to prevent. There is a
+  test that this stays quiet on a properly assigned model, since a warning firing on correct use
+  is worse than none.
+- **The seed is required.** "A fair test" is not a fair test if it cannot be repeated.
+
+The perturbation's spread is `uncertainty × |value|`, because the stored uncertainty is
+relative. Drawing from the relative figure directly would put noise of order one on every datum
+whatever its magnitude. A gate whose assigned uncertainty has passed one receives a perturbation
+larger than the datum itself — correct, and what makes a synthetic look like real late-time data.

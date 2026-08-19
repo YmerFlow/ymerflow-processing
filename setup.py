@@ -55,6 +55,10 @@ setup(
             "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
             # R9: one noise model on the dataset; filter_12 and filter_29 read it.
             "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
+            "inflate_uncertainty = "
+            "ymerflow_processing.core.filter_11_inflate:inflate_uncertainty",
+            "perturb_from_uncertainty = "
+            "ymerflow_processing.core.filter_13_perturb:perturb_from_uncertainty",
             "assign_uncertainty = "
             "ymerflow_processing.core.filter_12_uncertainty:assign_uncertainty",
             "cull_below_noise_floor = ymerflow_processing.core.cull."

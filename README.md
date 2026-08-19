@@ -143,6 +143,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
+- **`inflate_uncertainty`** (filter_11) and **`perturb_from_uncertainty`** (filter_13) — the
+  operator's knob on uncertainty, and drawing synthetic noise from it. The second enforces its
+  own ordering hazard: it refuses to perturb twice and calls out uncertainties that look like
+  an untouched default.
 - **`core/terrain.py`** (filter_05) — samples a terrain model and re-expresses altitude
   against it, holding the instrument's elevation fixed. Reports the offset's median and spread
   together, because a vertical datum mismatch and genuine terrain error have opposite
