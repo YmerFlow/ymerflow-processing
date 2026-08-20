@@ -1418,3 +1418,36 @@ which is precisely the failure this filter exists to prevent.
 **filter_09 is deliberately destructive, and qc_04 is what says whether it should be.** They
 read the same declared nominal: qc_04 measures agreement with it and reports the offset without
 penalising it, and this filter is the decision that report informs.
+
+## Addition, 2026-08-20 — filter_25 to filter_28, and the shape helper
+
+**The four collapse to two steps, and the pairing is `01`'s own.** It writes them as
+"filter_25 / filter_26" and "filter_27 / filter_28" under single headings, because each pair is
+two *bounds on one measurement* rather than two predicates. That is the same shape as every
+threshold pair in the QC group, and it is not the thirteen-valued mode `01` warns against.
+
+**The measurement lives in `core/transient.py`, not in the filters.** Writing it four times
+would give four chances to get it wrong differently, and the ways to get it wrong all produce a
+plausible number rather than an error:
+
+- **A culled gate is not a neighbour.** If gate 6 is disabled, the slope at gate 7 is measured
+  against gate 5 — not against a hole, and not against gate 6's value as though it were still
+  there.
+- **The spacing is never even.** Gates are logarithmic, so `y₀ − 2y₁ + y₂` is wrong before
+  anything is culled, and culling makes the gaps variable on top of that. Every quantity is a
+  divided difference over the actual `log t` of the nearest surviving neighbours.
+
+Verified by recovery: on a pure `t^-2.5` power law the slope is exactly −2.5 and the curvature
+exactly 0, and with an interior gate culled the slope at its neighbour is *still* exactly −2.5 —
+which a fixed-offset difference would not be.
+
+**Unmeasurable is not an objection.** `NaN` at the first and last surviving gate, at a
+non-positive value, and in a sounding with too few survivors. "The shape is unmeasurable here"
+is a different statement from "the shape is wrong", and only the second may cull. A negative
+measurement in particular is filter_32's finding — treating it as a shape problem would
+double-count it and attribute it to the wrong cause.
+
+**The slope bounds are named `shallowest` and `steepest`, not maximum and minimum.** A decaying
+transient has a *negative* slope, so "maximum" reads backwards for anyone thinking in decay
+rates. They take signed values, and bounds written the wrong way round are refused rather than
+silently excluding every slope.

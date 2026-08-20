@@ -143,6 +143,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
+- **`core/transient.py`** — local slope and curvature in log-log space, measured over the gates
+  that are still in use, at their real times. Shared by `cull_by_decay_rate` (filter_25/26) and
+  `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbour and getting that
+  wrong yields a plausible number rather than an error.
 - **`core/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
   rescales amplitudes to what a level transmitter would have measured; the other declares there
   is no trustworthy attitude, so the correction becomes exactly one.

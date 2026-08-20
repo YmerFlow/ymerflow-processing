@@ -48,6 +48,10 @@ setup(
             "filter_22_geometry:cull_by_geometry",
             "cull_by_uncertainty = ymerflow_processing.core.cull."
             "filter_24_uncertainty:cull_by_uncertainty",
+            "cull_by_decay_rate = ymerflow_processing.core.cull."
+            "filter_25_decay_rate:cull_by_decay_rate",
+            "cull_by_curvature = ymerflow_processing.core.cull."
+            "filter_27_curvature:cull_by_curvature",
             "cull_negatives = ymerflow_processing.core.cull."
             "filter_32_negatives:cull_negatives",
             "apply_manual_edits = ymerflow_processing.core.cull."
