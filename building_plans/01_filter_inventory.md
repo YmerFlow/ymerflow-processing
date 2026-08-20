@@ -1451,3 +1451,27 @@ double-count it and attribute it to the wrong cause.
 transient has a *negative* slope, so "maximum" reads backwards for anyone thinking in decay
 rates. They take signed values, and bounds written the wrong way round are refused rather than
 silently excluding every slope.
+
+## Addition, 2026-08-20 — R8 applies to the way out as well
+
+R8 governs external inputs: *"The filter declares a type, not a format, and reads through a
+standard loader"*, with the consequence that **"format is a loader concern, not a filter
+concern."**
+
+The same argument runs in reverse and was not stated. `export_vector` derived its driver from
+the output path's extension, so the *step's parameter* determined the format — the mirror of the
+defect R8 names on the input side.
+
+**What the step produces is vector geometry.** What someone later chooses to serialise it as is
+a question about delivery, not about processing. So the geometry is built by `build_layers`,
+which returns named `GeoDataFrame`s in the output CRS and writes nothing, and `export_vector` is
+a thin writer over it.
+
+Two things follow. The platform can **build once and serve GeoPackage, shapefile or GeoJSON on
+demand** without re-running anything, which is what a download option actually needs. And a
+`format` parameter now beats the extension, so a caller serving a chosen format is not obliged
+to encode that choice in a filename — while a bare path still works, which R8 requires because
+"the library stays standalone."
+
+Both routes read the same layers, so the file a client receives and the download a browser gets
+cannot drift apart.

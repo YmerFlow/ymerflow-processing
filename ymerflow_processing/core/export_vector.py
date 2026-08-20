@@ -90,13 +90,31 @@ SHAPEFILE_SIZE_LIMIT = 2 * 1024 ** 3
 UNCLASSIFIED = "Unclassified"
 
 
-def _driver_for(path: Path) -> str:
+#: Format names, for a caller that chooses one rather than implying it through
+#: a filename. R8 says format is a loader concern on the way in; on the way out
+#: it is a delivery concern, and neither is a property of the processing.
+FORMATS = {"gpkg": "GPKG", "shp": "ESRI Shapefile", "geojson": "GeoJSON",
+           "json": "GeoJSON"}
+
+
+def _driver_for(path: Path, format: str | None = None) -> str:
+    """The OGR driver, from a stated format or failing that the extension."""
+    if format is not None:
+        name = str(format).lower().lstrip(".")
+        if name not in FORMATS:
+            raise ValueError(
+                f"Unknown format {format!r}. Available: "
+                f"{', '.join(sorted(FORMATS))} — gpkg unless a contract names "
+                f"something else."
+            )
+        return FORMATS[name]
+
     suffix = path.suffix.lower()
     if suffix not in DRIVERS:
         raise ValueError(
-            f"Cannot tell a format from {path.name!r}. Use one of "
-            f"{', '.join(sorted(DRIVERS))} — .gpkg unless a contract names "
-            f"something else."
+            f"Cannot tell a format from {path.name!r}, and none was given. Use "
+            f"one of {', '.join(sorted(DRIVERS))}, or pass format= — .gpkg "
+            f"unless a contract names something else."
         )
     return DRIVERS[suffix]
 
@@ -168,52 +186,30 @@ def _line_features(frame, line_column, geometry_of):
     return pd.DataFrame(rows), geometries
 
 
-def export_vector(
-    dataset,
-    path,
-    crs,
-    source_crs=None,
-    columns=None,
-    lines: bool = True,
-    unclassified: str = UNCLASSIFIED,
-):
-    """Write the dataset's per-sounding attributes out as vector geometry.
+def build_layers(dataset, crs, source_crs=None, columns=None,
+                 lines: bool = True, unclassified: str = UNCLASSIFIED):
+    """The dataset as named vector layers, in the output CRS.
 
-    :param path: Where to write. The extension picks the format — ``.gpkg`` for
-        GeoPackage, ``.shp`` for shapefile, ``.geojson`` for GeoJSON as a wire
-        format. GeoPackage unless a contract names something else.
-    :param crs: **Output** CRS, e.g. ``"EPSG:32613"``. Required and never
-        guessed: it is a project decision, and a contractor's delivery CRS and a
-        client's output CRS are routinely different.
-    :param source_crs: What the dataset's coordinates are in. Taken from the
-        dataset if it knows; an error if neither says, since reprojecting from
-        an assumed CRS produces plausible, wrong positions.
-    :param columns: Which attributes to write. All of ``flightlines`` by default.
-    :param lines: Also write one feature per flightline. GeoPackage takes both
-        layers in one file; a shapefile holds one geometry type, so this writes
-        a second file alongside.
-    :param unclassified: What a verdict with no classification is written as.
+    **This is the typed output**, and it is separate from writing on purpose.
+    R8 says of the input side that "format is a loader concern, not a filter
+    concern"; the same holds in reverse. What this step produces is *vector
+    geometry* — what someone later chooses to serialise it as is a question
+    about delivery, not about processing.
 
-    Returns ``(dataset, StepReport)``. The dataset is returned unchanged — this
-    reads and writes files.
+    Splitting it means the platform can build once and serve GeoPackage,
+    shapefile or GeoJSON on demand without re-running anything, and the
+    standalone CLI can still write a file. Both read the same layers, so the two
+    routes cannot drift.
+
+    Returns ``({name: GeoDataFrame}, notes)``.
     """
     import geopandas as gpd
     from shapely.geometry import LineString, Point
 
-    report = StepReport(step=STEP)
+    notes: list[str] = []
     frame = dataset.flightlines
-    report.soundings_total = 0 if frame is None else len(frame)
-
     if frame is None or len(frame) == 0:
-        report.notes.append("No soundings; nothing to export.")
-        return dataset, report
-
-    path = Path(path)
-    driver = _driver_for(path)
-    is_shapefile = driver == "ESRI Shapefile"
-    # Only GeoPackage holds several layers in one file. Shapefile allows one
-    # geometry type; the GeoJSON driver allows neither layers nor appending.
-    holds_layers = driver == "GPKG"
+        return {}, ["No soundings; nothing to build."]
 
     if not crs:
         raise ValueError(
@@ -230,8 +226,7 @@ def export_vector(
 
     xyz = dataset.survey.xyz
     if xyz.x_column not in frame.columns or xyz.y_column not in frame.columns:
-        report.notes.append("No position columns; nothing to place. Not exported.")
-        return dataset, report
+        return {}, ["No position columns; nothing to place."]
 
     # Which columns hold verdict codes rather than measurements. Read from the
     # dataset's own record rather than inferred: the two are both float32 and
@@ -246,6 +241,94 @@ def export_vector(
             f"No column(s) {', '.join(map(repr, missing))} in flightlines.")
 
     attributes = _labelled(frame[wanted], verdicts, unclassified)
+    points = gpd.GeoDataFrame(
+        attributes,
+        geometry=[Point(x, y) for x, y in zip(frame[xyz.x_column],
+                                              frame[xyz.y_column])],
+        crs=source,
+    )
+    if str(source) != str(crs):
+        points = points.to_crs(crs)
+    built = {"soundings": points}
+
+    line_column = xyz.line_id_column
+    if lines and line_column and line_column in frame.columns:
+        def geometry_of(block):
+            # Two points is the minimum for a line; a single sounding on a line
+            # has a position but no path.
+            coordinates = list(zip(block[xyz.x_column], block[xyz.y_column]))
+            return LineString(coordinates) if len(coordinates) > 1 else None
+
+        records, geometries = _line_features(
+            _labelled(frame, verdicts, unclassified), line_column, geometry_of)
+        if geometries:
+            flightlines = gpd.GeoDataFrame(records, geometry=geometries,
+                                           crs=source)
+            if str(source) != str(crs):
+                flightlines = flightlines.to_crs(crs)
+            built["flightlines"] = flightlines
+    elif lines:
+        notes.append("No line identifier, so no flightline geometry was built.")
+
+    return built, notes
+
+
+def export_vector(
+    dataset,
+    path,
+    crs,
+    source_crs=None,
+    columns=None,
+    lines: bool = True,
+    unclassified: str = UNCLASSIFIED,
+    format: str | None = None,
+):
+    """Write the dataset's per-sounding attributes out as vector geometry.
+
+    A thin writer over :func:`build_layers`, which is where the geometry is
+    actually made. That split is the point: the layers are the product and the
+    file is one way of delivering them.
+
+    :param path: Where to write.
+    :param crs: **Output** CRS, e.g. ``"EPSG:32613"``. Required and never
+        guessed: it is a project decision, and a contractor's delivery CRS and a
+        client's output CRS are routinely different.
+    :param source_crs: What the dataset's coordinates are in. Taken from the
+        dataset if it knows; an error if neither says, since reprojecting from
+        an assumed CRS produces plausible, wrong positions.
+    :param columns: Which attributes to write. All of ``flightlines`` by default.
+    :param lines: Also write one feature per flightline. GeoPackage takes both
+        layers in one file; a shapefile holds one geometry type, so this writes
+        a second file alongside.
+    :param unclassified: What a verdict with no classification is written as.
+    :param format: Which format to write — ``gpkg``, ``shp`` or ``geojson``.
+        Taken from the extension if unset, which is what a standalone run
+        usually wants. Stated explicitly it wins, so a caller serving a chosen
+        format is not obliged to encode that choice in a filename.
+
+    Returns ``(dataset, StepReport)``. The dataset is returned unchanged — this
+    reads and writes files.
+    """
+    report = StepReport(step=STEP)
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    path = Path(path)
+    driver = _driver_for(path, format)
+    is_shapefile = driver == "ESRI Shapefile"
+    # Only GeoPackage holds several layers in one file. Shapefile allows one
+    # geometry type; the GeoJSON driver allows neither layers nor appending.
+    holds_layers = driver == "GPKG"
+
+    built, notes = build_layers(dataset, crs, source_crs, columns, lines,
+                                unclassified)
+    report.notes.extend(notes)
+    if not built:
+        report.notes.append("There is nothing to export; no file was written.")
+        return dataset, report
+
+    points = built["soundings"]
+    attributes = points.drop(columns=points.geometry.name)
 
     if is_shapefile:
         collisions = truncation_collisions(attributes.columns)
@@ -263,18 +346,11 @@ def export_vector(
         if long_names:
             report.notes.append(
                 f"{len(long_names)} field name(s) will be truncated to "
-                f"{SHAPEFILE_NAME_LIMIT} characters: {', '.join(map(str, long_names))}."
+                f"{SHAPEFILE_NAME_LIMIT} characters: "
+                f"{', '.join(map(str, long_names))}."
             )
 
-    points = gpd.GeoDataFrame(
-        attributes,
-        geometry=[Point(x, y) for x, y in zip(frame[xyz.x_column],
-                                              frame[xyz.y_column])],
-        crs=source,
-    )
-    if str(source) != str(crs):
-        points = points.to_crs(crs)
-
+    source = source_crs or dataset.crs
     if driver == "GeoJSON" and str(crs).upper() not in ("EPSG:4326", "OGC:CRS84"):
         report.notes.append(
             f"RFC 7946 mandates WGS84 lon/lat for GeoJSON and removed the crs "
@@ -284,52 +360,29 @@ def export_vector(
         )
 
     written: list[str] = []
-    if holds_layers:
-        points.to_file(path, driver=driver, layer="soundings", engine="pyogrio")
-        written.append(f"{path} :: soundings")
-    else:
-        points.to_file(path, driver=driver, engine="pyogrio")
-        if is_shapefile:
-            _write_encoding_sidecar(path)
-        written.append(str(path))
-
-    layers = {"soundings": len(points)}
-
-    line_column = xyz.line_id_column
-    if lines and line_column and line_column in frame.columns:
-        def geometry_of(block):
-            # Two points is the minimum for a line; a single sounding on a line
-            # has a position but no path.
-            coordinates = list(zip(block[xyz.x_column], block[xyz.y_column]))
-            return LineString(coordinates) if len(coordinates) > 1 else None
-
-        records, geometries = _line_features(
-            _labelled(frame, verdicts, unclassified), line_column, geometry_of)
-        if geometries:
-            flightlines = gpd.GeoDataFrame(records, geometry=geometries,
-                                           crs=source)
-            if str(source) != str(crs):
-                flightlines = flightlines.to_crs(crs)
-
-            if holds_layers:
-                flightlines.to_file(path, driver=driver, layer="flightlines",
-                                    engine="pyogrio", mode="a")
-                written.append(f"{path} :: flightlines")
-            else:
-                # One geometry type per file, so the lines go beside the points.
-                beside = path.with_name(f"{path.stem}_lines{path.suffix}")
-                flightlines.to_file(beside, driver=driver, engine="pyogrio")
-                if is_shapefile:
-                    _write_encoding_sidecar(beside)
-                written.append(str(beside))
-                report.notes.append(
-                    f"{driver} holds one layer per file, so the flightlines "
-                    f"were written beside the soundings as {beside.name}."
-                )
-            layers["flightlines"] = len(flightlines)
-    elif lines:
-        report.notes.append(
-            "No line identifier, so no flightline geometry was written.")
+    layers = {}
+    for index, (name, layer) in enumerate(built.items()):
+        if holds_layers:
+            layer.to_file(path, driver=driver, layer=name, engine="pyogrio",
+                          mode="a" if index else "w")
+            written.append(f"{path} :: {name}")
+        elif index == 0:
+            layer.to_file(path, driver=driver, engine="pyogrio")
+            if is_shapefile:
+                _write_encoding_sidecar(path)
+            written.append(str(path))
+        else:
+            # One geometry type per file, so the lines go beside the points.
+            beside = path.with_name(f"{path.stem}_lines{path.suffix}")
+            layer.to_file(beside, driver=driver, engine="pyogrio")
+            if is_shapefile:
+                _write_encoding_sidecar(beside)
+            written.append(str(beside))
+            report.notes.append(
+                f"{driver} holds one layer per file, so the flightlines "
+                f"were written beside the soundings as {beside.name}."
+            )
+        layers[name] = len(layer)
 
     _warn_on_size(path, report)
 
@@ -345,6 +398,7 @@ def export_vector(
     log.info("%s: %s, %s", STEP, driver,
              ", ".join(f"{n} {k}" for k, n in layers.items()))
     return dataset, report
+
 
 
 def _write_encoding_sidecar(path: Path) -> None:

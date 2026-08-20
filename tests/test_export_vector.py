@@ -254,3 +254,57 @@ def test_the_dataset_is_returned_unchanged(tmp_path):
 
 def test_registered_and_runs_from_a_pipeline(tmp_path):
     assert "export_vector" in load_steps(FILTER_GROUP)
+
+
+# ── The layers are the product; the file is one delivery of them ─────────────
+
+def test_the_layers_can_be_built_without_writing_anything(tmp_path):
+    """R8 says format is a loader concern on the way in. On the way out it is a
+    delivery concern, and neither is a property of the processing — so what this
+    step produces is vector geometry, and serialising it is a separate act."""
+    from ymerflow_processing.core.export_vector import build_layers
+
+    built, _ = build_layers(classified(), crs=UTM)
+
+    assert set(built) == {"soundings", "flightlines"}
+    assert not list(tmp_path.iterdir())
+
+
+def test_the_built_layers_are_already_in_the_output_crs():
+    from ymerflow_processing.core.export_vector import build_layers
+
+    built, _ = build_layers(classified(), crs="EPSG:4326")
+    assert str(built["soundings"].crs) == "EPSG:4326"
+
+
+def test_one_build_can_serve_several_formats(tmp_path):
+    """The point of the split: the platform builds once and serves whatever is
+    asked for, without re-running anything."""
+    import geopandas as gpd
+
+    dataset = classified()
+    for name in ("gpkg", "shp", "geojson"):
+        out = tmp_path / f"qc.{name}"
+        export_vector(dataset, out, crs=UTM)
+        assert out.exists()
+    assert len(gpd.read_file(tmp_path / "qc.shp")) == 60
+
+
+def test_a_stated_format_beats_the_extension(tmp_path):
+    """So a caller serving a chosen format is not obliged to encode that choice
+    in a filename."""
+    out = tmp_path / "download.bin"
+    _, report = export_vector(classified(), out, crs=UTM, format="gpkg")
+
+    assert report.distributions["driver"] == "GPKG"
+    assert out.exists()
+
+
+def test_an_unreadable_extension_with_no_format_says_both_ways_out(tmp_path):
+    with pytest.raises(ValueError, match="or pass format="):
+        export_vector(classified(), tmp_path / "qc.bin", crs=UTM)
+
+
+def test_an_unknown_format_names_the_available_ones(tmp_path):
+    with pytest.raises(ValueError, match="Unknown format"):
+        export_vector(classified(), tmp_path / "qc.gpkg", crs=UTM, format="kml")
