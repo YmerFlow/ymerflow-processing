@@ -323,3 +323,55 @@ fastest way to find that something already exists.
 
 Frequency-domain support enters at step 2 or 3 depending on that program's schedule, and is
 new development rather than a port.
+
+---
+
+## Addition, 2026-08-20 — the first comparison check, and what orders a series
+
+`noise_floor_drift` implements qc_09, which `03` specifies and deliberately cannot deliver as a
+QC check: *"Only visible cumulatively, which is why per-flight results have to accumulate."* One
+delivery's floor is a number; twenty deliveries' floors are a diagnosis, and no per-run check
+can see the second.
+
+It invents no state, which is `02`'s argument for the shape. `estimate_noise_model` already
+records the floor, the exponent, and which values were supplied rather than measured; R3 means
+those reports are stored. So this reads prior runs rather than carrying anything between them.
+
+**Two numbers, because a rising floor and a jumping floor are different faults.** A component
+degrading gives a trend; a change of survey area or a swapped receiver gives a step. The trend is
+fitted in **log space** — a floor is a scale, so 5e-10 to 1e-9 is the same event as 1e-9 to 2e-9,
+and a linear fit would call the second twenty times larger. The largest single step is reported
+separately, because a trend can be small while one step is enormous and averaging hides exactly
+the delivery someone needs to look at.
+
+### What orders the series, which is where this goes silently wrong
+
+A series trended in the wrong order produces a plausible slope with nothing to give it away. So
+the ordering key is chosen most-trustworthy-first and the choice is reported:
+
+**Time range**, read from the soundings' own timestamps — chronological for any instrument.
+
+**Then flight number, ordered numerically.** Numbering *schemes* vary by contractor — SkyTEM
+writes a date with an index on the end, like `26051201`; another may number sequentially from
+one — but whatever the scheme, flights are numbered in the order they were flown. Ordering the
+value as **text** rather than as a number would put `"10"` before `"9"`, trending a sequentially
+numbered survey's tenth flight before its ninth and shifting every delivery after it.
+
+**Then the order given.** `02` makes `items` ordered and says a check may rely on it.
+
+**Never the identity.** Delivery names routinely embed an export date, so ordering by one would
+enter a single delivery into the series twice after a re-export.
+
+### The assumption is tested, not asserted
+
+"Numeric and increasing" is a safe bet and not a guarantee, so rather than stating it in a
+docstring the check verifies it and says when it does not hold: a scheme that does not parse as
+a number, the same flight number appearing in two deliveries, or a flight ordering that
+disagrees with the order the reports were given in. That last one is the real catch — `items` is
+ordered by contract, so if the caller passed deliveries chronologically and the numbers
+disagree, the numbering is not chronological.
+
+Nothing is judged unless asked. `max_ratio` compares each delivery against the baseline — the
+`reference` where one was given, otherwise the series **median**, which is robust to the outlier
+being looked for — and a delivery far *below* the baseline is flagged as readily as one above,
+since a floor that collapses is as much a change as one that rises.

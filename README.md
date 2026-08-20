@@ -146,6 +146,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_by_external_evidence`** (filter_30 + filter_31) — one filter, three criteria:
   `proximity` to mapped features, gatewise `misfit` against a previous inversion, or `both`,
   which `01` says is more selective than either.
+- **`core/compare/`** — the fourth contract: N reports to one report. `noise_floor_drift`
+  (qc_09) trends the estimated floor across deliveries, which no per-run check can see. It
+  invents no state — R3 already stores what it reads.
 - **`core/export_vector.py`** — `build_layers` produces named `GeoDataFrame`s and writes
   nothing; `export_vector` is a thin writer over it. R8's "format is a loader concern" applied
   in reverse: the layers are the product, a file is one delivery of them, and one build can

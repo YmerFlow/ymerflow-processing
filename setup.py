@@ -93,6 +93,11 @@ setup(
             "cull_sparse_soundings = ymerflow_processing.core.cull."
             "filter_23_sparse_soundings:cull_sparse_soundings",
         ],
+        # N reports (or N datasets) -> one report
+        "ymerflow.processing.compare": [
+            "noise_floor_drift = "
+            "ymerflow_processing.core.compare.drift:noise_floor_drift",
+        ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [
             "height_above_ground = "
@@ -113,7 +118,6 @@ setup(
             "ymerflow_processing.core.qc.qc_12_culled:culled_fraction",
         ],
         # N reports (or N datasets) -> one report
-        "ymerflow.processing.compare": [],
         # How each method names its arrays and what their second axis means.
         # core/ owns the discovery mechanism; a method package owns only this.
         # Adding FEM, mag, rad or grav later is one more line here.
