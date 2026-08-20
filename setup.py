@@ -55,6 +55,8 @@ setup(
             "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
             # R9: one noise model on the dataset; filter_12 and filter_29 read it.
             "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
+            "average_along_line = "
+            "ymerflow_processing.core.filter_10_average:average_along_line",
             "inflate_uncertainty = "
             "ymerflow_processing.core.filter_11_inflate:inflate_uncertainty",
             "perturb_from_uncertainty = "

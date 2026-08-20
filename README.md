@@ -143,6 +143,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
+- **`average_along_line`** (filter_10) — the along-line weighted average, which `01` calls the
+  most consequential filter in the library. Tapered kernel, widths that grow with gate time,
+  validity by effective sample size, and a ratio of convolutions rather than a loop per datum.
 - **`inflate_uncertainty`** (filter_11) and **`perturb_from_uncertainty`** (filter_13) — the
   operator's knob on uncertainty, and drawing synthetic noise from it. The second enforces its
   own ordering hazard: it refuses to perturb twice and calls out uncertainties that look like

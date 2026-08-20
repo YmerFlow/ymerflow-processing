@@ -61,9 +61,17 @@ def summarize(values, bins: int = 20, percentiles=PERCENTILES) -> dict:
     # A degenerate range would make numpy pick its own bounds and produce edges
     # that do not contain the value, which reads as a bug in the UI. Widen by a
     # hair instead so a constant series renders as one full bin.
+    #
+    # Relative to the magnitude, not absolute. Transient amplitudes are of order
+    # 1e-9, so a series that is constant to within floating-point noise has a
+    # range of ~1e-25 while its values are 1e-9 — numpy then cannot place twenty
+    # distinguishable edges and raises "Too many bins for data range". Equality
+    # alone does not catch that, because the values are not equal.
     lo, hi = summary["min"], summary["max"]
-    if lo == hi:
-        lo, hi = lo - 0.5, hi + 0.5
+    scale = max(abs(lo), abs(hi))
+    if (hi - lo) <= scale * 1e-9:
+        pad = scale * 1e-6 if scale else 0.5
+        lo, hi = lo - pad, hi + pad
     counts, edges = np.histogram(finite, bins=bins, range=(lo, hi))
     summary["histogram"] = {
         "edges": [float(e) for e in edges],

@@ -1334,3 +1334,46 @@ arbitrary-looking number reads as though someone did and had a reason. That is a
 property, and it is the only basis on which one seed beats another.
 
 Independent realizations still need their own seeds, and a defaulted run says so in its notes.
+
+## Addition, 2026-08-20 — filter_10, and the four defects
+
+`01` names four defects to design out. Each is addressed and each has a test named for it,
+because a rebuild that reintroduces them is not a rebuild.
+
+**A width of one is a no-op.** It falls out of a kernel of length one being `[1.0]` for every
+method, rather than being special-cased in the arithmetic.
+
+**Validity is Kish's effective sample size**, `(Σw)² / Σw²`, compared against
+`min_valid_fraction × width`. It equals the count exactly for flat weights and falls toward one
+as weight concentrates, so the parameter means the same thing whatever kernel is chosen. It
+needs a hair of floating-point tolerance: a genuinely full window computes 4.999999999999998,
+and an exact comparison rejects every window at a fraction of 1.
+
+**The kernel is a Hann taper by default**, with `gaussian` and `boxcar` available — the last
+because reproducing a previous processing run is a real need, not because a flat kernel is a
+good choice. That a taper preserves a narrow anomaly better is tested rather than asserted.
+
+**One convolution per gate per line**, not a loop per datum: the weighted mean is a ratio of
+convolutions. Measured, 20,000 soundings × 30 gates × 2 channels with widths ramping 5→41 takes
+0.15 s.
+
+### Two things the spec does not settle, decided here
+
+**Variance propagation is `Σ(k²w) / (Σkw)²`, not `1/Σw`.** The latter holds only for a flat
+kernel. Under a Hann taper it overstates the result by about 15%, and with a normalized taper it
+is not even dimensionally a sum. A first draft had it wrong and the test that caught it was the
+obvious one — averaging must *reduce* uncertainty.
+
+**A usable datum with no positive sigma gets the typical weight, not none and not infinite.**
+Because the stored uncertainty is relative, a value of zero has a sigma of zero. Excluding those
+drops every genuine zero from the average; trusting them infinitely makes one datum the whole
+answer. The median weight of the data that do state one says "we do not know how good this is,
+treat it as typical", which is the honest reading.
+
+### One bug found elsewhere
+
+`distribution.summarize`'s degenerate-range guard was absolute — `if lo == hi`. Transient
+amplitudes are of order 1e-9, so a series constant to within floating-point noise has a range of
+~1e-25 while its values are 1e-9, and numpy cannot place twenty distinguishable edges. Equality
+does not catch that because the values are not equal. The guard is relative to the magnitude
+now. This affected any step summarizing near-constant small-magnitude data, not only filter_10.
