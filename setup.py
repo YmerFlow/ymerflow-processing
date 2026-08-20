@@ -98,6 +98,9 @@ setup(
         "ymerflow.processing.compare": [
             "noise_floor_drift = "
             "ymerflow_processing.core.compare.drift:noise_floor_drift",
+            "implementation_equivalence = "
+            "ymerflow_processing.core.compare.equivalence"
+            ":implementation_equivalence",
         ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [

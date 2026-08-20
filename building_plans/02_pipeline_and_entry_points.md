@@ -375,3 +375,47 @@ Nothing is judged unless asked. `max_ratio` compares each delivery against the b
 `reference` where one was given, otherwise the series **median**, which is robust to the outlier
 being looked for — and a delivery far *below* the baseline is flagged as readily as one above,
 since a floor that collapses is as much a change as one that rises.
+
+## Addition, 2026-08-20 — implementation_equivalence: four outcomes, not two
+
+`02` names this check, gives it `consumes: datasets`, and calls it *"precisely the
+acceptance criterion for the rebuild itself"*. What it does not settle is the shape
+of the answer, and that turns out to be the whole design.
+
+**Bit-for-bit is the wrong bar.** A predecessor has defects. An implementation that
+agrees with it everywhere has reproduced them, which is a failure dressed as a pass.
+The bar is *equivalent where the baseline is right, better where it is not,
+documented wherever they deliberately differ* — and that third clause needs
+somewhere to live. A report whose vocabulary is only **matches** and **does not
+match** has nowhere to put a deliberate improvement, so someone widens a tolerance
+until the improvement disappears into it and the comparison stops meaning anything.
+
+So four outcomes: `agrees`, `expected` (differs, declared, **a pass**), `differs`,
+`absent` (one side has no such quantity — a gap in coverage, not a difference).
+
+**A declared difference can still fail.** An expectation may name a `direction`, and
+that is what makes "better" testable rather than assertable: declaring a new
+uncertainty should be *smaller* than a baseline that clipped its denominator means a
+candidate coming out larger is a finding, even though the difference was declared.
+Without the direction, a declaration would excuse a regression as readily as an
+improvement. An expectation nothing exercised is reported too — stale, or the
+comparison never reached what it describes, and neither should read as agreement.
+
+**Alignment assumes no shared schema**, because two implementations are two schemas.
+Soundings match by timestamp, else by position, else — only when the counts agree —
+by order, which is stated in the report because it is an assumption rather than a
+match. Channels match by their gate times, since a channel *is* its gate times
+whatever the file calls it. Gates match by center time within a tolerance, so a side
+that dropped three gates is compared over the ones it kept rather than shifted and
+declared wrong everywhere.
+
+**Values are compared only where both sides kept the datum**, since underneath a
+mask an implementation may leave anything at all. The masks are compared as their
+own quantity, which is where "this one culled more" belongs.
+
+**The tolerance carries a justification** into the report. A tolerance without a
+reason is a number someone tuned until the comparison passed, and the report is
+written to be read rather than to return a boolean.
+
+`consumes` is now honored: declared as a module-level `CONSUMES`, so the declaration
+sits beside the code depending on it, and reports remain the default.

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import logging
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
@@ -412,10 +413,28 @@ class ComparisonRunner(_Runner):
 
     group = COMPARE_GROUP
 
+    #: What a check consumes when it does not say. Per ``02``: reports are the
+    #: cheap path — small records, no storage backend, no credentials — and a
+    #: check that silently loaded gigabytes because a line was omitted would be
+    #: a worse failure than one that errors saying it needs data.
+    default_consumes = "reports"
+
+    def consumes(self, name: str) -> str:
+        """What a check declares it needs: ``"reports"`` or ``"datasets"``.
+
+        Declared as a ``CONSUMES`` attribute on the check's module, so the
+        declaration lives beside the code that depends on it rather than in a
+        registry someone has to remember to update.
+        """
+        check = self.steps[name]
+        module = sys.modules.get(getattr(check, "__module__", ""), None)
+        return getattr(module, "CONSUMES", self.default_consumes)
+
     def run(self, items: Sequence, reference=None):
         report = RunReport(pipeline=self.pipeline.document)
         for name, params in self.pipeline.steps:
-            log.info("comparison: %s over %d items", name, len(items))
+            log.info("comparison: %s over %d items (consumes %s)",
+                     name, len(items), self.consumes(name))
             step_report = self.steps[name](items, reference=reference, **params)
             step_report.params = params
             report.steps.append(step_report)

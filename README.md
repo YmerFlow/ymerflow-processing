@@ -152,6 +152,11 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`core/misfit.py`** (filter, per `01`'s resolution of filter_31) — writes measured-minus-
   synthetic as a column, gatewise and per sounding, in standard deviations. Once it is a column
   misfit is plottable, exportable and thresholdable by an ordinary culling filter.
+- **`core/compare/equivalence.py`** — two implementations over one input, per datum.
+  Four outcomes rather than two, because bit-for-bit agreement with a defective baseline
+  would mean reproducing its defects: a *declared* difference is a pass, and a declared
+  difference that went the wrong way is still a finding. Aligns by timestamp, gate time and
+  semantic quantity — never by column name, since two implementations are two schemas.
 - **`core/compare/`** — the fourth contract: N reports to one report. `noise_floor_drift`
   (qc_09) trends the estimated floor across deliveries, which no per-run check can see. It
   invents no state — R3 already stores what it reads.
