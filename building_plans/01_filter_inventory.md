@@ -1475,3 +1475,54 @@ to encode that choice in a filename — while a bare path still works, which R8 
 
 Both routes read the same layers, so the file a client receives and the download a browser gets
 cannot drift apart.
+
+## Addition, 2026-08-20 — filter_30 and filter_31 are one filter, three criteria
+
+`01` lists them separately: filter_30 culls near mapped features, filter_31 culls where
+proximity **and** poor fit coincide. Built that way, the distance computation, the gate-time
+exclusion, the policy and the mask writing exist twice — which is the R9 defect, two places
+encoding one statement and free to drift.
+
+So they collapse into `cull_by_external_evidence`, taking a `criterion` of `proximity`,
+`misfit` or `both`. That is the same consolidation `01` itself performs on filter_01–04, and
+R7's idiom is built for it: each criterion carries only its own parameters, so nothing in the
+signature is dead depending on a flag.
+
+**A third mode falls out that `01` does not list: misfit alone.** It is kept, because `03`
+already treats misfit as a legitimate standalone signal in qc_11, and refusing to cull on
+something the library measures anyway is an odd place to draw a line. But it carries `01`'s
+warning in its report every time it runs: a poor fit may be genuine geology a 1D model cannot
+represent, and removing it removes the evidence that the model was wrong.
+
+**Two provenance codes, not one.** `proximity` records 30 and the misfit-involving criteria
+record 31, so a per-datum attribution still says *which* evidence removed a point. The report
+records the criterion, but the array is what someone reads six months later.
+
+### Gatewise misfit is a difference, divided
+
+The quantity is **measured minus forward synthetic**. The threshold is on that divided by
+uncertainty, and the division is not a detail: a transient spans three or four orders of
+magnitude from first gate to last, so a raw difference of fixed size is enormous at late time
+and negligible at early time. There is no single threshold on it that is wrong in neither
+direction.
+
+Divided by the uncertainty the inversion weighted by, the misfit is dimensionless and comparable
+across the whole transient — how many standard deviations the model missed by, which is a
+statement about the fit rather than about the amplitude.
+
+**Two ways in, because two things produce results.** An inversion writes the normalized residual
+itself as `dbdt_err_ch{n}gt`, being `(dobs - dpred) * W.diagonal()`, and that is used where
+present. A plain forward model writes only predictions, so the difference is taken here and
+normalized by the dataset's own uncertainty. A result carrying predictions against a dataset
+with no uncertainty is refused rather than differenced raw.
+
+### The coupling `01` asks about
+
+> *"Worth deciding whether the rebuild keeps that coupling or expresses it as a separate
+> feedback stage."*
+
+Kept, and narrowed. The inversion result is an ordinary typed input — it *is* an XYZ, the same
+type as the dataset — so it arrives the way the terrain raster and the manual-edit diff do, and
+the library needs no inversion machinery to read one. What is not a pure function of the input
+dataset is only the two criteria that ask for a result, and the criterion says so in the
+pipeline document.

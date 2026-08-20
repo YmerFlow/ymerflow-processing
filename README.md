@@ -143,6 +143,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
+- **`cull_by_external_evidence`** (filter_30 + filter_31) — one filter, three criteria:
+  `proximity` to mapped features, gatewise `misfit` against a previous inversion, or `both`,
+  which `01` says is more selective than either.
 - **`core/export_vector.py`** — `build_layers` produces named `GeoDataFrame`s and writes
   nothing; `export_vector` is a thin writer over it. R8's "format is a loader concern" applied
   in reverse: the layers are the product, a file is one delivery of them, and one build can

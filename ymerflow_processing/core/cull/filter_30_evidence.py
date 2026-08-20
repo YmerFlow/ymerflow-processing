@@ -1,0 +1,398 @@
+"""filter_30 and filter_31 — data that outside evidence says is suspect.
+
+**What it does to the dataset:** disables gates whose sounding sits within an
+exclusion distance of a mapped feature, plus whatever the culling policy widens
+that to. It changes no measurement, no uncertainty and no array shape (R6).
+
+``01``: *"Cultural conductors couple into the receiver and produce anomalies that
+are real measurements of the wrong thing."*
+
+That phrase is the justification and also the reason no shape test can find these.
+A powerline crossing produces a clean, coherent, entirely believable response —
+of a powerline. filter_25 to filter_28 pass it, filter_32 passes it, and an
+inversion turns it into a conductor in the ground. What identifies it is not the
+data but the map.
+
+The exclusion widens with gate time
+------------------------------------
+``01``: *"late-time data senses a larger volume and is affected from further
+away."* So the distance is not one number: it is given at the first gate and at
+the last, and interpolated in ``log t`` between them, the same basis filter_10
+uses for its window widths and for the same reason — gates are logarithmic.
+
+The consequence is that near a feature a sounding loses its late gates while
+keeping its early ones, which is the right shape: the early gates sense a small
+volume directly beneath the loop and are not reaching the conductor.
+
+Per moment, because the moments do not sense the same volume
+--------------------------------------------------------------
+``01`` asks for *"per-moment distances"*. A high moment at late time senses far
+more ground than a low moment at early time, so one exclusion for the instrument
+would be too wide for one channel and too narrow for the other.
+
+A type, not a format
+--------------------
+R8 names this filter as the example of the problem — its old default parameter
+was literally the string ``'/path/to/my/shape/file.shp'``. So it takes **vector
+geometry**: a ``GeoDataFrame`` is the typed form, and a path is accepted because
+a standalone run has nothing to materialise one. Whether that path is a
+shapefile, a GeoPackage or a KML is geopandas' business, not this filter's.
+
+Distance is measured in the survey's own CRS
+---------------------------------------------
+Which means the CRS must be projected. An exclusion of 200 in a geographic CRS is
+200 *degrees*, which is most of the planet, and nothing in the arithmetic would
+object. That is refused rather than warned about.
+
+What this cannot do, and what complements it
+---------------------------------------------
+It needs a map, and it culls everything near a feature whether or not that datum
+was actually affected. qc_05 is the complement: it finds crossings in the
+powerline monitor with no map at all, but cannot see a line flown *parallel* to a
+conductor, because affecting the whole window makes the elevated level the
+background. One needs a map and over-culls; the other needs no map and misses the
+parallel case. Neither replaces the other.
+
+filter_31 is the intended refinement — proximity *and* poor fit together, which
+is more selective than either — and ``01`` defers it because it needs an
+inversion to have run.
+"""
+
+from __future__ import annotations
+
+import logging
+
+import numpy as np
+
+from ..distribution import summarize
+from ..mask import apply_policy, cull, in_use, mark_step
+from ..pipeline import StepReport
+
+log = logging.getLogger(__name__)
+
+STEP = "cull_by_external_evidence"
+
+#: Provenance codes, by criterion. Two rather than one so a per-datum
+#: attribution still says *which* evidence removed a point — the report records
+#: the criterion, but the array is what someone reads six months later.
+PROXIMITY, MISFIT, BOTH = "proximity", "misfit", "both"
+CRITERIA = (PROXIMITY, MISFIT, BOTH)
+STEP_CODES = {PROXIMITY: 30, MISFIT: 31, BOTH: 31}
+
+#: How an inversion result names its gatewise residual, already divided by
+#: uncertainty — ``(dobs - dpred) * W.diagonal()`` — so a threshold reads in
+#: standard deviations rather than in the response's own units.
+MISFIT_PATTERNS = (r"^dbdt_err_ch(\d+)", r"^err_ch(\d+)")
+
+
+def _open(infrastructure, crs):
+    """The features as a GeoDataFrame in ``crs``, from an object or a path."""
+    import geopandas as gpd
+
+    frame = (infrastructure if hasattr(infrastructure, "geometry")
+             else gpd.read_file(str(infrastructure)))
+    if crs is None:
+        return frame
+    if frame.crs is None:
+        raise ValueError(
+            "The infrastructure geometry declares no CRS, so it cannot be "
+            "placed against the survey. Give it one before using it — guessing "
+            "would put every feature somewhere plausible and wrong."
+        )
+    return frame.to_crs(crs) if str(frame.crs) != str(crs) else frame
+
+
+def distance_to_features(easting, northing, features) -> np.ndarray:
+    """Distance from each sounding to the nearest feature, in CRS units.
+
+    ``NaN`` where the sounding has no position. An R-tree nearest query rather
+    than a distance to every feature: a national infrastructure layer has tens
+    of thousands of geometries and a survey has tens of thousands of soundings.
+    """
+    from shapely import STRtree, points
+
+    x = np.asarray(easting, dtype=float)
+    y = np.asarray(northing, dtype=float)
+    out = np.full(x.shape, np.nan)
+
+    placed = np.isfinite(x) & np.isfinite(y)
+    geometries = [g for g in features.geometry if g is not None and not g.is_empty]
+    if not placed.any() or not geometries:
+        return out
+
+    tree = STRtree(geometries)
+    _, distance = tree.query_nearest(points(x[placed], y[placed]),
+                                     return_distance=True, all_matches=False)
+    out[placed] = distance
+    return out
+
+
+def gate_distances(first: float, last: float, times) -> np.ndarray:
+    """Per-gate exclusion distance, interpolated linearly in log time."""
+    times = np.asarray(times, dtype=float)
+    if times.size < 2:
+        return np.full(max(times.size, 1), float(first))
+
+    usable = times > 0
+    span = np.zeros(times.size)
+    if usable.sum() >= 2:
+        logs = np.log(np.where(usable, times, np.nan))
+        low, high = np.nanmin(logs), np.nanmax(logs)
+        if high > low:
+            span = np.where(usable, (logs - low) / (high - low), 0.0)
+    return float(first) + span * (float(last) - float(first))
+
+
+def _open_result(result):
+    """The inversion result as an XYZ, whether given as one or as a path.
+
+    R8's typed form again, and here it is trivially satisfied: an inversion
+    result *is* an XYZ, the same type as the dataset it came from.
+    """
+    if hasattr(result, "layer_data"):
+        return result
+    if hasattr(result, "survey"):
+        return result.survey.xyz
+    from libaarhusxyz.xyz import XYZ
+    return XYZ(str(result))
+
+
+def gatewise_misfit(dataset, result, channel) -> np.ndarray | None:
+    """Measured minus forward synthetic, per sounding per gate, in sigmas.
+
+    **The quantity is ``data - synthetic``. The threshold is on it divided by
+    uncertainty**, and that division is not a detail. A transient spans three or
+    four orders of magnitude from first gate to last, so a raw difference of a
+    fixed size is enormous at late time and negligible at early time — one
+    threshold on it would cull every early gate or no late one, and there is no
+    number that does neither.
+
+    Divided by the uncertainty the inversion weighted by, the misfit is
+    dimensionless and comparable across the whole transient: it is how many
+    standard deviations the model missed by, which is a statement about the fit
+    rather than about the amplitude.
+
+    Two ways in, because two things produce results. An inversion writes the
+    normalized residual itself as ``dbdt_err_ch{n}gt`` — ``(dobs - dpred) *
+    W.diagonal()`` — and that is used where present. A plain forward model
+    writes only predictions, so the difference is taken here and normalized by
+    the dataset's own uncertainty.
+
+    ``None`` when neither is available for this channel.
+    """
+    import re
+
+    xyz = _open_result(result)
+    shape = dataset.layer_data[channel.data_key].shape
+
+    # A residual the inversion already normalized, matched on a captured channel
+    # index rather than by substring — the discipline channel discovery keeps.
+    for key, array in xyz.layer_data.items():
+        for pattern in MISFIT_PATTERNS:
+            found = re.match(pattern, str(key), flags=re.IGNORECASE)
+            if found and int(found.group(1)) == channel.index:
+                values = np.asarray(array, dtype=float)
+                return values if values.shape == shape else None
+
+    # Otherwise predictions, differenced here and normalized by our own
+    # uncertainty — the same quantity, arrived at the other way.
+    predicted = xyz.layer_data.get(channel.data_key)
+    if predicted is None:
+        return None
+    synthetic = np.asarray(predicted, dtype=float)
+    if synthetic.shape != shape:
+        return None
+
+    measured = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
+    if not channel.std_key or channel.std_key not in dataset.layer_data:
+        raise ValueError(
+            f"The result for {channel} carries predictions but no residual, and "
+            f"this dataset has no uncertainty to normalize the difference by. A "
+            f"raw difference cannot be thresholded across a transient spanning "
+            f"orders of magnitude."
+        )
+    relative = dataset.layer_data[channel.std_key].to_numpy(dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        sigma = np.abs(relative) * np.abs(measured)
+        return np.where(sigma > 0, (measured - synthetic) / sigma, np.nan)
+
+
+def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
+                              distance_first=None, distance_last=None,
+                              result=None, max_misfit: float | None = None,
+                              crs=None, start_gate: int = 0,
+                              spread_earlier: int = 0,
+                              disable_tail: bool = False):
+    """Disable data that evidence from outside the transient says is suspect.
+
+    :param criterion: ``proximity`` — near a mapped feature (filter_30);
+        ``misfit`` — poorly fit by a previous inversion; or ``both`` — near a
+        feature **and** poorly fit, which is filter_31 and is more selective
+        than either.
+    :param infrastructure: Vector geometry, for ``proximity`` and ``both``.
+    :param distance_first: Exclusion distance at the first gate, in the survey's
+        CRS units. Per channel key or moment name, or one value for all.
+    :param distance_last: The same at the last gate. Constant if unset.
+    :param result: A previous inversion's output, for ``misfit`` and ``both``.
+        An XYZ, a Dataset, or a path to one.
+    :param max_misfit: Largest acceptable gatewise misfit, **in standard
+        deviations**. Data missed by more than this is suspect.
+    :param crs: The survey's CRS, if the dataset does not carry one.
+    :param start_gate: Where evaluation begins, 0-based.
+    :param spread_earlier: Also disable this many gates before each hit.
+    :param disable_tail: Also disable everything after the earliest hit.
+
+    Each criterion carries only its own parameters, so nothing in the signature
+    is dead depending on a flag (R7).
+
+    Returns ``(dataset, StepReport)``.
+    """
+    report = StepReport(step=STEP)
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    if criterion not in CRITERIA:
+        raise ValueError(
+            f"Unknown criterion {criterion!r}. Available: {', '.join(CRITERIA)}")
+    wants_geometry = criterion in (PROXIMITY, BOTH)
+    wants_misfit = criterion in (MISFIT, BOTH)
+
+    if wants_geometry and (infrastructure is None or distance_first is None):
+        raise ValueError(
+            f"A {criterion!r} criterion needs infrastructure and "
+            f"distance_first.")
+    if wants_misfit and (result is None or max_misfit is None):
+        raise ValueError(
+            f"A {criterion!r} criterion needs result and max_misfit. The misfit "
+            f"is in standard deviations, so max_misfit is how many the model "
+            f"may miss by.")
+    if wants_misfit and max_misfit <= 0:
+        raise ValueError(
+            f"max_misfit counts standard deviations and must be positive; got "
+            f"{max_misfit:g}.")
+
+    if frame is None or len(frame) == 0 or not dataset.channels:
+        report.notes.append("No soundings or no channels; nothing to cull.")
+        return dataset, report
+
+    step_code = STEP_CODES[criterion]
+    distance = None
+    features = None
+    survey_crs = None
+
+    if wants_geometry:
+        survey_crs = crs if crs is not None else getattr(dataset, "crs", None)
+        if survey_crs is not None:
+            from pyproj import CRS as ProjCRS
+            if ProjCRS.from_user_input(survey_crs).is_geographic:
+                raise ValueError(
+                    f"The survey CRS {survey_crs!r} is geographic, so a "
+                    f"distance in it is a distance in degrees — an exclusion of "
+                    f"{distance_first} would be most of the planet. Reproject "
+                    f"to a projected CRS before culling by distance."
+                )
+        else:
+            report.notes.append(
+                "The dataset declares no CRS, so the features were used as they "
+                "are and both are assumed to share a projected CRS with the "
+                "same units. Pass crs= to have them reprojected and checked."
+            )
+        features = _open(infrastructure, survey_crs)
+        xyz = dataset.survey.xyz
+        if xyz.x_column not in frame.columns or xyz.y_column not in frame.columns:
+            raise KeyError("No position columns; distance cannot be measured.")
+        distance = distance_to_features(frame[xyz.x_column].to_numpy(),
+                                        frame[xyz.y_column].to_numpy(), features)
+        unplaced = int((~np.isfinite(distance)).sum())
+        if unplaced:
+            report.notes.append(
+                f"{unplaced} sounding(s) have no position and were not culled "
+                f"on proximity. Where they are has not been established, which "
+                f"is a different problem from being near something."
+            )
+
+    firsts = (dataset.resolve_per_channel(distance_first)
+              if wants_geometry else {})
+    lasts = (dataset.resolve_per_channel(distance_last)
+             if wants_geometry and distance_last is not None else dict(firsts))
+
+    per_channel, culled_any, without = {}, False, []
+    for channel in dataset.channels:
+        gates = dataset.layer_data[channel.data_key].shape[1]
+        times = np.asarray(channel.axis.values, dtype=float)
+        if times.size != gates:
+            continue
+        live = in_use(dataset, channel)
+        outcome: dict = {}
+
+        near = np.ones((len(frame), gates), dtype=bool)
+        if wants_geometry:
+            if channel.key not in firsts:
+                continue
+            exclusion = gate_distances(firsts[channel.key],
+                                       lasts.get(channel.key,
+                                                 firsts[channel.key]), times)
+            near = (distance[:, None] <= exclusion[None, :])
+            near &= np.isfinite(distance)[:, None]
+            outcome["exclusion"] = {"first": float(exclusion[0]),
+                                    "last": float(exclusion[-1])}
+            outcome["within"] = int((near & live).sum())
+
+        poor = np.ones((len(frame), gates), dtype=bool)
+        if wants_misfit:
+            misfit = gatewise_misfit(dataset, result, channel)
+            if misfit is None:
+                without.append(str(channel))
+                continue
+            poor = np.abs(misfit) > max_misfit
+            poor &= np.isfinite(misfit)
+            outcome["misfit"] = summarize(misfit[np.isfinite(misfit)])
+            outcome["poorly_fit"] = int((poor & live).sum())
+
+        suspect = near & poor & live
+        widened = apply_policy(suspect, start_gate=start_gate,
+                               spread_earlier=spread_earlier,
+                               disable_tail=disable_tail)
+        direct = suspect.copy()
+        direct[:, :start_gate] = False
+
+        outcome["suspect"] = int(direct.sum())
+        if widened.any():
+            culled_any = True
+            outcome.update(cull(dataset, channel, widened,
+                                step_code=step_code, direct=direct))
+        else:
+            outcome["removed"] = 0
+        per_channel[str(channel)] = outcome
+
+    if culled_any:
+        mark_step(dataset, step_code, STEP)
+    if without:
+        report.notes.append(
+            f"The result carries no misfit or prediction for "
+            f"{', '.join(without)}; those channels were not judged.")
+
+    removed = sum(c["removed"] for c in per_channel.values())
+    report.soundings_affected = removed
+    report.distributions = {
+        "criterion": criterion,
+        "per_channel": per_channel,
+        "removed": removed,
+        "features": None if features is None else int(len(features)),
+        "crs": str(survey_crs) if survey_crs else None,
+        "distance_to_nearest": (None if distance is None
+                                else summarize(distance)),
+        "max_misfit": max_misfit,
+        "policy": {"start_gate": start_gate, "spread_earlier": spread_earlier,
+                   "disable_tail": disable_tail},
+        "provenance_code": step_code,
+    }
+    if criterion == MISFIT:
+        report.notes.append(
+            "Culled on misfit alone. 01 warns that this over-culls: a poor fit "
+            "may be genuine geology a 1D model cannot represent, and removing "
+            "it removes the evidence that the model was wrong. The 'both' "
+            "criterion is more selective."
+        )
+    log.info("%s: %s culled %d gate-sample(s)", STEP, criterion, removed)
+    return dataset, report
