@@ -16,7 +16,7 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.core.compare.equivalence import (
     ABSENT, AGREES, CONSUMES, DATA, DIFFERS, EXPECTED, MASK, STEP, UNCERTAINTY,
-    _gate_overlap, implementation_equivalence,
+    implementation_equivalence,
 )
 from ymerflow_processing.core.mask import CULLED
 from ymerflow_processing.core.pipeline import (
@@ -383,21 +383,6 @@ def test_a_quantity_only_one_side_carries_is_absent_not_different():
     report = check(candidate, baseline)
     assert outcome(report, UNCERTAINTY) == ABSENT
     assert report.distributions["verdict"] != "differs"
-
-
-def test_gates_one_side_dropped_line_up_by_time_not_by_position():
-    """An implementation that dropped its first two gates is compared over the
-    ones it kept — rather than shifted against the other side by two and
-    declared wrong everywhere."""
-    baseline = np.array([1e-5, 2e-5, 4e-5, 8e-5, 1.6e-4, 3.2e-4])
-    cols_c, cols_b = _gate_overlap(baseline[2:], baseline)
-
-    assert list(cols_c) == [0, 1, 2, 3]
-    assert list(cols_b) == [2, 3, 4, 5]
-
-
-def test_gate_times_that_share_nothing_do_not_line_up():
-    assert _gate_overlap(np.array([1e-5, 2e-5]), np.array([7.0, 8.0])) is None
 
 
 def test_a_system_description_naming_gates_the_arrays_do_not_hold():

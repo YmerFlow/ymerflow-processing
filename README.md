@@ -152,6 +152,15 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`core/misfit.py`** (filter, per `01`'s resolution of filter_31) — writes measured-minus-
   synthetic as a column, gatewise and per sounding, in standard deviations. Once it is a column
   misfit is plottable, exportable and thresholdable by an ordinary culling filter.
+- **`core/compare/align.py`** — which sounding is which, which channel is which, which
+  gate is which. Shared by every dataset-consuming comparison rather than copied into each,
+  since three copies drift while each looks correct alone.
+- **`core/compare/version_diff.py`** — what changed between two processing versions, joining
+  the parameter that moved to the step whose culling moved with it. No verdict: the two are
+  meant to differ.
+- **`core/compare/sweep.py`** — one parameter varied across a series, with the varied
+  parameter discovered from the runs rather than restated by the caller, and the point where
+  the response stops moving reported as an observation rather than a recommendation.
 - **`core/compare/equivalence.py`** — two implementations over one input, per datum.
   Four outcomes rather than two, because bit-for-bit agreement with a defective baseline
   would mean reproducing its defects: a *declared* difference is a pass, and a declared

@@ -101,6 +101,10 @@ setup(
             "implementation_equivalence = "
             "ymerflow_processing.core.compare.equivalence"
             ":implementation_equivalence",
+            "version_diff = "
+            "ymerflow_processing.core.compare.version_diff:version_diff",
+            "parameter_sweep = "
+            "ymerflow_processing.core.compare.sweep:parameter_sweep",
         ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [

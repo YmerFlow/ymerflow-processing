@@ -419,3 +419,79 @@ written to be read rather than to return a boolean.
 
 `consumes` is now honored: declared as a module-level `CONSUMES`, so the declaration
 sits beside the code depending on it, and reports remain the default.
+
+## Addition, 2026-08-20 — version_diff and parameter_sweep
+
+`02`'s remaining two uses for the comparison shape, plus the module all three
+dataset-consuming checks now share.
+
+### `core/compare/align.py`
+
+Extracted rather than copied three times. Every comparison that reaches into
+datasets faces the same problem — which sounding is which, which channel is which,
+which gate is which — and three copies would drift apart under maintenance while
+each looked correct on its own.
+
+One thing this turned up that was not obvious. **Position is a near-identity with a
+specific way of being wrong**: a rigid offset between two runs by some multiple of
+the sounding spacing re-pairs each sounding with a *neighbor* rather than failing
+to pair. The pairing stays monotone, the values stay plausible, and only the
+overlap shrinks. Nothing downstream looks wrong. That cannot be detected from
+inside the alignment, but it can be named where it would show — a large unmatched
+fraction — so it is, and it is a further reason a timestamp is preferred over a
+coordinate.
+
+### `version_diff` — what changed between two processing versions
+
+`02`: *"the versioning story the product already claims, currently demonstrated by
+eye."* Demonstrated by eye is the problem, and not because eyes miss differences.
+
+**It joins the two halves of the change.** `dataset.history` records each applied
+step with its parameters, and the provenance array records which step culled each
+datum. So the report says which parameters differ **and** which steps did the
+culling that differs, side by side. Spotting that a version culled more is easy;
+attributing it to the step whose threshold moved is what makes a diff actionable,
+and the dataset already knows.
+
+**It carries no verdict.** The two versions are *meant* to differ, so a difference
+is the answer rather than the finding. This is not equivalence with the pass/fail
+removed — it measures different things, including a QC verdict *migration*, because
+a reviewer asking "did this get better" is asking that and nothing else. Verdicts
+moving both ways at once is the interesting case: a version can improve the median
+while pushing a handful of soundings out of spec, and one total would hide it.
+
+Culling *less* is reported as prominently as culling more. A version that loosened
+something is the change nobody looks for.
+
+The pipeline diff is **positional**, not keyed by step name: a pipeline may run the
+same step twice with different parameters, and keying on the name would collapse
+the two and report the second's parameters as the first's.
+
+### `parameter_sweep` — one parameter varied across a series
+
+`02`: *"One parameter choice against another — the averaging-width comparison."*
+
+**It discovers which parameter varied**, from the runs' own history. A caller who
+has just produced five datasets should not restate the five numbers that produced
+them — restating is how a report comes to describe a sweep that was never run. The
+discovery also catches the mistake the check exists around: if *two* parameters
+differ the response cannot be attributed to either, and that is refused rather than
+averaged over, because a curve drawn across the ambiguity looks exactly like a real
+one.
+
+**Divergence from the control is the primary response**, because it needs no
+agreement about what "better" means and it exists for every sweep. A named
+per-sounding column — a misfit, a noise estimate — is traced alongside where one
+exists, which is the better answer when it does.
+
+**Where the response flattens** is the one derived number worth computing, and it
+is the averaging-width answer: beyond this width nothing changes, so take the
+cheapest. Measured as a step falling below a *fraction* of the largest step, since
+the units differ per response and an absolute threshold would need retuning for
+each. Reported as an observation and never as a recommendation — the trade is the
+user's to make, and a knee in one response is not a knee in the one they care
+about.
+
+The series is sorted by the parameter before the curve is read. Handed over out of
+order it would otherwise zigzag and report a flattening point wherever it doubled
+back.
