@@ -24,6 +24,28 @@ from ymerflow_processing.core.qc.thresholds import labels
 from ymerflow_processing.em.tem.method import TEMMethod
 
 
+def make_infrastructure(path=None, lines=((0, 500), (1000, 500)),
+                        crs="EPSG:32612"):
+    """Mapped features as vector geometry — a GeoDataFrame, or written to disk.
+
+    Written rather than mocked where a path is wanted, because the interesting
+    failures are geopandas' and shapely's: CRS reprojection, empty geometries,
+    and the nearest-neighbour query.
+    """
+    import geopandas as gpd
+    from shapely.geometry import LineString
+
+    if lines and not isinstance(lines[0][0], (list, tuple)):
+        lines = [lines]
+    frame = gpd.GeoDataFrame(
+        {"kind": ["powerline"] * len(lines)},
+        geometry=[LineString(coords) for coords in lines], crs=crs)
+    if path is None:
+        return frame
+    frame.to_file(path)
+    return path
+
+
 def make_terrain(path, elevation=200.0, bounds=(-100, -100, 1000, 1000),
                  cell=10.0, nodata=-9999.0, crs="EPSG:32612", holes=None):
     """A terrain model on disk: a constant surface, optionally with nodata.
