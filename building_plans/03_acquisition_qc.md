@@ -475,3 +475,28 @@ set is recorded on the dataset and round-trips with it, since the export runs on
 back from disk with no report to consult.
 
 Read off YmerFlow's own frontend, not off any predecessor library.
+
+## Addition, 2026-08-20 — qc_11's finding kind and weight
+
+`03` gives qc_11 its consumes/produces and its optionality, and says nothing about
+where it lands in the rollup. Two decisions, recorded because neither is obvious:
+
+**It reports as a `model` finding**, not `flight` and not `instrument`. `01` says
+it plainly about culling on misfit — *"a poor fit may indicate genuine geology the
+model cannot represent"* — and that reading survives into QC. A high misfit says
+the **model** did not explain this sounding, which is a statement about the pair,
+not about the measurement. A sounding over a steeply dipping contact or genuine
+three-dimensionality will misfit while the data is perfectly good. So it feeds
+neither the flight-quality verdict nor the instrument-health one: nobody should
+reflight a line because a 1D inversion could not fit a fault.
+
+**Its default weight is 0.0**, for the same reason powerline noise is — the earth
+being complicated is not the contractor's doing. Zero rather than absent, because
+an unlisted check counts `UNWEIGHTED = 1.0`, and this one would then grade a
+survey down for its geology. Weighted out is not silent: it still writes its own
+verdict column and still names itself in `qs_reasons`, which is where "look at
+this one" belongs.
+
+**No default thresholds.** Misfit is measured in standard deviations, so a
+threshold here inherits whatever `assign_uncertainty` decided — a house number
+would grade the uncertainty model as much as the fit.

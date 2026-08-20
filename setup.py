@@ -117,6 +117,8 @@ setup(
             "ymerflow_processing.core.qc.qc_05_powerline:powerline_noise",
             "culled_fraction = "
             "ymerflow_processing.core.qc.qc_12_culled:culled_fraction",
+            "data_misfit = "
+            "ymerflow_processing.core.qc.qc_11_misfit:data_misfit",
         ],
         # N reports (or N datasets) -> one report
         # How each method names its arrays and what their second axis means.

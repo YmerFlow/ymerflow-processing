@@ -109,10 +109,13 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   all — a scalar magnetometer — correctly reports none.
 - **`core/qc/`** — Good / Marginal / OOS with four threshold kinds, per-line and
   per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
-- **Eight checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
+- **Nine checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
   qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing, qc_12 culled fraction —
-  the last of which reads the mask culling wrote, and measures only what *this* pipeline
-  removed rather than what arrived already disabled.
+  which reads the mask culling wrote, and measures only what *this* pipeline removed rather
+  than what arrived already disabled — and qc_11 data misfit, which grades the column
+  `compute_misfit` writes. qc_11 reports as a `model` finding at zero weight: a poor fit may
+  be geology a 1D model cannot represent, so it names itself among the reasons without
+  grading a survey down for the earth being complicated.
 - **`core/inventory.py`** — the implicit first step of every run: what arrived, what was
   resolved into channels, and what was not. An array no channel claims is invisible rather
   than absent, and every channel-based step steps over it silently.
@@ -299,9 +302,9 @@ reads as neither. Free-form rather than an enum, since more kinds will follow.
 
 1. **The vector export** — `03`'s third output, and the one that leaves the building.
    GeoPackage by default, shapefile when a contract names it, points and lines both.
-2. **The remaining QC checks** — qc_12 culled fraction is buildable; qc_11 needs an
-   inversion, qc_09 needs the comparison registry, qc_06 and qc_07 need flight-plan input
-   (`Ymerflow#69`).
+2. **The remaining QC checks** — qc_06 and qc_07 need flight-plan input (`Ymerflow#69`).
+   qc_09 is built, as a comparison rather than a check, because a drifting noise floor is
+   only visible cumulatively.
 3. **filter_33**, the manual-edit checkpoint — the only thing that makes re-running safe once
    a human has edited, and now fully specified.
 4. **The shared culling policy**, then the culling predicates as small functions over it.

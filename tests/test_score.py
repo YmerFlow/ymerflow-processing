@@ -113,6 +113,7 @@ def test_the_defaults_are_the_stated_ones():
         "transmitter_stability": 0.25,
         "altimeter_agreement": 0.0,
         "powerline_noise": 0.0,
+        "data_misfit": 0.0,
     }
 
 

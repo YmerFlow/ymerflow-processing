@@ -92,6 +92,13 @@ INSTRUMENT = "instrument"
 #:     Excluded. A powerline is a fact about the ground — not the contractor's
 #:     doing, not avoidable by reflying — so grading a survey down for one would
 #:     penalize it for where it was asked to fly.
+#: ``data_misfit``
+#:     Excluded, for the same reason one step further out. A poor fit may be
+#:     genuine geology a 1D model cannot represent, so a high misfit says the
+#:     *model* did not explain the sounding — a statement about the pair, not
+#:     about the measurement. Grading the data down for it would penalize the
+#:     survey for the earth being complicated. It is named in ``qs_reasons``,
+#:     which is where "look at this one" belongs.
 DEFAULT_WEIGHTS = {
     "height_above_ground": 2.0,
     "system_attitude": 2.0,
@@ -100,6 +107,7 @@ DEFAULT_WEIGHTS = {
     "transmitter_stability": 0.25,
     "altimeter_agreement": 0.0,
     "powerline_noise": 0.0,
+    "data_misfit": 0.0,
 }
 
 #: What a check absent from :data:`DEFAULT_WEIGHTS` counts for. Deliberately
