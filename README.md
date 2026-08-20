@@ -143,6 +143,11 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
+- **`core/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
+  rescales amplitudes to what a level transmitter would have measured; the other declares there
+  is no trustworthy attitude, so the correction becomes exactly one.
+- **`core/normalize.py`** (filter_08, filter_09) — conversion between normalization conventions,
+  reading what the dataset declares rather than what a caller asserts, and the nominal current.
 - **`average_along_line`** (filter_10) — the along-line weighted average, which `01` calls the
   most consequential filter in the library. Tapered kernel, widths that grow with gate time,
   validity by effective sample size, and a ratio of convolutions rather than a loop per datum.

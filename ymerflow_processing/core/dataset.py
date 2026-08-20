@@ -604,7 +604,19 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
     for role, path in (("survey", xyz), ("system description", gex)):
         if not Path(path).exists():
             raise FileNotFoundError(f"No {role} at {path}")
-    dataset = Dataset(libaarhusxyz.Survey(str(xyz), str(gex)), normalization, crs)
+    survey = libaarhusxyz.Survey(str(xyz), str(gex))
+
+    # A convention the file declares beats the caller's default. filter_08 says
+    # 01's fix is to make the convention "an explicit property of the dataset
+    # that travels with it" — an assertion made once at load time does not
+    # survive the file, so a written dataset records what it is and this reads
+    # it back. An explicit argument still wins, since a caller who names one is
+    # correcting the record rather than guessing.
+    declared = survey.xyz.model_info.get("normalization")
+    if normalization == RX_NORMALIZED and declared in NORMALIZATIONS:
+        normalization = declared
+
+    dataset = Dataset(survey, normalization, crs)
 
     # Imported here rather than at module scope: the culling package imports
     # Dataset, so a top-level import back would be a cycle.

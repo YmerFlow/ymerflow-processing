@@ -55,6 +55,13 @@ setup(
             "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
             # R9: one noise model on the dataset; filter_12 and filter_29 read it.
             "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
+            # filter_06-09: geometry, conventions and constants.
+            "correct_tilt = ymerflow_processing.core.attitude:correct_tilt",
+            "zero_attitude = ymerflow_processing.core.attitude:zero_attitude",
+            "convert_normalization = "
+            "ymerflow_processing.core.normalize:convert_normalization",
+            "apply_nominal_current = "
+            "ymerflow_processing.core.normalize:apply_nominal_current",
             "average_along_line = "
             "ymerflow_processing.core.filter_10_average:average_along_line",
             "inflate_uncertainty = "

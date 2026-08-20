@@ -1377,3 +1377,44 @@ amplitudes are of order 1e-9, so a series constant to within floating-point nois
 ~1e-25 while its values are 1e-9, and numpy cannot place twenty distinguishable edges. Equality
 does not catch that because the values are not equal. The guard is relative to the magnitude
 now. This affected any step summarizing near-constant small-magnitude data, not only filter_10.
+
+## Addition, 2026-08-20 — filter_06 to filter_09
+
+**filter_06's correction is `1 / cos²θ`, with `cos θ = cos(pitch)·cos(roll)`.** Two cosines, and
+each is a separate physical projection: the vertical component of the transmitted dipole moment
+falls as `cos θ`, and the vertical field the receiver senses projects onto its own tilted normal
+by another `cos θ`. The composition of pitch and roll is exact, the same relation qc_02 uses,
+not a small-angle sum.
+
+It is **first order**: it accounts for the projection of a vertical-dipole response and not for
+the horizontal mode the tilt also excites. That bounds where it is defensible, so a
+`max_correction` leaves extreme soundings *uncorrected and reported* rather than scaled by a
+number the physics does not support. The answer past that point is filter_22, not a larger
+factor.
+
+**The recorded attitude is not cleared afterwards.** It remains true that the aircraft was
+tilted; what changes is that the values no longer carry the consequence. Clearing it would make
+a corrected dataset indistinguishable from one flown level, and qc_02 would then report perfect
+attitude on data that was salvaged rather than well flown.
+
+Idempotency is enforced rather than hoped for, as `01` asks — a doubly corrected sounding is a
+plausible sounding of a different earth, so the application is recorded and a second pass raises.
+
+**filter_08 takes no parameter saying what the data currently is.** `01` prescribes making the
+convention "an explicit property of the dataset that travels with it, rather than something the
+user asserts at this step and hopes is right", and the old signature — "which convention the
+input is currently in" — *is* the defect being named. A wrong assertion there is undetectable
+and wrong by three or four orders of magnitude.
+
+`Dataset.normalization` already existed as a declared property, but a constructor argument does
+not survive a file. So the convention is recorded in `model_info` and `load()` prefers what the
+file declares over its own default, with an explicit argument still winning. That is the half of
+the prescription the existing attribute could not provide.
+
+A channel whose constants the system description does not give **refuses the whole conversion**
+rather than converting the rest. Converting some would leave one dataset in two conventions,
+which is precisely the failure this filter exists to prevent.
+
+**filter_09 is deliberately destructive, and qc_04 is what says whether it should be.** They
+read the same declared nominal: qc_04 measures agreement with it and reports the offset without
+penalising it, and this filter is the decision that report informs.
