@@ -18,8 +18,9 @@ pytest.importorskip("geopandas", reason="geopandas is declared in setup.py")
 from conftest import make_dataset, make_infrastructure
 from ymerflow_processing.core.cull.filter_30_evidence import (
     STEP_CODES, cull_by_external_evidence, distance_to_features,
-    gate_distances, gatewise_misfit,
+    gate_distances,
 )
+from ymerflow_processing.core.misfit import gatewise_misfit
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key
 from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
 
@@ -393,9 +394,9 @@ def test_each_criterion_carries_only_its_own_parameters():
     """R7: nothing in the signature is dead depending on a flag."""
     with pytest.raises(ValueError, match="needs infrastructure and"):
         cull_by_external_evidence(delivery(), "proximity")
-    with pytest.raises(ValueError, match="needs result and max_misfit"):
+    with pytest.raises(ValueError, match="needs max_misfit"):
         cull_by_external_evidence(delivery(), "misfit")
-    with pytest.raises(ValueError, match="needs result and max_misfit"):
+    with pytest.raises(ValueError, match="needs max_misfit"):
         cull_by_external_evidence(delivery(), "both",
                                   infrastructure=make_infrastructure(),
                                   distance_first=100.0)
@@ -417,3 +418,64 @@ def test_proximity_and_the_conjunction_are_attributed_separately():
     someone reads six months later."""
     assert STEP_CODES["proximity"] == 30
     assert STEP_CODES["misfit"] == STEP_CODES["both"] == 31
+
+
+# ── The misfit column, and creating one where it can ─────────────────────────
+
+def test_it_thresholds_a_column_when_one_exists():
+    """01's resolution: filter_31 stops being special and becomes an ordinary
+    culling filter thresholding a column."""
+    from ymerflow_processing.core.misfit import compute_misfit
+
+    dataset = delivery()
+    for channel in dataset.channels:
+        dataset.layer_data[channel.std_key].iloc[:, :] = 0.10
+    dataset, _ = compute_misfit(dataset, forward(dataset, scale=0.5,
+                                                 gates=[6, 7]))
+
+    # No result passed — the column is all it needs now.
+    dataset, report = cull_by_external_evidence(dataset, "misfit",
+                                                max_misfit=3.0)
+    assert (mask(dataset)[:, 6:] == CULLED).all()
+    assert report.distributions["removed"] > 0
+
+
+def test_it_creates_the_column_when_there_is_none_and_it_can():
+    """A caller with the result to hand should not have to run a separate step
+    to make one appear."""
+    from ymerflow_processing.core.misfit import misfit_key
+
+    dataset = delivery()
+    for channel in dataset.channels:
+        dataset.layer_data[channel.std_key].iloc[:, :] = 0.10
+    key = misfit_key(dataset.channels[0])
+    assert key not in dataset.layer_data
+
+    dataset, _ = cull_by_external_evidence(
+        dataset, "misfit", result=forward(dataset, scale=0.5, gates=[6, 7]),
+        max_misfit=3.0)
+
+    assert key in dataset.layer_data          # written, not just used
+
+
+def test_a_created_column_is_not_recomputed_by_the_next_consumer():
+    dataset = delivery()
+    for channel in dataset.channels:
+        dataset.layer_data[channel.std_key].iloc[:, :] = 0.10
+    synthetic = forward(dataset, scale=0.5, gates=[6, 7])
+
+    dataset, _ = cull_by_external_evidence(dataset, "misfit", result=synthetic,
+                                           max_misfit=3.0)
+    # Second pass with no result at all: the column carries it.
+    dataset, second = cull_by_external_evidence(dataset, "misfit",
+                                                max_misfit=3.0)
+    assert second.distributions["removed"] == 0     # idempotent, and it ran
+
+
+def test_with_neither_a_column_nor_a_result_it_says_both_ways_out():
+    dataset, report = cull_by_external_evidence(delivery(), "misfit",
+                                                max_misfit=3.0)
+
+    assert report.distributions["removed"] == 0
+    assert any("pass result=" in n and "compute_misfit" in n
+               for n in report.notes)

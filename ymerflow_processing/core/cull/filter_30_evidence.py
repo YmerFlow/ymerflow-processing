@@ -66,6 +66,7 @@ import numpy as np
 
 from ..distribution import summarize
 from ..mask import apply_policy, cull, in_use, mark_step
+from ..misfit import ensure_misfit
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -143,80 +144,6 @@ def gate_distances(first: float, last: float, times) -> np.ndarray:
     return float(first) + span * (float(last) - float(first))
 
 
-def _open_result(result):
-    """The inversion result as an XYZ, whether given as one or as a path.
-
-    R8's typed form again, and here it is trivially satisfied: an inversion
-    result *is* an XYZ, the same type as the dataset it came from.
-    """
-    if hasattr(result, "layer_data"):
-        return result
-    if hasattr(result, "survey"):
-        return result.survey.xyz
-    from libaarhusxyz.xyz import XYZ
-    return XYZ(str(result))
-
-
-def gatewise_misfit(dataset, result, channel) -> np.ndarray | None:
-    """Measured minus forward synthetic, per sounding per gate, in sigmas.
-
-    **The quantity is ``data - synthetic``. The threshold is on it divided by
-    uncertainty**, and that division is not a detail. A transient spans three or
-    four orders of magnitude from first gate to last, so a raw difference of a
-    fixed size is enormous at late time and negligible at early time — one
-    threshold on it would cull every early gate or no late one, and there is no
-    number that does neither.
-
-    Divided by the uncertainty the inversion weighted by, the misfit is
-    dimensionless and comparable across the whole transient: it is how many
-    standard deviations the model missed by, which is a statement about the fit
-    rather than about the amplitude.
-
-    Two ways in, because two things produce results. An inversion writes the
-    normalized residual itself as ``dbdt_err_ch{n}gt`` — ``(dobs - dpred) *
-    W.diagonal()`` — and that is used where present. A plain forward model
-    writes only predictions, so the difference is taken here and normalized by
-    the dataset's own uncertainty.
-
-    ``None`` when neither is available for this channel.
-    """
-    import re
-
-    xyz = _open_result(result)
-    shape = dataset.layer_data[channel.data_key].shape
-
-    # A residual the inversion already normalized, matched on a captured channel
-    # index rather than by substring — the discipline channel discovery keeps.
-    for key, array in xyz.layer_data.items():
-        for pattern in MISFIT_PATTERNS:
-            found = re.match(pattern, str(key), flags=re.IGNORECASE)
-            if found and int(found.group(1)) == channel.index:
-                values = np.asarray(array, dtype=float)
-                return values if values.shape == shape else None
-
-    # Otherwise predictions, differenced here and normalized by our own
-    # uncertainty — the same quantity, arrived at the other way.
-    predicted = xyz.layer_data.get(channel.data_key)
-    if predicted is None:
-        return None
-    synthetic = np.asarray(predicted, dtype=float)
-    if synthetic.shape != shape:
-        return None
-
-    measured = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
-    if not channel.std_key or channel.std_key not in dataset.layer_data:
-        raise ValueError(
-            f"The result for {channel} carries predictions but no residual, and "
-            f"this dataset has no uncertainty to normalize the difference by. A "
-            f"raw difference cannot be thresholded across a transient spanning "
-            f"orders of magnitude."
-        )
-    relative = dataset.layer_data[channel.std_key].to_numpy(dtype=float)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        sigma = np.abs(relative) * np.abs(measured)
-        return np.where(sigma > 0, (measured - synthetic) / sigma, np.nan)
-
-
 def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
                               distance_first=None, distance_last=None,
                               result=None, max_misfit: float | None = None,
@@ -233,8 +160,12 @@ def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
     :param distance_first: Exclusion distance at the first gate, in the survey's
         CRS units. Per channel key or moment name, or one value for all.
     :param distance_last: The same at the last gate. Constant if unset.
-    :param result: A previous inversion's output, for ``misfit`` and ``both``.
-        An XYZ, a Dataset, or a path to one.
+    :param result: A previous inversion's or forward model's output, for
+        ``misfit`` and ``both``. **Only needed when the dataset has no misfit
+        column yet** — this reads the column first and computes one from the
+        result only if there is none, writing it so nothing recomputes it.
+        Running ``compute_misfit`` beforehand makes this an ordinary filter
+        thresholding a column, which is what ``01`` asks for.
     :param max_misfit: Largest acceptable gatewise misfit, **in standard
         deviations**. Data missed by more than this is suspect.
     :param crs: The survey's CRS, if the dataset does not carry one.
@@ -261,11 +192,11 @@ def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
         raise ValueError(
             f"A {criterion!r} criterion needs infrastructure and "
             f"distance_first.")
-    if wants_misfit and (result is None or max_misfit is None):
+    if wants_misfit and max_misfit is None:
         raise ValueError(
-            f"A {criterion!r} criterion needs result and max_misfit. The misfit "
-            f"is in standard deviations, so max_misfit is how many the model "
-            f"may miss by.")
+            f"A {criterion!r} criterion needs max_misfit. The misfit is in "
+            f"standard deviations, so max_misfit is how many the model may miss "
+            f"by.")
     if wants_misfit and max_misfit <= 0:
         raise ValueError(
             f"max_misfit counts standard deviations and must be positive; got "
@@ -340,7 +271,10 @@ def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
 
         poor = np.ones((len(frame), gates), dtype=bool)
         if wants_misfit:
-            misfit = gatewise_misfit(dataset, result, channel)
+            # The column is the canonical form, so it is looked for first.
+            # Where it is absent and a result was given, it is computed and
+            # written — so the next consumer finds it rather than recomputing.
+            misfit = ensure_misfit(dataset, channel, result)
             if misfit is None:
                 without.append(str(channel))
                 continue
@@ -369,8 +303,10 @@ def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
         mark_step(dataset, step_code, STEP)
     if without:
         report.notes.append(
-            f"The result carries no misfit or prediction for "
-            f"{', '.join(without)}; those channels were not judged.")
+            f"No misfit column for {', '.join(without)}, and none could be "
+            f"computed — pass result= with an inversion or forward model, or "
+            f"run compute_misfit first. Those channels were not judged."
+        )
 
     removed = sum(c["removed"] for c in per_channel.values())
     report.soundings_affected = removed

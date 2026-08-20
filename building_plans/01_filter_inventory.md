@@ -1526,3 +1526,35 @@ type as the dataset — so it arrives the way the terrain raster and the manual-
 the library needs no inversion machinery to read one. What is not a pure function of the input
 dataset is only the two criteria that ask for a result, and the criterion says so in the
 pipeline document.
+
+## Addition, 2026-08-20 — misfit is a column, and a filter writes it
+
+`01` resolves filter_31's oddity by making misfit a column rather than something one filter
+reaches backwards for. Every word of that resolution is followed except *"the comparison
+runner"*.
+
+**It is a filter, not a comparison.** Comparison is N things to **one report**; this is a
+dataset and an external input to a dataset with new columns, which is the filter contract
+exactly. The inversion result arrives the way filter_05's terrain raster and filter_33's edit
+diff arrive — R8's typed external input — and the library needs no inversion machinery to read
+one, because an inversion result *is* an XYZ.
+
+**It writes under the inversion's own names.** Gatewise as `dbdt_err_ch{n}gt`, per sounding as
+`resdata`. A dataset whose misfit came from an inversion and one whose misfit was computed here
+are then indistinguishable, and anything reading misfit finds it the same way in both.
+
+**The per-sounding figure is over gates in use only.** A culled gate is not evidence about the
+fit — a sounding whose bad gates were removed before inverting should not carry their residual
+afterwards.
+
+**A consumer that needs misfit and finds none creates it, where it can.** `cull_by_external_evidence`
+reads the column first, computes one from a `result` if there is none, and *writes* what it
+computed so the next consumer finds it rather than recomputing. With neither a column nor a
+result it names both ways out rather than guessing. That makes the filter ordinary — it
+thresholds a column like every other culling step — while not obliging a caller who has the
+result to hand to run a separate step first.
+
+With the column present, `01`'s sentence is literally true: filter_31 is
+`cull where near_infrastructure AND misfit > threshold`, both columns on the dataset. And misfit
+becomes generally available — a numeric `flightlines` column the plot layer can draw, exportable
+in the vector output, and gradeable by qc_11.

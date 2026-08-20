@@ -68,6 +68,7 @@ setup(
             "ymerflow_processing.core.normalize:convert_normalization",
             "apply_nominal_current = "
             "ymerflow_processing.core.normalize:apply_nominal_current",
+            "compute_misfit = ymerflow_processing.core.misfit:compute_misfit",
             "average_along_line = "
             "ymerflow_processing.core.filter_10_average:average_along_line",
             "inflate_uncertainty = "
