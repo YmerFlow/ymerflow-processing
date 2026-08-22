@@ -431,3 +431,44 @@ die.
 ### Still open
 
 Nothing. Everything raised in this document has been decided; what remains is building it.
+
+## Addition, 2026-08-21 — `--dataset` built, and history had to become durable
+
+`04` deferred `--dataset` with a condition: *"`02` says build the report path first,
+so `--dataset` is deferred until the rebuild's equivalence testing needs it."* It
+needs it now — three of the four registered comparison checks consume datasets, and
+without this they were registered, tested and **unreachable from a command line**.
+Passing an XYZ to `--report` produced a raw `JSONDecodeError` naming a column.
+
+**The pipeline is asked, not the user.** Each check declares `CONSUMES` on its
+module, `ComparisonRunner.consumes_all()` reads the pipeline, and the command loads
+accordingly — which is what `02` meant by *"the runner loads accordingly"*. A
+pipeline whose steps disagree is refused with which steps want which, since one run
+loads one set of inputs and letting the odd steps fail on the wrong kind is worse
+than not starting.
+
+`--gex` is required with `--dataset`, per this document's own rule: a survey file
+does not describe its own gates, and the channels a comparison aligns on come from
+the description. Given to a report comparison it is noted rather than refused —
+harmless, but silently ignoring a typed option is how someone comes to believe it
+did something.
+
+### The real finding — `dataset.history` did not survive a file
+
+Building the CLI path exposed it: a sweep over three datasets **read from disk**
+discovered no parameter, because `history` lived on the Python object and the dump
+dropped it.
+
+That is worse for `version_diff`, which would have reported *"the two versions
+record the same steps with the same parameters"* for two files processed
+differently — a **confident wrong answer** rather than a missing one, and the
+report even says the difference must have come from outside the pipeline.
+
+So history moved into `model_info`, which round-trips, joining the provenance
+legend and the verdict registry there. `mask` already made the argument: *the file
+has to carry its own legend because whoever opens it will not have the run report.*
+It holds at least as well for how a delivery was processed, and a delivered file
+that records its own processing is worth having independently of any comparison.
+
+`dataset.history.append(...)` would now append to a list rebuilt from the file and
+thrown away, so it is replaced by `record_step()`, and the runner calls that.

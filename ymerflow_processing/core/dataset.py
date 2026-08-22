@@ -49,6 +49,7 @@ axis if it can read that axis without knowing it is time.
 from __future__ import annotations
 
 import copy
+import json
 import importlib.metadata
 import logging
 import re
@@ -293,6 +294,11 @@ def load_method_adapters() -> list[MethodAdapter]:
 # known spellings. It has nothing for flight, so the same idiom is continued
 # here rather than each caller inventing its own lookup.
 
+#: Where the processing history lives, so it round-trips with the delivery. A
+#: file that says how it was processed is worth having on its own, and two of
+#: the comparison checks read datasets off disk and would otherwise see none.
+HISTORY = "processing_history"
+
 #: Spellings a flight identifier turns up under.
 FLIGHT_COLUMNS = ("flight", "Flight", "flight_no", "FlightNo", "flight_id", "FlightID")
 
@@ -359,8 +365,6 @@ class Dataset:
         self.normalization = normalization
         self.crs = crs
         self.noise_model = NoiseModel()
-        #: One entry per step applied, in order. The runner appends; steps do not.
-        self.history: list[dict] = []
         #: Injectable for testing and for callers who know what they have.
         #: ``None`` means "ask the entry-point group".
         self._adapters: list[MethodAdapter] | None = None
@@ -547,6 +551,47 @@ class Dataset:
         """Per-moment settings; see :meth:`resolve_per_channel`."""
         return self.resolve_per_channel(value)
 
+    # ── What was done to it ──────────────────────────────────────────────────
+
+    @property
+    def history(self) -> list[dict]:
+        """One entry per step applied, in order. The runner records; steps do not.
+
+        Held in ``model_info`` rather than on the object, so it **survives a
+        round trip through a file**. That is not tidiness: ``version_diff``
+        reads history to say which parameter moved, and ``parameter_sweep``
+        discovers the swept parameter from it — and both of those read datasets
+        off disk. An in-memory-only history would leave the diff reporting "no
+        pipeline difference" between two files that were processed differently,
+        which is a confident wrong answer rather than a missing one.
+
+        The same argument ``mask`` makes for its provenance legend: *the file
+        has to carry its own legend because whoever opens it will not have the
+        run report.* A delivery that says how it was processed is worth having
+        on its own.
+        """
+        raw = self.survey.xyz.model_info.get(HISTORY)
+        if not raw:
+            return []
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                log.warning("%s is not readable as processing history; "
+                            "treating it as empty", HISTORY)
+                return []
+        return list(raw)
+
+    @history.setter
+    def history(self, entries) -> None:
+        self.survey.xyz.model_info[HISTORY] = json.dumps(
+            list(entries), default=str)
+
+    def record_step(self, step: str, params: dict | None = None) -> None:
+        """Append one applied step. Used instead of ``history.append``, which
+        would append to a list reconstructed from the file and thrown away."""
+        self.history = self.history + [{"step": step, "params": params or {}}]
+
     # ── Copying ──────────────────────────────────────────────────────────────
 
     def copy(self) -> "Dataset":
@@ -555,7 +600,9 @@ class Dataset:
         # downgraded to the base class by copying.
         new = type(self)(_copy_survey(self.survey), self.normalization, self.crs)
         new.noise_model = copy.deepcopy(self.noise_model)
-        new.history = list(self.history)
+        # history is not copied: it lives in model_info, which the survey copy
+        # already brought along. Copying it here would work but would give the
+        # field two homes, and the one that round-trips should be the only one.
         new._adapters = self._adapters
         return new
 

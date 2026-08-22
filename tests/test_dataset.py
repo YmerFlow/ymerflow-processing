@@ -242,3 +242,68 @@ def test_copy_preserves_the_subclass():
     dataset = make_dataset()
     derived = Derived(dataset.survey)
     assert isinstance(derived.copy(), Derived)
+
+
+# ── The processing history ───────────────────────────────────────────────────
+# It lives in model_info rather than on the object, so it survives a round trip
+# through a file. Not tidiness: version_diff reads history to say which
+# parameter moved, parameter_sweep discovers the swept parameter from it, and
+# both read datasets off disk.
+
+def test_history_survives_a_round_trip(tmp_path):
+    """The bug this fixes was silent and confident: two files processed
+    differently, and a version diff reporting no pipeline difference."""
+    from ymerflow_processing.core.dataset import load
+
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.record_step("cull_negatives", {"start_gate": 3})
+
+    dataset.survey.dump(xyzfile=str(tmp_path / "a.xyz"),
+                        gexfile=str(tmp_path / "a.gex"))
+    back = load(tmp_path / "a.xyz", tmp_path / "a.gex")
+
+    assert back.history == [{"step": "cull_negatives",
+                             "params": {"start_gate": 3}}]
+
+
+def test_a_processed_delivery_says_how_it_was_processed(tmp_path):
+    """Worth having on its own — the same argument mask makes for its
+    provenance legend: whoever opens the file will not have the run report."""
+    from ymerflow_processing.core.pipeline import Pipeline, ProcessingRunner
+
+    dataset, _ = ProcessingRunner(Pipeline.parse("""
+        kind: filters
+        steps:
+          - disable_initial_gates: {}
+    """)).run(make_dataset(n=6, n_lines=1, n_gates=6))
+
+    dataset.survey.dump(xyzfile=str(tmp_path / "b.xyz"),
+                        gexfile=str(tmp_path / "b.gex"))
+    text = (tmp_path / "b.xyz").read_text()
+    assert "disable_initial_gates" in text
+
+
+def test_a_copy_carries_the_history():
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.record_step("cull_negatives", {})
+    assert dataset.copy().history == dataset.history
+
+
+def test_a_copy_s_history_is_its_own():
+    """A step returning a new dataset must not write into the old one's."""
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.record_step("one", {})
+
+    other = dataset.copy()
+    other.record_step("two", {})
+    assert [e["step"] for e in dataset.history] == ["one"]
+    assert [e["step"] for e in other.history] == ["one", "two"]
+
+
+def test_unreadable_history_is_a_warning_not_a_crash(caplog):
+    """model_info is a text field in a file a person can edit."""
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.survey.xyz.model_info["processing_history"] = "{not json"
+
+    assert dataset.history == []
+    assert "not readable as processing history" in caplog.text

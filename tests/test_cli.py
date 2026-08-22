@@ -350,3 +350,176 @@ def test_validate_does_not_need_a_dataset(pipeline_file):
     result = invoke("validate", pipeline_file(QC_PIPELINE))
     assert result.return_value == EXIT_GOOD
     assert "1 step(s)" in result.output
+
+
+# ── compare, and the two input kinds ─────────────────────────────────────────
+# 04 deferred --dataset until "the rebuild's equivalence testing needs it".
+# It does now: three of the four registered checks consume datasets, and
+# without this they cannot be run from a command line at all.
+
+DRIFT = """
+kind: compare
+steps:
+  - noise_floor_drift: {}
+"""
+
+DIFF = """
+kind: compare
+steps:
+  - version_diff: {}
+"""
+
+
+@pytest.fixture
+def stored_report(tmp_path, pipeline_file, delivery):
+    """A real report on disk, produced by a real run."""
+    def build(name):
+        xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1,
+                            name=name)
+        run_qc(pipeline_file(QC_PIPELINE), xyz, gex, tmp_path / "runs")
+        return tmp_path / "runs" / f"{name}.report.json"
+    return build
+
+
+def test_reports_are_still_the_cheap_path(stored_report, pipeline_file,
+                                          tmp_path):
+    """No system description, no arrays — a pure function over small records."""
+    out = tmp_path / "drift.json"
+    result = invoke("compare", pipeline_file(DRIFT, "d.yaml"),
+                    "--report", stored_report("20260815"),
+                    "--report", stored_report("20260816"), "--out", out)
+
+    assert result.return_value == EXIT_GOOD
+    assert json.loads(out.read_text())["steps"][0]["step"] == "noise_floor_drift"
+
+
+def test_a_dataset_consuming_check_runs_from_the_command_line(
+        delivery, pipeline_file, tmp_path):
+    """The gap this closes. Before it, version_diff was registered, tested and
+    unreachable — --report fed its path to json.loads."""
+    new, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1, name="v2")
+    old, _ = delivery(np.full(20, 30.0), n_lines=2, n_flights=1, name="v1")
+    out = tmp_path / "diff.json"
+
+    result = invoke("compare", pipeline_file(DIFF, "v.yaml"),
+                    "--dataset", new, "--reference", old, "--gex", gex,
+                    "--out", out)
+
+    assert result.return_value == EXIT_GOOD
+    written = json.loads(out.read_text())["steps"][0]
+    assert written["step"] == "version_diff"
+    assert written["distributions"]["alignment"]["soundings_compared"] == 20
+
+
+def test_the_pipeline_is_asked_before_anything_is_read(
+        delivery, pipeline_file, tmp_path):
+    """Which flag to pass is not a preference: each check declares what it
+    consumes, so passing the wrong one is answered rather than crashed on."""
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    result = invoke("compare", pipeline_file(DIFF, "v.yaml"),
+                    "--report", xyz, "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "consumes datasets" in result.output
+
+
+def test_a_survey_file_passed_as_a_report_says_what_is_wrong(
+        delivery, pipeline_file, tmp_path):
+    """A raw JSONDecodeError names the column it choked on rather than the
+    thing that is actually wrong."""
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    result = invoke("compare", pipeline_file(DRIFT, "d.yaml"),
+                    "--report", xyz, "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "is not a stored report" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_datasets_need_a_system_description(delivery, pipeline_file, tmp_path):
+    """A survey file does not describe its own gates, and the channels a
+    comparison aligns on come from the description."""
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    result = invoke("compare", pipeline_file(DIFF, "v.yaml"),
+                    "--dataset", xyz, "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "--gex is required" in result.output
+
+
+def test_a_pipeline_mixing_the_two_kinds_is_refused(pipeline_file, tmp_path,
+                                                    stored_report):
+    """One run loads one set of inputs, and naming which steps want which beats
+    loading one kind and letting the rest fail on it."""
+    document = """
+        kind: compare
+        steps:
+          - noise_floor_drift: {}
+          - version_diff: {}
+    """
+    result = invoke("compare", pipeline_file(document, "m.yaml"),
+                    "--report", stored_report("20260815"),
+                    "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "version_diff" in result.output and "noise_floor_drift" in result.output
+
+
+def test_both_flags_at_once_is_refused(delivery, pipeline_file, tmp_path,
+                                       stored_report):
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1, name="x")
+    result = invoke("compare", pipeline_file(DIFF, "v.yaml"),
+                    "--dataset", xyz, "--report", stored_report("20260815"),
+                    "--gex", gex, "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "One run loads one set of inputs" in result.output
+
+
+def test_nothing_to_compare_says_which_flag_to_pass(pipeline_file, tmp_path):
+    result = invoke("compare", pipeline_file(DIFF, "v.yaml"),
+                    "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_NOT_STARTED
+    assert "--dataset" in result.output
+
+
+def test_a_gex_given_to_a_report_comparison_is_noted_not_refused(
+        stored_report, pipeline_file, delivery, tmp_path):
+    """Harmless, so it runs — but silently ignoring an option someone typed is
+    how they come to believe it did something."""
+    _, gex = delivery(np.full(4, 30.0), n_lines=1, n_flights=1, name="g")
+    result = invoke("compare", pipeline_file(DRIFT, "d.yaml"),
+                    "--report", stored_report("20260815"), "--gex", gex,
+                    "--out", tmp_path / "o.json")
+
+    assert result.return_value == EXIT_GOOD
+    assert "ignored" in result.output
+
+
+def test_the_order_of_datasets_is_preserved(delivery, pipeline_file, tmp_path):
+    """02 states the sequence is ordered and a check may rely on it. A repeated
+    option keeps the order typed, which a glob would not."""
+    paths = []
+    for index, name in enumerate(("w3", "w5", "w7")):
+        xyz, gex = delivery(np.full(12, 30.0), n_lines=1, n_flights=1,
+                            name=name)
+        dataset = load(xyz, gex)
+        dataset.history = [{"step": "average_along_line",
+                            "params": {"width_first": 3 + 2 * index}}]
+        dataset.survey.dump(xyzfile=str(xyz))
+        paths.append(xyz)
+
+    document = """
+        kind: compare
+        steps:
+          - parameter_sweep: {}
+    """
+    out = tmp_path / "sweep.json"
+    result = invoke("compare", pipeline_file(document, "s.yaml"),
+                    *[arg for p in paths for arg in ("--dataset", p)],
+                    "--gex", gex, "--out", out)
+
+    assert result.return_value == EXIT_GOOD
+    series = json.loads(out.read_text())["steps"][0]["distributions"]["series"]
+    assert [entry["value"] for entry in series] == [3, 5, 7]

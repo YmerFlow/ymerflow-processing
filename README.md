@@ -314,15 +314,17 @@ reads as neither. Free-form rather than an enum, since more kinds will follow.
 
 ## Next
 
-1. **The vector export** — `03`'s third output, and the one that leaves the building.
-   GeoPackage by default, shapefile when a contract names it, points and lines both.
-2. **The remaining QC checks** — qc_06 and qc_07 need flight-plan input (`Ymerflow#69`).
-   qc_09 is built, as a comparison rather than a check, because a drifting noise floor is
-   only visible cumulatively.
-3. **filter_33**, the manual-edit checkpoint — the only thing that makes re-running safe once
-   a human has edited, and now fully specified.
-4. **The shared culling policy**, then the culling predicates as small functions over it.
-5. **The noise group**, which is where most of the value is.
+The filter, QC and comparison groups are built, and the command line runs all three.
+What remains:
+
+1. **qc_06 and qc_07** — line adherence and coverage, both blocked on flight-plan input
+   (`Ymerflow#69`). Nothing else in `03` is outstanding.
+2. **filter_32's defaults** ([#5](https://github.com/YmerFlow/ymerflow-processing/issues/5)) —
+   built, but whether a sign reversal is one phenomenon or three is unsettled.
+3. **Altitude processing** ([#4](https://github.com/YmerFlow/ymerflow-processing/issues/4)) —
+   filter_05 did the mechanics; the judgement calls are unopened.
+4. **Packaging** ([#3](https://github.com/YmerFlow/ymerflow-processing/issues/3)) — the
+   libaarhusxyz pin by URL blocks development against a local checkout.
 
 Specifications live in `building_plans/`. `04_cli_runner.md` records every decision behind
 the command line and why the alternatives lost.

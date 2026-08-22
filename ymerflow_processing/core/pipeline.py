@@ -368,7 +368,7 @@ class ProcessingRunner(_Runner):
             dataset, step_report = self.steps[name](dataset, **params)
             step_report.params = params
             report.steps.append(step_report)
-            dataset.history.append({"step": name, "params": params})
+            dataset.record_step(name, params)
         return dataset, report
 
 
@@ -429,6 +429,26 @@ class ComparisonRunner(_Runner):
         check = self.steps[name]
         module = sys.modules.get(getattr(check, "__module__", ""), None)
         return getattr(module, "CONSUMES", self.default_consumes)
+
+    def consumes_all(self) -> str:
+        """What this whole pipeline needs, or a raise if its steps disagree.
+
+        One run loads one set of inputs, so a pipeline whose steps want
+        different kinds cannot be served — and it is better to say which steps
+        want which than to load one kind and let the other steps fail on it.
+        """
+        wanted = {}
+        for name, _ in self.pipeline.steps:
+            wanted.setdefault(self.consumes(name), []).append(name)
+        if len(wanted) > 1:
+            detail = "; ".join(f"{kind}: {', '.join(names)}"
+                               for kind, names in sorted(wanted.items()))
+            raise ValueError(
+                f"This pipeline mixes checks that consume different things "
+                f"({detail}). One run loads one set of inputs — split it into "
+                f"one pipeline per kind."
+            )
+        return next(iter(wanted), self.default_consumes)
 
     def run(self, items: Sequence, reference=None):
         report = RunReport(pipeline=self.pipeline.document)
