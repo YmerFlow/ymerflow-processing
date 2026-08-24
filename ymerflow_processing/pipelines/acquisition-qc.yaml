@@ -1,0 +1,103 @@
+name: acquisition-qc
+description: >
+  Grade a delivery against acquisition specification, while the aircraft is
+  still on site. Changes no measurement.
+
+# Acquisition QC — the per-delivery check
+# ======================================
+#
+#   yf-process run acquisition-qc --xyz DELIVERY.xyz --gex SYSTEM.gex --out qc/
+#
+# Exits 0 in spec, 1 marginal, 2 out of spec, so a scheduler can act on it.
+# The exit code answers "was the flight any good", and is driven by
+# flight-quality findings alone: a failing altimeter is reported loudly but does
+# not read as a badly flown line.
+#
+# THE THRESHOLDS BELOW ARE REPRESENTATIVE DEFAULTS, NOT CONTRACT VALUES.
+# What is acceptable is a contract term and differs per survey. Copy this
+# document and edit it:
+#
+#   yf-process show acquisition-qc > my-qc.yaml
+#
+# Nothing here writes to the in-use mask. QC records what it found as
+# attributes; deciding what to remove is a separate job (see
+# standard-processing).
+
+kind: qc
+
+steps:
+
+  # ── Flown as contracted ────────────────────────────────────────────────────
+  # These four carry the weight in the grade. Height and attitude dominate,
+  # because they change what the measurement means: a sounding flown too high
+  # or at a bad attitude couples to the ground differently, and no amount of
+  # processing recovers it. Speed and spacing degrade coverage rather than
+  # invalidating the physics, so they are quarter-weight.
+
+  - height_above_ground:
+      good_max: 45          # m above ground
+      marginal_max: 65
+
+  - system_attitude:
+      good: 5               # degrees, whichever of pitch or roll is worse
+      marginal: 7.5
+
+  - ground_speed:
+      good_min: 70          # km/h
+      good_max: 100
+      marginal_min: 60
+      marginal_max: 120
+
+  - sounding_spacing:
+      good_max: 40          # m between consecutive soundings
+      marginal_max: 60
+
+  # ── Instrument health ──────────────────────────────────────────────────────
+  # Reported, and kept out of the flight-quality verdict. Equipment misbehaving
+  # is a conversation with the operator before the next flight, not a reflight
+  # of this one — and the data may be perfectly usable.
+
+  - transmitter_stability:
+      good_fraction: 0.01   # relative spread within a moment
+      marginal_fraction: 0.02
+
+  # Commented out because it is the one check that CANNOT have a useful
+  # default: it must be told which columns hold the altimeters, and every
+  # system spells them differently. Named wrongly it does not degrade — it
+  # raises, and takes the whole run with it, which is right when you asked for
+  # a column by name and wrong as a shipped guess.
+  #
+  # Uncomment and name yours. Two altimeters that disagree is a sensor fault to
+  # raise with the operator; it is reported loudly and kept out of the flight
+  # grade, because one bad altimeter should not drag down data that was flown
+  # correctly.
+  #
+  # - altimeter_agreement:
+  #     columns: [tx_alt, alt_two]
+  #     good_max: 2.0             # m between them
+  #     marginal_max: 5.0
+
+  # ── Facts about the ground ─────────────────────────────────────────────────
+  # Weighted out of the grade entirely. A powerline is not the contractor's
+  # doing and not avoidable by reflying, so grading a survey down for one would
+  # penalize it for where it was asked to fly. Measured because a reader still
+  # needs to know which lines are affected.
+  #
+  # No thresholds: what counts as excessive depends on the instrument and the
+  # region, and a house number would flag a normal survey.
+
+  - powerline_noise: {}
+
+  # ── Optional, and absent without complaint ─────────────────────────────────
+  # culled_fraction needs processing history — it measures what THIS pipeline
+  # removed, not what arrived already disabled, so on a raw delivery it
+  # correctly reports nothing.
+  #
+  # data_misfit needs an inversion. Run compute_misfit against an inversion
+  # result first; without it this skips with a note rather than failing. It is
+  # a MODEL finding at zero weight — a poor fit may be geology a 1D model
+  # cannot represent, so it names itself among the reasons without grading a
+  # survey down for the earth being complicated.
+
+  - culled_fraction: {}
+  - data_misfit: {}

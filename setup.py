@@ -5,6 +5,9 @@ setup(
     version="0.1.0",
     description="Airborne geophysical data processing, QC and comparison for YmerFlow",
     packages=find_packages(),
+    # 02's first lever: "load a standard chain and adjust it" only works if
+    # the chains install with the package.
+    package_data={"ymerflow_processing": ["pipelines/*.yaml"]},
     python_requires=">=3.10",
     install_requires=[
         # MIT — the survey data model.

@@ -22,6 +22,7 @@ Diagnostics go to ``logging``; what a step *did* goes in the report.
 from __future__ import annotations
 
 import importlib.metadata
+import importlib.resources
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -50,6 +51,39 @@ GROUPS = {
     "compare": COMPARE_GROUP,
     "methods": METHOD_GROUP,
 }
+
+
+#: Where the bundled pipeline documents live. ``02``'s first lever against the
+#: step-list problem is that most users should never see the list — *"load a
+#: standard chain and adjust it"* — which only works if the chains ship with the
+#: package rather than sitting in a repository the user does not have.
+BUNDLED_DIR = "pipelines"
+
+
+def bundled() -> dict[str, Path]:
+    """Every pipeline document shipped with the package, by name.
+
+    Read through ``importlib.resources`` rather than by walking ``__file__``, so
+    it keeps working for an installed wheel and not only for a checkout.
+    """
+    try:
+        root = importlib.resources.files("ymerflow_processing") / BUNDLED_DIR
+        return {p.name.removesuffix(".yaml"): Path(str(p))
+                for p in root.iterdir() if p.name.endswith(".yaml")}
+    except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
+        # An install without package data. Worth continuing without: every
+        # bundled document is a convenience, and a path still works.
+        log.warning("no bundled pipelines found; paths still work")
+        return {}
+
+
+def describe_bundled() -> dict[str, str]:
+    """Bundled pipeline names to their one-line description."""
+    out = {}
+    for name, path in sorted(bundled().items()):
+        document = yaml.safe_load(path.read_text()) or {}
+        out[name] = " ".join((document.get("description") or "").split())
+    return out
 
 
 def load_steps(group: str) -> dict[str, Callable]:
@@ -200,8 +234,25 @@ class Pipeline:
         return cls(yaml.safe_load(text))
 
     @classmethod
-    def load(cls, path: str | Path) -> "Pipeline":
-        return cls(yaml.safe_load(Path(path).read_text()))
+    def load(cls, reference: str | Path) -> "Pipeline":
+        """A pipeline, from a path or from a bundled document's name.
+
+        **A real file always wins.** A name is only consulted when nothing
+        exists at that path, so a local ``standard-processing.yaml`` can never
+        be shadowed by the bundled document of the same name — the surprising
+        direction, and the one that would have someone editing a file that is
+        not the one running.
+        """
+        path = Path(reference)
+        if not path.is_file():
+            found = bundled().get(str(reference))
+            if found is None:
+                raise FileNotFoundError(
+                    f"No pipeline at {reference!r}, and no bundled pipeline by "
+                    f"that name. Bundled: {', '.join(sorted(bundled())) or 'none'}."
+                )
+            path = found
+        return cls(yaml.safe_load(path.read_text()))
 
     @property
     def steps(self) -> list[tuple[str, dict]]:

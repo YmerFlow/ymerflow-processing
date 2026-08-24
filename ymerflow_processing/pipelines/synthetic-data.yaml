@@ -1,0 +1,78 @@
+name: synthetic-data
+description: >
+  Turn a clean forward model into data that behaves like a real delivery, by
+  assigning a noise model and drawing from it. For building test cases.
+
+# Synthetic data — a forward model made to look like a real delivery
+# ==================================================================
+#
+#   yf-process run synthetic-data --xyz FORWARD.xyz --gex SYSTEM.gex --out synthetic/
+#
+# A forward model is perfect: every gate is exactly what the earth model says,
+# and an inversion recovers it beautifully. That tells you nothing about whether
+# the inversion works, because real data is never that. This adds the noise back
+# — with a known model and a recorded seed, so the test is repeatable.
+#
+# Used for: testing an inversion against a known answer, building a fault study,
+# and generating the awkward cases that real deliveries produce rarely.
+#
+# THE ORDER IS NOT NEGOTIABLE
+# ---------------------------
+# From 01: "uncertainties must be assigned before noise is drawn from them, and
+# any along-line averaging belongs after both."
+#
+# Get it wrong and nothing fails. Perturbing before assignment draws from
+# whatever uniform default the system description carried, which is FLAT in
+# relative terms — so late gates come out as clean as early ones, which is
+# precisely what a real noise floor makes impossible. The result looks like
+# data and is not.
+#
+# Three things make that detectable rather than silent:
+#
+#   * perturb_from_uncertainty REFUSES TO RUN TWICE. Perturbing an already
+#     perturbed dataset makes it noisier by roughly the square root of two, and
+#     the result looks exactly like data. Pass `again: true` if you mean it.
+#   * It SAYS SO if every uncertainty in a channel is identical — the signature
+#     of a system-description default rather than an assigned model.
+#   * The seed is REQUIRED, defaulted rather than optional. A fair test that
+#     cannot be repeated is not a fair test.
+
+kind: filters
+
+steps:
+
+  # ── 1 · The noise model, supplied rather than measured ─────────────────────
+  # This is the one real difference from standard-processing. There, the floor
+  # is estimated from sounding-to-sounding scatter at late gates. A forward
+  # model HAS no scatter — it is noiseless by construction — so there is nothing
+  # to estimate from and the model has to be stated.
+  #
+  # Take these numbers from a real survey flown with the same system, which is
+  # what makes the synthetic representative rather than merely noisy.
+
+  - estimate_noise_model:
+      noise_level_1ms: 5.0e-10   # EDIT: the floor at 1 ms, in data units
+      noise_exponent: -0.5       # how the floor falls with time
+      relative_fraction: 0.03    # the proportional part, 3%
+
+  # ── 2 · Assignment ─────────────────────────────────────────────────────────
+  # Turns the model into a per-datum uncertainty: the larger of the relative
+  # fraction and the absolute floor at that gate time. That combination is what
+  # makes late gates behave like late gates.
+
+  - assign_uncertainty: {}
+
+  # ── 3 · Drawing from it ────────────────────────────────────────────────────
+  # The spread is uncertainty x |value|, because the stored uncertainty is
+  # relative. A gate whose assigned uncertainty has passed one receives a
+  # perturbation larger than the datum itself — correct, and exactly what makes
+  # a synthetic look like real late-time data rather than a clean curve with a
+  # little fuzz on it.
+
+  - perturb_from_uncertainty:
+      seed: 42                   # recorded on the dataset; change it per realization
+
+  # ── 4 · Optional: process it like a real delivery ──────────────────────────
+  # If the synthetic exists to test a processing chain rather than an inversion,
+  # continue with standard-processing from here. Averaging belongs after both
+  # steps above, never between them.

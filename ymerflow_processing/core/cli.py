@@ -30,7 +30,8 @@ import click
 from .dataset import load
 from .pipeline import (
     COMPARE_GROUP, GROUPS, ComparisonRunner, Pipeline, PipelineKindError,
-    ProcessingRunner, QCRunner, RunReport, load_steps, resolve_group,
+    ProcessingRunner, QCRunner, RunReport, bundled, describe_bundled,
+    load_steps, resolve_group,
 )
 from .qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC, worst_verdict
 
@@ -100,7 +101,7 @@ def _summarize(report: RunReport, dataset) -> None:
 
 
 @click.command()
-@click.argument("pipeline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("pipeline", metavar="PIPELINE")
 @click.option("--xyz", required=True, type=click.Path(),
               help="The survey file to run against.")
 @click.option("--gex", required=True, type=click.Path(),
@@ -111,13 +112,16 @@ def _summarize(report: RunReport, dataset) -> None:
               help="What to call this run. Defaults to the survey file's name.")
 @click.option("--group", type=click.Choice(sorted(RUNNERS)), default=None,
               help="Override which registry the steps are looked up in.")
-def run(pipeline_path, xyz, gex, out, label, group):
+def run(pipeline, xyz, gex, out, label, group):
     """Run a processing or QC pipeline against a delivery.
 
     Exit codes: 0 in spec, 1 marginal, 2 out of spec, 3 never started,
     4 a step raised.
     """
-    pipeline = Pipeline.load(pipeline_path)
+    try:
+        pipeline = Pipeline.load(pipeline)
+    except FileNotFoundError as exc:
+        return _fail(str(exc))
 
     # Everything that can be checked without touching data is checked first. A
     # scheduled overnight run should not die at 3 a.m. on a typo after loading
@@ -179,7 +183,7 @@ def run(pipeline_path, xyz, gex, out, label, group):
 # ── compare ──────────────────────────────────────────────────────────────────
 
 @click.command()
-@click.argument("pipeline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("pipeline", metavar="PIPELINE")
 @click.option("--report", "report_paths", multiple=True,
               type=click.Path(exists=True, dir_okay=False),
               help="A stored report. Repeat it; order is significant.")
@@ -196,7 +200,7 @@ def run(pipeline_path, xyz, gex, out, label, group):
                    "is asymmetric. Whichever kind the pipeline consumes.")
 @click.option("--out", required=True, type=click.Path(dir_okay=False),
               help="File to write the comparison report to.")
-def compare(pipeline_path, report_paths, dataset_paths, gex, reference, out):
+def compare(pipeline, report_paths, dataset_paths, gex, reference, out):
     """Compare deliveries — drift across flights, two versions, or two implementations.
 
     ``--report`` and ``--dataset`` are repeatable and **ordered**; a check may
@@ -207,7 +211,10 @@ def compare(pipeline_path, report_paths, dataset_paths, gex, reference, out):
     path — small records, no system description, runs anywhere — and a check
     needing per-datum arrays says so.
     """
-    pipeline = Pipeline.load(pipeline_path)
+    try:
+        pipeline = Pipeline.load(pipeline)
+    except FileNotFoundError as exc:
+        return _fail(str(exc))
     try:
         steps = load_steps(COMPARE_GROUP)
         pipeline.validate(steps)
@@ -290,6 +297,53 @@ def _load_items(wanted, paths, reference, gex):
     return [read(p) for p in paths], (read(reference) if reference else None)
 
 
+# ── the bundled pipelines ────────────────────────────────────────────────────
+# 02's first lever against the step-list problem: "Most users should never see
+# the list. The standard-workflow story — load a standard chain and adjust it —
+# means someone doing ordinary work never browses filters at all."
+#
+# Two commands, because that story has two halves. `pipelines` is how you find a
+# chain; `show` is how you adjust it. Without the second, "adjust it" means
+# hunting for a file inside site-packages, and editing it in place would change
+# what every other project on the machine runs.
+
+
+@click.command("pipelines")
+def list_pipelines():
+    """List the pipeline documents that ship with this package."""
+    described = describe_bundled()
+    if not described:
+        click.echo("No bundled pipelines found in this installation.")
+        return EXIT_GOOD
+    width = max(len(n) for n in described)
+    for name, description in described.items():
+        click.echo(f"  {name:<{width}}  {description}")
+    click.echo("\nRun one:   yf-process run NAME --xyz ... --gex ... --out ...")
+    click.echo("Adjust it: yf-process show NAME > mine.yaml")
+    return EXIT_GOOD
+
+
+@click.command("show")
+@click.argument("pipeline", metavar="PIPELINE")
+def show_pipeline(pipeline):
+    """Print a pipeline document, so it can be redirected and edited.
+
+    The comments are most of the document, and they are the part that explains
+    why the order is what it is — so this prints the file verbatim rather than
+    re-emitting parsed YAML, which would discard exactly the useful half.
+    """
+    path = Path(pipeline)
+    if not path.is_file():
+        found = bundled().get(pipeline)
+        if found is None:
+            return _fail(
+                f"No pipeline at {pipeline!r}, and no bundled pipeline by that "
+                f"name. Try: yf-process pipelines")
+        path = found
+    click.echo(path.read_text(), nl=False)
+    return EXIT_GOOD
+
+
 # ── introspection ────────────────────────────────────────────────────────────
 
 @click.command("list")
@@ -307,12 +361,15 @@ def list_steps(group):
 
 
 @click.command()
-@click.argument("pipeline_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("pipeline", metavar="PIPELINE")
 @click.option("--group", type=click.Choice(sorted(GROUPS)), default=None,
               help="Override which registry the steps are looked up in.")
-def validate(pipeline_path, group):
+def validate(pipeline, group):
     """Check a pipeline document without running it."""
-    pipeline = Pipeline.load(pipeline_path)
+    try:
+        pipeline = Pipeline.load(pipeline)
+    except FileNotFoundError as exc:
+        return _fail(str(exc))
     candidates = [group] if group else list(RUNNERS) + ["compare"]
     try:
         resolved, steps = resolve_group(pipeline, candidates, group)
@@ -334,7 +391,8 @@ def cli(verbose):
     )
 
 
-for _command in (run, compare, list_steps, validate):
+for _command in (run, compare, list_steps, validate, list_pipelines,
+                 show_pipeline):
     cli.add_command(_command)
 
 

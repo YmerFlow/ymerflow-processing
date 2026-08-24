@@ -1,0 +1,162 @@
+name: standard-processing
+description: >
+  Delivered data to inversion-ready: corrections, a noise model, uncertainties,
+  culling, then averaging. Changes the data.
+
+# Standard processing — delivered data to inversion-ready
+# =======================================================
+#
+#   yf-process run standard-processing --xyz DELIVERY.xyz --gex SYSTEM.gex --out processed/
+#
+# THIS CHANGES YOUR DATA. Read it before running it, and copy it before
+# editing:
+#
+#   yf-process show standard-processing > my-processing.yaml
+#
+# The parameters below are conservative starting points, not settled truth. A
+# threshold that culls too little leaves you something to notice; one that culls
+# too much leaves you a clean-looking dataset with the anomaly removed.
+#
+# THE ORDER IS THE POINT
+# ----------------------
+# Most of what this document encodes is sequence, and a wrong sequence here does
+# not fail — it produces plausible nonsense. The constraints, from 01:
+#
+#   * corrections first, so the data is physically correct and internally
+#     consistent before anything is derived from it;
+#   * estimation precedes assignment, and assignment precedes averaging, so
+#     averaging has uncertainties to propagate;
+#   * culling precedes averaging, so a bad gate is not smeared into its
+#     neighbours (averaging reads the mask, so culled data is genuinely
+#     excluded rather than merely marked);
+#   * manual edits replay LAST, so a human decision is never overwritten by an
+#     automated one.
+#
+# WHAT IS NOT LISTED HERE
+# -----------------------
+# disable_initial_gates does not appear, and its absence is deliberate. The
+# system description's own statement about which samples are contaminated by
+# transmitter turn-off is applied automatically when the survey and the
+# description become one thing, and again at the top of every run. It is not a
+# judgement anyone makes, so it is not a step anyone can forget. It stays
+# registered for the one case the automatic pass cannot serve — a delivery whose
+# description is known to be wrong.
+
+kind: filters
+
+steps:
+
+  # ── 1 · Selection ──────────────────────────────────────────────────────────
+  # Which lines are production and which are something else. Commented out
+  # because the criterion is survey-specific: a high-altitude test line is
+  # recognized by altitude on one survey and by line number on another.
+  #
+  # - classify_lines: {criterion: altitude, line_type: HighAltitude, threshold: 200}
+  # - select_lines: {criterion: line_type, line_types: [Production]}
+
+  # ── 2 · Geometry and corrections ───────────────────────────────────────────
+  # Making the data physically correct before anything is derived from it.
+  #
+  # correct_tilt projects the response onto the vertical. It is FIRST ORDER —
+  # it accounts for the projection of a vertical-dipole response, not for the
+  # full geometry — so max_correction refuses corrections beyond the angle
+  # where that approximation stops holding, rather than applying a large and
+  # confidently wrong one.
+
+  - correct_tilt:
+      pitch_column: tilt_x    # EDIT if this system names its axes differently
+      roll_column: tilt_y
+      max_correction: 4.0     # refuse beyond this factor
+
+  # Normalization is where unit confusion concentrates: the conventions differ
+  # by orders of magnitude, so getting it wrong is not subtle in the data but
+  # is entirely silent in the code. Uncomment only if the delivery is not
+  # already in the convention the inversion expects.
+  #
+  # - convert_normalization: {to: rx_tx}
+  # - apply_nominal_current: {}
+
+  # Terrain, if you have a model. Gives elevation (height above the geoid),
+  # which is not the same quantity as altitude (height above ground).
+  #
+  # - apply_terrain_model: {terrain: /path/to/dem.tif, crs: EPSG:32633}
+
+  # ── 3 · Noise and uncertainty ──────────────────────────────────────────────
+  # Estimation before assignment. The floor is measured from sounding-to-
+  # sounding scatter at late gates, where the signal is gone and what remains
+  # is noise — so it is a property of this survey and this instrument rather
+  # than a number from a table.
+
+  - estimate_noise_model:
+      scope: per_dataset      # per_flight if conditions changed across flights
+
+  - assign_uncertainty: {}
+
+  # ── 4 · Culling ────────────────────────────────────────────────────────────
+  # Every step here is subtractive: data already culled stays culled, and the
+  # provenance records the step that FIRST removed each datum. So the order
+  # within this block affects attribution, not the result.
+  #
+  # spread_earlier is the physical claim worth understanding: contamination
+  # precedes its visible onset. The gate where a transient turns negative is
+  # where the effect grew large enough to flip the sign, not where it started —
+  # so taking one gate earlier is a statement about physics, not caution.
+
+  - cull_negatives:
+      start_gate: 5           # early gates are turn-off contaminated anyway
+      spread_earlier: 1
+      disable_tail: true      # a transient does not recover once it has gone bad
+
+  - cull_by_decay_rate:
+      shallowest: -0.5        # a decay flatter than this is not a transient
+      steepest: -4.0          # steeper than this is not earth
+      start_gate: 5
+      spread_earlier: 1
+
+  - cull_by_curvature:
+      max_curvature: 1.0      # a transient is smooth in log-log
+      start_gate: 5
+      spread_earlier: 1
+
+  - cull_below_noise_floor:
+      margin: 1.0             # multiples of the estimated floor
+
+  - cull_by_uncertainty:
+      max_uncertainty: 0.5    # relative: 0.5 is a 50% error bar
+
+  # A sounding with almost nothing left is not a sounding. Drop it rather than
+  # handing the inversion two gates to fit a layered earth to.
+  - cull_sparse_soundings:
+      minimum_gates: 5
+
+  # ── 5 · Averaging ──────────────────────────────────────────────────────────
+  # After culling, so bad data is not smeared into its neighbours, and after
+  # uncertainty assignment, so the variance can be propagated properly.
+  #
+  # The window widens with time because late gates need more help: signal falls
+  # away and noise does not. Trading resolution for signal-to-noise is exactly
+  # the right trade late in the transient and the wrong one early.
+  #
+  # width_first/width_last is the parameter worth sweeping before trusting —
+  # see `yf-process compare` with parameter_sweep, which will tell you where the
+  # response stops changing.
+
+  - average_along_line:
+      width_first: 3          # soundings, at the first gate
+      width_last: 9           # at the last gate
+      method: hann            # tapered; boxcar is kept only for reproducing old runs
+      min_valid_fraction: 0.5
+
+  # ── 6 · Manual editing ─────────────────────────────────────────────────────
+  # Last, always. A human looked at this data and made a decision; nothing
+  # automated should be able to overwrite it. Replayed as a diff against a named
+  # checkpoint, so re-running the chain above stays safe after someone has
+  # edited.
+  #
+  # - apply_manual_edits: {diff: edits.json, checkpoint: after-culling}
+
+  # ── 7 · Out ────────────────────────────────────────────────────────────────
+  # The processed XYZ is written by the runner. This additionally writes a
+  # vector file for GIS — points and lines both.
+  #
+  # - export_vector: {path: processed.gpkg, crs: EPSG:32633}

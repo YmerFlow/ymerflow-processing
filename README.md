@@ -312,6 +312,29 @@ reads as neither. Free-form rather than an enum, since more kinds will follow.
 
 ---
 
+## Getting started
+
+Three pipeline documents ship with the package, so the common case does not begin
+with a list of 45 steps:
+
+```bash
+yf-process pipelines                      # what ships
+yf-process show standard-processing       # read it — the comments are most of it
+yf-process run acquisition-qc --xyz DELIVERY.xyz --gex SYSTEM.gex --out qc/
+```
+
+`acquisition-qc` grades a delivery and changes no measurement.
+`standard-processing` takes delivered data to inversion-ready and **does** change
+it. `synthetic-data` turns a clean forward model into something that behaves like
+a real delivery.
+
+To adjust one, copy it rather than editing in place — `yf-process show NAME >
+mine.yaml` — since the installed copy is what every other project on the machine
+runs. A path always beats a bundled name, so a local file is never shadowed.
+
+Thresholds in the shipped documents are **representative defaults, not contract
+values**.
+
 ## Next
 
 The filter, QC and comparison groups are built, and the command line runs all three.
