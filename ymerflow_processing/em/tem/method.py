@@ -42,14 +42,91 @@ from ...core.dataset import Axis, Channel, ChannelNaming, discover_by_naming
 log = logging.getLogger(__name__)
 
 
-#: How time-domain arrays are named in ``layer_data``. Two families are in
-#: circulation — the AarhusInv-style ``dbdt_*`` names and the SkyTEM-style
-#: ``*_Ch01`` names — and both appear in data we are handed, so both are
-#: matched. Each pattern captures the channel index.
+#: Matches a moment named rather than numbered — ``LM_Z_G01``, ``HM_X_G01``.
+#: Capturing the moment and the component separately is the point: the pair is
+#: the identity, and ``G01`` is not a channel index (it is the same on every
+#: array in the file).
+#: **Anchored at both ends.** Unanchored it also matches ``LM_Z_G01_inuse`` —
+#: the mask this library writes for such a channel — so the mask would be
+#: discovered as a second *data* array for the same channel. Exactly the trap the
+#: mask's provenance prefix was moved to avoid, met from the other direction.
+NAMED_MOMENT = r"^([a-z]+)_([xyz])_g\d+$"
+
+#: The mask for a named moment, as ``mask._inuse_key_for`` writes it: the data
+#: key with the role appended. Matched so the array this library created is
+#: claimed by the channel it belongs to rather than reported as unclaimed.
+#:
+#: There is deliberately **no std pattern** for this family. Nothing writes one:
+#: a delivery in this convention ships no uncertainties, and ``assign_uncertainty``
+#: skips a channel that has none rather than inventing an array. Adding a pattern
+#: for a name nothing produces is how the "two families" claim above this came to
+#: be wrong.
+NAMED_MOMENT_INUSE = r"^([a-z]+)_([xyz])_g\d+_inuse$"
+
+
+def _by_moment_and_component(groups, system) -> int | None:
+    """Which channel the system description says is this moment and component.
+
+    Asked rather than assumed, and this is the whole reason the resolver exists.
+    Nothing in an array called ``HM_Z_G01`` says whether the high moment is
+    channel 1 or channel 2 — only the system description knows, by declaring
+    ``TransmitterMoment`` and ``ReceiverPolarizationXYZ`` per channel.
+
+    **A component the description does not declare resolves to nothing**, and
+    that is correct rather than a gap. SkyTEM's data files carry a horizontal
+    component, but the system description and the alias file are built for the
+    Z component only. An
+    array nothing claims is exactly what ``select_channels.unclaimed_arrays``
+    exists to report — and it must not reach an inversion, since
+    ``DualMomentTEMXYZSystem`` hardcodes ``rx_orientation = 'z'`` and never reads
+    the declared polarization, so a three-component delivery presented as
+    moments is read as a confident wrong model rather than refused.
+
+    Without a system description there is no answer, and **order is not an
+    answer** — sorted by name a high moment precedes a low one, so guessing
+    would put the moments the wrong way round with nothing to give it away.
+    """
+    if system is None:
+        log.warning(
+            "arrays are named by moment (%s) but there is no system description "
+            "to say which channel that is; they cannot be claimed. Order is not "
+            "a fallback here — sorted by name a high moment precedes a low one.",
+            "_".join(groups))
+        return None
+
+    moment, component = (str(g).strip().lower() for g in groups[:2])
+    for index in range(1, MAX_CHANNELS + 1):
+        if not getattr(system, "gex_dict", {}).get(f"Channel{index}"):
+            break
+        declared = _system_value(system, index, "transmitter_moment")
+        polarization = _component(system, index)
+        if (declared is not None
+                and str(declared).strip().lower() == moment
+                and polarization == component):
+            return index
+    return None
+
+
+#: Where to stop looking for ``Channel{n}`` blocks. A guard against an unbounded
+#: loop on a malformed description, not a claim about how many a system may have.
+MAX_CHANNELS = 32
+
+#: How time-domain arrays are named in ``layer_data``. **Three** families are in
+#: circulation and all three appear in data we are handed:
+#:
+#: * the AarhusInv-style ``dbdt_ch1gt`` names,
+#: * the SkyTEM-style ``Gate_Ch01`` names,
+#: * and the delivered-product style ``LM_Z_G01``, which identifies a channel by
+#:   moment and component rather than by number.
+#:
+#: The first two capture the index directly. The third captures a name, and
+#: :func:`_by_moment_and_component` asks the system description what it means.
+#:
 TEM_NAMING = ChannelNaming(
-    data=(r"^dbdt_ch(\d+)", r"^gate_ch(\d+)"),
+    data=(r"^dbdt_ch(\d+)", r"^gate_ch(\d+)", NAMED_MOMENT),
     std=(r"^dbdt_std_ch(\d+)", r"^std_ch(\d+)"),
-    inuse=(r"^dbdt_inuse_ch(\d+)", r"^inuse_ch(\d+)"),
+    inuse=(r"^dbdt_inuse_ch(\d+)", r"^inuse_ch(\d+)", NAMED_MOMENT_INUSE),
+    resolve=_by_moment_and_component,
 )
 
 
@@ -193,8 +270,8 @@ class TEMMethod:
         if not layer_data:
             return []
 
-        found = discover_by_naming(layer_data.keys(), TEM_NAMING)
         system = dataset.system
+        found = discover_by_naming(layer_data.keys(), TEM_NAMING, system)
 
         moments = []
         for index, keys in found.items():

@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 
+from .mask import is_provenance
 from .pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -97,7 +98,8 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
         return {}
     return {key: tuple(frame.shape)
             for key, frame in dataset.layer_data.items()
-            if key not in claimed and frame.shape in shapes}
+            if key not in claimed and frame.shape in shapes
+            and not is_provenance(key)}
 
 
 def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = True,

@@ -55,7 +55,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 import libaarhusxyz
 import numpy as np
@@ -190,23 +190,67 @@ class ChannelNaming:
     ``dbdt_ch1`` match ``dbdt_ch10``, so a ten-channel instrument would silently
     fold two channels together. Nothing has ten channels today; the failure
     would be invisible when something does.
+
+    Not every convention numbers its channels
+    -----------------------------------------
+    Some name them. A real SkyTEM delivery ships ``LM_Z_G01`` and ``HM_Z_G01``,
+    identifying a channel by **transmitter moment and receiver component** with
+    no number anywhere — ``G01`` is the same on every array and is not a channel
+    index.
+
+    So a pattern may capture something other than a digit string, and
+    :attr:`resolve` turns what it captured into an index. A pattern capturing a
+    single all-digit group still needs no resolver: that is the index.
+
+    The split stays where the module docstrings put it. ``core`` owns the
+    mechanism — find which channels exist, and which arrays belong to each. The
+    method adapter owns the meaning, and *which channel is called LM* is
+    meaning: only the system description knows, and this package may not read
+    one.
     """
 
     data: tuple[str, ...]
     std: tuple[str, ...] = ()
     inuse: tuple[str, ...] = ()
 
+    #: ``(captured groups, context) -> index or None``, for patterns that
+    #: capture a name rather than a number. ``None`` from the resolver means
+    #: *this array belongs to no channel* — which is a real answer, not a
+    #: failure: a vendor may ship a component its own system description does
+    #: not declare, and an array nothing claims is reported by
+    #: ``select_channels.unclaimed_arrays`` rather than guessed at.
+    resolve: Callable[[tuple[str, ...], Any], int | None] | None = None
 
-def _match_index(key: str, patterns: tuple[str, ...]) -> int | None:
-    """The channel index ``key`` encodes, or ``None`` if it is not one of these."""
+
+def _match_index(key: str, patterns: tuple[str, ...],
+                 naming: "ChannelNaming | None" = None,
+                 context=None) -> int | None:
+    """The channel index ``key`` encodes, or ``None`` if it encodes none.
+
+    A single all-digit group is the index itself. Anything else is handed to
+    ``naming.resolve``, which is how a convention that names its channels rather
+    than numbering them gets an index without ``core`` learning what a moment is.
+    """
     for pattern in patterns:
         match = re.match(pattern, key, flags=re.IGNORECASE)
-        if match:
-            return int(match.group(1))
+        if not match:
+            continue
+        groups = match.groups()
+        if len(groups) == 1 and groups[0] and groups[0].isdigit():
+            return int(groups[0])
+        resolver = getattr(naming, "resolve", None)
+        if resolver is None:
+            log.warning(
+                "%r matched a pattern capturing %r, which is not an index, and "
+                "its naming supplies no resolver; the array is unclaimed",
+                key, groups)
+            return None
+        return resolver(groups, context)
     return None
 
 
-def discover_by_naming(layer_data_keys, naming: ChannelNaming) -> dict[int, dict]:
+def discover_by_naming(layer_data_keys, naming: ChannelNaming,
+                       context=None) -> dict[int, dict]:
     """Group ``layer_data`` keys by the channel index they encode.
 
     The mechanism half of channel discovery: it finds *which* channels exist and
@@ -217,6 +261,10 @@ def discover_by_naming(layer_data_keys, naming: ChannelNaming) -> dict[int, dict
     A channel with no data array is not a channel — uncertainties or a mask
     without values is a broken import, not a measurement — so those are dropped
     with a warning rather than returned half-formed.
+
+    ``context`` is passed through to ``naming.resolve`` untouched. For TEM it is
+    the system description, which is the only thing that knows which channel a
+    moment name refers to.
     """
     found: dict[int, dict] = {}
 
@@ -227,7 +275,7 @@ def discover_by_naming(layer_data_keys, naming: ChannelNaming) -> dict[int, dict
                            ("std_key", naming.std),
                            ("data_key", naming.data)):
         for key in layer_data_keys:
-            index = _match_index(key, patterns)
+            index = _match_index(key, patterns, naming, context)
             if index is None:
                 continue
             slot = found.setdefault(index, {})

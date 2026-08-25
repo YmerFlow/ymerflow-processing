@@ -1558,3 +1558,50 @@ With the column present, `01`'s sentence is literally true: filter_31 is
 `cull where near_infrastructure AND misfit > threshold`, both columns on the dataset. And misfit
 becomes generally available — a numeric `flightlines` column the plot layer can draw, exportable
 in the vector output, and gradeable by qc_11.
+
+## Addition, 2026-08-25 — a third naming family, and moments named rather than numbered
+
+Found by pointing the library at a real delivery for the first time. It ships
+`LM_Z_G01`, `HM_Z_G01` and `HM_X_G01`, and **the library discovered zero channels
+in it** — so every filter and check that needs a channel was a no-op and the run
+reported success.
+
+`ChannelNaming` assumed every convention numbers its channels: *"each pattern must
+capture exactly one group: the channel index."* This one names them, by
+transmitter moment and receiver component, with no number anywhere. `G01` looks
+like an index and is not — it is the same on every array in the file.
+
+**So a pattern may now capture a name, and a resolver turns it into an index.**
+`ChannelNaming` gains an optional `resolve`, and the split stays where it was:
+`core` owns the mechanism — which channels exist, which arrays belong to each —
+while the method adapter owns the meaning, because *which channel is called LM* is
+meaning that only the system description knows.
+
+Three things this settles that the numbered conventions never raised:
+
+**Order is not a fallback.** Without a system description the moment names cannot
+be resolved at all, and guessing is worse than refusing: sorted by name a high
+moment precedes a low one, so a guess would put the moments the wrong way round
+with nothing in the numbers to give it away.
+
+**A component the description does not declare resolves to nothing**, and that is
+an answer rather than a gap. The vendor omits the horizontal component from both
+the system description and the alias file by design while still shipping the data
+— which `select_channels.unclaimed_arrays` already anticipated in as many words.
+It matters that it stays unclaimed: `DualMomentTEMXYZSystem` hardcodes
+`rx_orientation = 'z'` and never reads the declared polarization, so a
+three-component delivery presented as moments is read as a confident wrong model
+rather than refused.
+
+**Anchor both ends.** Unanchored, the data pattern also matches the mask this
+library writes for such a channel, `LM_Z_G01_inuse`, which is then discovered as a
+second *data* array for the same channel. The same trap the mask's provenance
+prefix was moved to avoid, met from the other direction.
+
+### Correction to a comment, not to the design
+
+`TEM_NAMING` said *"two families are in circulation."* It is at least three, and
+the count was wrong because it was written from the files we happened to have. The
+comment now says which three and why the third needs a resolver — but the honest
+lesson is that there will be a fourth, which is the argument for the resolver
+being a general hook rather than a special case for this one.

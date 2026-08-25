@@ -49,6 +49,7 @@ import logging
 
 import numpy as np
 
+from .mask import is_provenance
 from .pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,10 @@ def take(dataset) -> dict:
     gate_shapes = {_shape(layer_data[k]) for k in claimed}
     unresolved, other = {}, {}
     for key, array in layer_data.items():
-        if key in claimed:
+        # Provenance is gate-shaped and claimed by no channel, so the shape test
+        # picks it up — and calling a column this library wrote "something the
+        # model failed to account for" is the opposite of the truth.
+        if key in claimed or is_provenance(key):
             continue
         (unresolved if _shape(array) in gate_shapes else other)[key] = _shape(array)
 

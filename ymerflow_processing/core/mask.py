@@ -115,6 +115,20 @@ UNTOUCHED = 0
 STEP_REGISTRY = "cull_step_codes"
 
 
+def is_provenance(key: str) -> bool:
+    """Whether this ``layer_data`` key is a provenance array this library wrote.
+
+    Provenance is gate-shaped and belongs to no channel's ``array_keys``, so
+    anything detecting undeclared data *by shape* will pick it up and report it
+    as something the delivery carried and the model could not account for —
+    which is the opposite of the truth about a column written two steps earlier.
+
+    One predicate rather than a prefix test at each call site, because there are
+    two such detectors and they had already drifted apart.
+    """
+    return key.lower().startswith(PROVENANCE_PREFIX)
+
+
 def provenance_key(inuse_key: str) -> str:
     """Where the provenance for ``inuse_key`` lives."""
     return f"{PROVENANCE_PREFIX}{inuse_key}"
