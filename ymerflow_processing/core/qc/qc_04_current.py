@@ -97,6 +97,10 @@ STEP = "transmitter_stability"
 MOMENT_CURRENT_PATTERNS = (
     "{name}current", "{name}_current", "current_{name}", "tx{name}current",
     "{name}txcurrent", "i{name}",
+    # A real delivery spells them Curr_LM / Curr_HM. Abbreviating the word is
+    # common enough to be worth matching; guessing at the separator is not, so
+    # both spellings are listed rather than a pattern being invented.
+    "curr_{name}", "curr{name}", "{name}_curr", "{name}curr",
 )
 
 #: What a single-moment system, or one that names its current generically, calls

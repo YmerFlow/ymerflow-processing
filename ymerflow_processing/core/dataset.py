@@ -348,18 +348,56 @@ def load_method_adapters() -> list[MethodAdapter]:
 HISTORY = "processing_history"
 
 #: Spellings a flight identifier turns up under.
-FLIGHT_COLUMNS = ("flight", "Flight", "flight_no", "FlightNo", "flight_id", "FlightID")
+FLIGHT_COLUMNS = ("flight", "flight_no", "flightno", "flight_id", "flightid")
+
+#: Spellings pitch and roll turn up under. ``libaarhusxyz`` knows these too, but
+#: reaches them by generating capitalisation *variants* — lower, upper, title —
+#: which cannot produce an interior capital. A real delivery spells them
+#: ``AngleX`` and ``AngleY``, and no variant of ``anglex`` is ``AngleX``, so its
+#: lookup returns nothing and attitude silently disappears from the run. Matching
+#: case-insensitively instead has no such gap (YmerFlow/libaarhusxyz#6).
+PITCH_COLUMNS = ("tilt_x", "txpitch", "anglex", "pitch", "tx_pitch")
+ROLL_COLUMNS = ("tilt_y", "txroll", "angley", "roll", "tx_roll")
+
+#: Spellings **height above ground** turns up under — not elevation. The two are
+#: different quantities and one file here carries both: ``Height`` at tens of
+#: metres and ``Alt`` at hundreds, the latter being height above the geoid. A
+#: name alone cannot always separate them, which is why
+#: :func:`plausible_height` exists and why the column used is reported.
+HEIGHT_COLUMNS = ("tx_altitude", "txaltitude", "tx_alt", "height",
+                  "altitude", "alt")
 
 #: Where a normalized timestamp lands, and what it is counted in. libaarhusxyz
 #: builds this from the date and time columns as *days since 1900-01-01*.
 TIMESTAMP_EPOCH = "1900-01-01"
 
 
+def find_column(frame, spellings) -> str | None:
+    """The first of ``spellings`` present in ``frame``, matched case-insensitively.
+
+    Case-insensitively because a round trip through the xyz format changes case,
+    and because generating capitalisation variants — which is the other way to
+    do this — cannot produce an interior capital like ``AngleX``. That gap is
+    not hypothetical: it is why attitude vanished from the first real delivery
+    this library was pointed at.
+
+    Order is priority: the most specific spelling first, so a file carrying both
+    a specific and a generic name gets the specific one.
+    """
+    if frame is None:
+        return None
+    lookup = {str(c).strip().lower(): c for c in frame.columns}
+    for name in spellings:
+        found = lookup.get(name.strip().lower())
+        if found is not None:
+            return found
+    return None
+
+
 def find_flight_column(frame) -> str | None:
     """The column identifying which flight each sounding belongs to, or ``None``."""
-    for name in FLIGHT_COLUMNS:
-        if name in frame.columns:
-            return name
+    return find_column(frame, FLIGHT_COLUMNS)
+
     return None
 
 

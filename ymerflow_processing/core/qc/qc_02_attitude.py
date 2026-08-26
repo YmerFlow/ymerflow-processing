@@ -72,6 +72,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
 from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
@@ -165,8 +166,12 @@ def system_attitude(
     xyz = dataset.survey.xyz
     axes = {}
     for label, named, discovered, output in (
-        ("pitch", pitch_column, xyz.tilt_pitch_column, pitch_output),
-        ("roll", roll_column, xyz.tilt_roll_column, roll_output),
+        ("pitch", pitch_column,
+         xyz.tilt_pitch_column or find_column(frame, PITCH_COLUMNS),
+         pitch_output),
+        ("roll", roll_column,
+         xyz.tilt_roll_column or find_column(frame, ROLL_COLUMNS),
+         roll_output),
     ):
         # A column the caller *named* and that is absent is a mistake worth
         # failing on; one we went looking for and did not find is an absent

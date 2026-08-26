@@ -60,11 +60,17 @@ import numpy as np
 import pandas as pd
 
 from .distribution import summarize
+from .dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
 from .pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
 #: Where the delivered attitude is kept. Ten characters each.
+#: What these columns are called when nothing else names them — and what
+#: ``zero_attitude`` creates them as on a delivery that carries no attitude.
+DEFAULT_PITCH = "tilt_x"
+DEFAULT_ROLL = "tilt_y"
+
 STASHED_PITCH = "tilt_x_raw"
 STASHED_ROLL = "tilt_y_raw"
 
@@ -78,6 +84,26 @@ def corrected(dataset) -> str | None:
     return str(value) if value else None
 
 
+def resolve_attitude_columns(dataset, pitch_column, roll_column):
+    """Which columns hold pitch and roll — named by the caller, or discovered.
+
+    Discovered case-insensitively rather than by capitalisation variants, which
+    is how a real delivery spelling them ``AngleX``/``AngleY`` came to have no
+    attitude at all: no variant of ``anglex`` is ``AngleX``, so the lookup
+    returned nothing and the correction quietly did not happen.
+
+    Falls back to the canonical spelling when nothing is discovered, rather
+    than to nothing: ``zero_attitude`` *creates* these columns where a delivery
+    carries no attitude at all, and it needs a name to create them under.
+    """
+    xyz = dataset.survey.xyz
+    frame = dataset.flightlines
+    return (pitch_column or xyz.tilt_pitch_column
+            or find_column(frame, PITCH_COLUMNS) or DEFAULT_PITCH,
+            roll_column or xyz.tilt_roll_column
+            or find_column(frame, ROLL_COLUMNS) or DEFAULT_ROLL)
+
+
 def _attitude(frame, pitch_column, roll_column):
     for role, name in (("pitch", pitch_column), ("roll", roll_column)):
         if name not in frame.columns:
@@ -89,8 +115,9 @@ def _attitude(frame, pitch_column, roll_column):
             frame[roll_column].to_numpy(dtype=float))
 
 
-def correct_tilt(dataset, pitch_column: str = "tilt_x",
-                 roll_column: str = "tilt_y", max_correction: float = 4.0,
+def correct_tilt(dataset, pitch_column: str | None = None,
+                 roll_column: str | None = None,
+                 max_correction: float = 4.0,
                  again: bool = False, stash: bool = True):
     """Rescale amplitudes to what a horizontal transmitter would have measured.
 
@@ -121,6 +148,8 @@ def correct_tilt(dataset, pitch_column: str = "tilt_x",
         report.notes.append("No soundings or no channels; nothing to correct.")
         return dataset, report
 
+    pitch_column, roll_column = resolve_attitude_columns(
+        dataset, pitch_column, roll_column)
     pitch, roll = _attitude(frame, pitch_column, roll_column)
     cosine = np.cos(np.radians(pitch)) * np.cos(np.radians(roll))
     tilt = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
@@ -170,8 +199,8 @@ def correct_tilt(dataset, pitch_column: str = "tilt_x",
     return dataset, report
 
 
-def zero_attitude(dataset, pitch_column: str = "tilt_x",
-                  roll_column: str = "tilt_y", stash: bool = True):
+def zero_attitude(dataset, pitch_column: str | None = None,
+                  roll_column: str | None = None, stash: bool = True):
     """Force the recorded attitude to zero, keeping the originals.
 
     ``01``: *"Used when measured attitude is unreliable or was never recorded,
@@ -197,6 +226,8 @@ def zero_attitude(dataset, pitch_column: str = "tilt_x",
         return dataset, report
 
     created, zeroed = [], {}
+    pitch_column, roll_column = resolve_attitude_columns(
+        dataset, pitch_column, roll_column)
     for role, name, stash_name in (("pitch", pitch_column, STASHED_PITCH),
                                    ("roll", roll_column, STASHED_ROLL)):
         if name not in frame.columns:

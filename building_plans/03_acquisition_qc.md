@@ -500,3 +500,43 @@ this one" belongs.
 **No default thresholds.** Misfit is measured in standard deviations, so a
 threshold here inherits whatever `assign_uncertainty` decided — a house number
 would grade the uncertainty model as much as the fit.
+
+## Addition, 2026-08-25 — what a real delivery's columns are actually called
+
+Three of nine checks found nothing to grade on the first real delivery, and a
+fourth graded the wrong quantity. **None of it failed.** The checks reported
+politely that columns were absent, the run exited 0, and a reader would have
+concluded the survey was flown badly.
+
+**Case matching, not capitalisation variants.** `libaarhusxyz` reaches pitch and
+roll by generating lower, upper and title variants of `anglex` — and none of
+those is `AngleX`, which is what the delivery spells it. A variant generator
+cannot produce an interior capital. Matching case-insensitively has no such gap,
+and it is the idiom `find_current_columns` already used. This took out
+`system_attitude` *and* `correct_tilt`, the latter silently: the correction
+defaulted to the literal name `tilt_x` and would have raised on the real file.
+
+**Height is not elevation, and one delivery carries both.** `Height` at tens of
+metres above ground, `Alt` at hundreds above the geoid. The lookup preferred
+`alt`, so every one of 8995 soundings graded Out of Spec — which reads exactly
+like a survey flown far too high, and nothing said the input was the wrong
+quantity.
+
+Two changes, because no lookup order is right for every file:
+
+- The more specific spelling now wins, so `Height` beats `Alt`.
+- The values are checked. Subtract the terrain column and if what remains is a
+  plausible flying height *small against the original*, the column is elevation
+  and the check says so by name. That signature is specific — elevation minus
+  ground is a height, height minus ground is negative or nonsense — so it fires
+  on the case it is meant to and stays quiet otherwise.
+
+**A current column may be abbreviated.** `Curr_LM` and `Curr_HM`. Both separator
+spellings are listed rather than a pattern invented, and the rule that a
+*generic* name cannot be attributed when two moments could claim it is unchanged.
+
+The general lesson, and the reason this is recorded rather than just fixed:
+**every one of these failures was silent and polite.** A check that cannot find
+its column says so in a note, which is right — but nine notes in a run nobody
+reads is indistinguishable from a clean run. Worth deciding separately whether a
+QC run where most checks found nothing should exit non-zero.

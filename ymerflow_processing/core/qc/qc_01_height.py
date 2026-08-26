@@ -44,6 +44,7 @@ import logging
 
 import numpy as np
 
+from ..dataset import HEIGHT_COLUMNS, find_column
 from ..distribution import summarize
 from ..pipeline import StepReport
 from . import aggregate
@@ -55,6 +56,44 @@ from .thresholds import (
 log = logging.getLogger(__name__)
 
 STEP = "height_above_ground"
+
+
+def _check_it_is_a_height(heights, height_column, frame, dataset, report):
+    """Say so when the column being graded looks like elevation, not height.
+
+    The two are different quantities, and one real delivery carries both —
+    ``Height`` at tens of metres above ground and ``Alt`` at hundreds above the
+    geoid. Nothing in a *name* reliably separates them, so this compares values.
+
+    The signature is specific: subtract the terrain column and what is left is a
+    plausible flying height, small against the original. Elevation minus ground
+    is height; height minus ground is negative or nonsense. So it fires on the
+    one case it is meant to and stays quiet otherwise, which matters — a warning
+    that fires on correct use is worse than none.
+    """
+    z_column = getattr(dataset.survey.xyz, "z_column", None)
+    if not z_column or z_column not in frame.columns:
+        return
+    ground = frame[z_column].to_numpy(dtype=float)
+    # Checked before the medians rather than after: nanmedian of an all-NaN
+    # slice warns, and a delivery with no heights at all is a legitimate input
+    # rather than a mistake worth a warning.
+    usable = np.isfinite(heights) & np.isfinite(ground)
+    if not usable.any():
+        return
+    above = float(np.median(heights[usable] - ground[usable]))
+    level = float(np.median(heights[usable]))
+    if level <= 0:
+        return
+    if 0 < above < 0.5 * level:
+        report.notes.append(
+            f"{height_column!r} looks like ELEVATION rather than height above "
+            f"ground: subtracting {z_column!r} leaves a median of {above:.1f}, "
+            f"which is a plausible flying height, against {level:.1f} for the "
+            f"column itself. Graded as it stands every sounding reads as flown "
+            f"far too high. Name the right column with 'column:', or run "
+            f"apply_terrain_model to derive one."
+        )
 
 
 def height_above_ground(
@@ -116,7 +155,14 @@ def height_above_ground(
             )
         height_column = column
     else:
-        height_column = dataset.survey.xyz.alt_column
+        # Discovered case-insensitively and preferring the more specific
+        # spelling. libaarhusxyz's own lookup is consulted first but is not
+        # trusted alone: on a delivery carrying both `Height` (tens of metres
+        # above ground) and `Alt` (hundreds, above the geoid) it returns `Alt`,
+        # and grading height-above-ground against elevation puts every sounding
+        # out of spec while looking like a survey flown far too high.
+        height_column = (find_column(frame, HEIGHT_COLUMNS)
+                         or dataset.survey.xyz.alt_column)
         if height_column is None or height_column not in frame.columns:
             report.notes.append(
                 "No height-above-ground column found; check skipped. "
@@ -127,6 +173,7 @@ def height_above_ground(
     spec = {"kind": ASCENDING, "good_max": good_max, "marginal_max": marginal_max}
     heights = frame[height_column].to_numpy(dtype=float)
     verdicts = classify(heights, spec)
+    _check_it_is_a_height(heights, height_column, frame, dataset, report)
 
     if output_column in frame.columns:
         report.notes.append(f"Overwrote existing column {output_column!r}.")
@@ -148,7 +195,11 @@ def height_above_ground(
     # which is the comparison that makes a threshold judgeable. Stated because
     # it is an interpretation, not an obvious reading.
     kept = ~is_tier(verdicts, OUT_OF_SPEC)
+    # R3 asks for the parameters actually used, including the ones nobody
+    # supplied. A discovered column is exactly that, and not recording it is why
+    # reading the wrong one took three steps to diagnose rather than one.
     report.distributions = {
+        "column": height_column,
         "height": {
             "column": height_column,
             "unit": unit,
