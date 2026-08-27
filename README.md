@@ -1,5 +1,7 @@
 # ymerflow-processing
 
+[![tests](https://github.com/YmerFlow/ymerflow-processing/actions/workflows/tests.yml/badge.svg)](https://github.com/YmerFlow/ymerflow-processing/actions/workflows/tests.yml)
+
 Airborne geophysical data processing, QC and comparison for YmerFlow.
 
 Time-domain electromagnetics today; frequency-domain and magnetics are the stated

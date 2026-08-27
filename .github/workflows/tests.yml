@@ -1,0 +1,79 @@
+# The dual-numpy promise, enforced.
+#
+# setup.py leaves numpy unpinned deliberately: numpy 2 is what this is developed
+# against, but the inversion stack it feeds still runs on 1.x, so a floor here
+# would strand the environment the library has to work in. That is a constraint
+# on the code — no numpy-2-only API — and until now it was checked by hand, by
+# whoever remembered, on one machine.
+#
+# The matrix is numpy major x Python, not numpy alone: python_requires claims
+# ">=3.10", and a claim nothing tests is a guess.
+
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # One red cell should not cancel the others: which combinations fail is
+      # the whole diagnostic, and stopping early throws it away.
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        numpy: ["<2", ">=2"]
+
+    name: py${{ matrix.python }} numpy${{ matrix.numpy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          # The pin goes on last and alone. Installing the package first lets
+          # its own resolution pick a numpy, and forcing the major afterwards is
+          # what makes the cell mean what its name says.
+          pip install -e ".[test]"
+          # rasterio 1.5 declares numpy>=2, so the numpy-1 cell needs a rasterio
+          # that still supports it. Found by building the cell locally: the
+          # suite passes either way, but pip reports a conflict and a resolver
+          # error in CI is a red build for a dependency's constraint rather
+          # than for anything this library did.
+          if [ "${{ matrix.numpy }}" = "<2" ]; then
+            pip install "numpy<2" "rasterio<1.5"
+          else
+            pip install "numpy>=2"
+          fi
+
+      - name: Confirm the cell is testing what it claims
+        # A job that silently installed the other major proves nothing while
+        # looking green, which is the specific failure this workflow exists to
+        # prevent — so the version is asserted rather than trusted.
+        run: |
+          python - <<'PY'
+          import numpy, sys
+          wanted = "${{ matrix.numpy }}"
+          major = int(numpy.__version__.split(".")[0])
+          expected = 1 if wanted == "<2" else 2
+          print(f"numpy {numpy.__version__} on python {sys.version.split()[0]}")
+          if major != expected:
+              raise SystemExit(
+                  f"this cell claims numpy{wanted} but installed {numpy.__version__}; "
+                  f"the matrix is not testing what it says")
+          PY
+
+      - name: Test
+        # The real-system-description tests read their GEX files from a
+        # directory named by an environment variable and skip when it is unset.
+        # They stay skipped here: those files are not ours to commit, and a
+        # suite that cannot run on a fresh clone is not a suite.
+        run: pytest tests/ -q
