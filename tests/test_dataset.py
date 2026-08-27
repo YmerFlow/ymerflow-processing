@@ -307,3 +307,83 @@ def test_unreadable_history_is_a_warning_not_a_crash(caplog):
 
     assert dataset.history == []
     assert "not readable as processing history" in caplog.text
+
+
+# ── The coordinate reference system ──────────────────────────────────────────
+# Not invented here: the platform's import process takes the projection as a
+# required parameter and writes it to model_info["projection"] as an integer
+# EPSG code, and every process downstream reads it from there. Using the same
+# key is what lets a dataset carry its projection between the two.
+
+def test_the_platform_s_projection_is_read_as_the_crs():
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.survey.xyz.model_info["projection"] = 32610
+
+    assert dataset.crs == "EPSG:32610"
+
+
+def test_setting_a_crs_writes_the_integer_the_platform_expects():
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.crs = "EPSG:32633"
+
+    assert dataset.survey.xyz.model_info["projection"] == 32633
+
+
+def test_a_bare_epsg_number_is_accepted_either_way():
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.crs = 32633
+    assert dataset.crs == "EPSG:32633"
+
+
+def test_something_that_is_not_an_epsg_code_survives_unchanged():
+    """A WKT or proj string is not ours to reformat."""
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.crs = "+proj=utm +zone=33 +datum=WGS84"
+
+    assert dataset.crs == "+proj=utm +zone=33 +datum=WGS84"
+
+
+def test_a_delivery_with_no_projection_has_no_crs():
+    """A raw delivery that never went through an import carries none, and
+    guessing one would put a survey in the wrong hemisphere."""
+    assert make_dataset(n=4, n_lines=1, n_gates=4).crs is None
+
+
+def test_constructing_without_a_crs_does_not_clobber_the_carried_one():
+    """Dataset(survey) is called in copy() and in load(); passing None through
+    would erase a projection the delivery arrived with."""
+    from ymerflow_processing.core.dataset import Dataset
+
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.crs = "EPSG:32610"
+
+    assert Dataset(dataset.survey).crs == "EPSG:32610"
+    assert dataset.copy().crs == "EPSG:32610"
+
+
+def test_the_crs_survives_a_round_trip(tmp_path):
+    from ymerflow_processing.core.dataset import load
+
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.crs = "EPSG:32610"
+    dataset.survey.dump(xyzfile=str(tmp_path / "a.xyz"),
+                        gexfile=str(tmp_path / "a.gex"))
+
+    assert load(tmp_path / "a.xyz", tmp_path / "a.gex").crs == "EPSG:32610"
+
+
+def test_a_float_shaped_code_from_a_round_trip_is_still_recognized():
+    """libaarhusxyz writes model_info values as floats, so the integer comes
+    back as '32610.0'. A string test would have recognised a projection before
+    the file was saved and not after."""
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.survey.xyz.model_info["projection"] = "32610.0"
+
+    assert dataset.crs == "EPSG:32610"
+
+
+def test_a_non_integer_number_is_not_an_epsg_code():
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.survey.xyz.model_info["projection"] = "32610.5"
+
+    assert dataset.crs == "32610.5"

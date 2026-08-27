@@ -347,6 +347,27 @@ def load_method_adapters() -> list[MethodAdapter]:
 #: the comparison checks read datasets off disk and would otherwise see none.
 HISTORY = "processing_history"
 
+#: Where the coordinate reference system lives. **The platform's key, not one
+#: invented here** — its import process writes an integer EPSG code there and
+#: every process downstream reads it, so using the same key is what lets a
+#: dataset carry its projection between the two.
+PROJECTION = "projection"
+
+
+def _epsg_code(value) -> int | None:
+    """``value`` as a whole-number EPSG code, or ``None`` if it is not one.
+
+    Numeric rather than textual because a round trip writes the integer back as
+    ``"32610.0"``: ``libaarhusxyz`` stores ``model_info`` values as floats, so a
+    string test would recognise a projection before the file was saved and not
+    after.
+    """
+    try:
+        number = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return int(number) if number > 0 and number == int(number) else None
+
 #: Spellings a flight identifier turns up under.
 FLIGHT_COLUMNS = ("flight", "flight_no", "flightno", "flight_id", "flightid")
 
@@ -483,7 +504,11 @@ class Dataset:
             )
         self.survey = survey
         self.normalization = normalization
-        self.crs = crs
+        # Only when stated. Assigning None would clobber a projection the
+        # delivery already carries, and a dataset imported through the platform
+        # always carries one.
+        if crs is not None:
+            self.crs = crs
         self.noise_model = NoiseModel()
         #: Injectable for testing and for callers who know what they have.
         #: ``None`` means "ask the entry-point group".
@@ -670,6 +695,48 @@ class Dataset:
     def resolve_per_moment(self, value):
         """Per-moment settings; see :meth:`resolve_per_channel`."""
         return self.resolve_per_channel(value)
+
+    # ── Where on earth it is ─────────────────────────────────────────────────
+
+    @property
+    def crs(self) -> str | None:
+        """The coordinate reference system the positions are in, or ``None``.
+
+        Held in ``model_info["projection"]``, which is **the platform's own
+        convention rather than one invented here**: the import process takes the
+        projection as a required parameter, writes it there once as an integer
+        EPSG code, and every process downstream reads it from there. A dataset
+        that came through the platform therefore already knows where it is, and
+        a step that asked the caller to restate it would be asking for something
+        the file is carrying.
+
+        Read back as ``"EPSG:32610"`` because that is what ``pyproj`` and
+        ``geopandas`` take, and stored as the bare integer because that is what
+        the platform writes and reads. Anything that is not an EPSG code — a
+        WKT or proj string — is stored and returned unchanged.
+
+        A round trip through the file turns the integer into ``"32610.0"``,
+        because ``libaarhusxyz`` writes ``model_info`` values as floats. So the
+        code is recognised numerically rather than by ``isdigit``, which would
+        have quietly stopped recognising it the moment the dataset was saved.
+        """
+        value = self.survey.xyz.model_info.get(PROJECTION)
+        if value is None or value == "":
+            return None
+        code = _epsg_code(value)
+        return str(value).strip() if code is None else f"EPSG:{code}"
+
+    @crs.setter
+    def crs(self, value) -> None:
+        if value is None:
+            self.survey.xyz.model_info.pop(PROJECTION, None)
+            return
+        text = str(value).strip()
+        if text.upper().startswith("EPSG:"):
+            text = text.split(":", 1)[1].strip()
+        code = _epsg_code(text)
+        self.survey.xyz.model_info[PROJECTION] = (
+            str(value) if code is None else code)
 
     # ── What was done to it ──────────────────────────────────────────────────
 

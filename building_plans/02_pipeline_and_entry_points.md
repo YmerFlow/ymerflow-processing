@@ -495,3 +495,43 @@ about.
 The series is sorted by the parameter before the curve is read. Handed over out of
 order it would otherwise zigzag and report a flattening point wherever it doubled
 back.
+
+## Addition, 2026-08-27 — the CRS comes with the dataset, and the platform already said how
+
+`R8` settles that external inputs arrive typed rather than as paths, and the
+terrain and infrastructure filters take a `crs` parameter accordingly. What was
+never settled is where a dataset's *own* projection comes from — and until now
+`Dataset.crs` was a constructor argument defaulting to `None` that nothing ever
+filled in.
+
+**It was already decided, on the platform side.** Its import process takes the
+projection as a **required** parameter, writes it once as an integer EPSG code to
+`xyz.model_info["projection"]`, and asserts it is there. Every process downstream
+reads it from that key. A dataset that came through the platform therefore
+already knows where it is, and a step asking the caller to restate it would be
+asking for something the file is carrying.
+
+So `Dataset.crs` now reads and writes that same key. Not a convention invented
+here — using the platform's is the whole point, and it is what lets a dataset
+carry its projection across the boundary in either direction.
+
+Three details that are not obvious:
+
+**Read as `"EPSG:32610"`, stored as `32610`.** The string form is what `pyproj`
+and `geopandas` take; the bare integer is what the platform writes and reads.
+Anything that is not an EPSG code — a WKT or proj string — is stored and returned
+unchanged, because reformatting someone else's projection definition is not ours
+to do.
+
+**Recognised numerically, not textually.** A round trip through the file turns the
+integer into `"32610.0"`, since `libaarhusxyz` stores `model_info` values as
+floats. A string test would have recognised a projection before the dataset was
+saved and not after — found by a test that saved one.
+
+**Constructing without a CRS no longer clears the carried one.** `Dataset(survey)`
+is called by `copy()` and by `load()`, and assigning the default `None` through
+either would have erased a projection the delivery arrived with.
+
+A raw delivery that never went through an import carries no projection and
+therefore no CRS, which is correct: guessing one puts a survey in the wrong
+hemisphere.
