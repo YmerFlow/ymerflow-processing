@@ -81,7 +81,7 @@ import numpy as np
 import pandas as pd
 
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import MISSING, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (
     CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -242,6 +242,7 @@ def transmitter_stability(
         report.notes.append(
             "No moments found, so no current to attribute to one; check skipped."
         )
+        report.ungraded = MISSING
         return dataset, report
 
     if columns:
@@ -261,6 +262,7 @@ def transmitter_stability(
             "No transmitter-current column found for any moment; check skipped. "
             "Name them with 'columns:' if present under unusual names."
         )
+        report.ungraded = MISSING
         return dataset, report
 
     missing = [str(c) for c in channels if c.key not in by_key]
@@ -367,6 +369,7 @@ def transmitter_stability(
             "is measured and left unjudged. Supply nominal_good_fraction and "
             "nominal_marginal_fraction to classify it."
         )
+        report.ungraded = report.ungraded or UNJUDGED
     else:
         report.notes.append(
             "The system description declares no nominal current; agreement with "

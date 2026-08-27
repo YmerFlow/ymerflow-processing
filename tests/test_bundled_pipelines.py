@@ -33,9 +33,18 @@ NAMES = sorted(bundled())
 
 @pytest.fixture
 def delivery():
-    """A delivery with the columns the shipped documents name."""
+    """A delivery carrying what the shipped documents need.
+
+    Speed and per-moment current are added explicitly: a fixture missing them
+    makes acquisition-qc exit 5 (ungraded), which is correct behavior and a
+    useless test of the document.
+    """
     dataset = make_dataset(n=60, n_lines=3, n_flights=2, n_gates=8,
-                           height=np.full(60, 35.0), second_altimeter=True)
+                           height=np.full(60, 35.0), second_altimeter=True,
+                           speed=np.full(60, 85.0), seconds=True)
+    frame = dataset.flightlines
+    for channel in dataset.channels:
+        frame[f"Curr_{channel.name}"] = 100.0
     return dataset
 
 

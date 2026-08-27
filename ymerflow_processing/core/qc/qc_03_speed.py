@@ -56,7 +56,7 @@ import numpy as np
 import pandas as pd
 
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import MISSING, StepReport
 from . import aggregate
 from .thresholds import (
     GOOD, MARGINAL, OUT_OF_SPEC, WINDOW, classify, describe, is_tier,
@@ -202,6 +202,7 @@ def ground_speed(
                 "position and time; check skipped. Name one with 'column:' if "
                 "it is present under an unusual name."
             )
+            report.ungraded = MISSING
             return dataset, report
         speeds = derive_speed(frame[xyz.x_column], frame[xyz.y_column],
                               seconds, lines) * scale

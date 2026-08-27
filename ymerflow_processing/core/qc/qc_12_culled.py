@@ -54,7 +54,7 @@ import numpy as np
 
 from ..distribution import summarize
 from ..mask import CULLED, PROVENANCE_PREFIX, provenance_key, step_codes
-from ..pipeline import StepReport
+from ..pipeline import OPTIONAL, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -107,6 +107,7 @@ def culled_fraction(
             "there is nothing to measure. This check reports on the culling "
             "group's work and is skipped when none has run."
         )
+        report.ungraded = OPTIONAL
         return dataset, report
 
     total = np.zeros(len(frame), dtype=float)
@@ -173,6 +174,7 @@ def culled_fraction(
             "No thresholds given, so the culled fraction is measured and left "
             "unjudged. Supply good_max and marginal_max to classify it."
         )
+        report.ungraded = report.ungraded or UNJUDGED
 
     if arrived.any():
         report.notes.append(

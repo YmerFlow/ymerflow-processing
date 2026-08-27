@@ -29,7 +29,7 @@ import click
 
 from .dataset import load
 from .pipeline import (
-    COMPARE_GROUP, GROUPS, ComparisonRunner, Pipeline, PipelineKindError,
+    COMPARE_GROUP, GROUPS, MISSING, ComparisonRunner, Pipeline, PipelineKindError,
     ProcessingRunner, QCRunner, RunReport, bundled, describe_bundled,
     load_steps, resolve_group,
 )
@@ -49,6 +49,21 @@ EXIT_MARGINAL = 1
 EXIT_OUT_OF_SPEC = 2
 EXIT_NOT_STARTED = 3        # your mistake: bad options, missing file, unknown step
 EXIT_STEP_RAISED = 4        # our bug: a step blew up mid-run
+
+#: Ran, wrote a report, and could not grade. A check named in the pipeline did
+#: not find its input, so the flight is **ungraded rather than clean**.
+#:
+#: This is the sixth code and it deliberately sits outside ``04``'s original
+#: ``0-2 ran / 3-4 did not`` split, because it answers a question those five
+#: could not: *did the checks actually grade anything?* A real delivery had six
+#: of nine checks find no columns, and the run exited 0 — "completed, everything
+#: Good" — which is the most dangerous answer available, since a scheduler gates
+#: on it and a reader believes it.
+#:
+#: ``[ $? -le 2 ]`` still means "did the run complete", and 5 is excluded from
+#: it. That is the cost, and it is the right way round: a run that graded
+#: nothing should not pass a test for having happened usefully.
+EXIT_UNGRADED = 5
 
 _VERDICT_EXIT = {None: EXIT_GOOD, GOOD: EXIT_GOOD,
                  MARGINAL: EXIT_MARGINAL, OUT_OF_SPEC: EXIT_OUT_OF_SPEC}
@@ -171,12 +186,28 @@ def run(pipeline, xyz, gex, out, label, group):
     flight = _column_verdict(dataset.flightlines, columns.get("verdict"))
     sensor = _column_verdict(dataset.flightlines, columns.get("sensor"))
 
+    # A check that was asked for and could not act leaves the flight ungraded,
+    # not clean. Said before the verdict, because the verdict means less.
+    ungraded = [s.step for s in report.steps if s.ungraded == MISSING]
+    if ungraded:
+        click.secho(
+            f"{len(ungraded)} check(s) found no input and produced no verdict: "
+            f"{', '.join(ungraded)}. The flight is UNGRADED, not clean — "
+            f"whatever verdict appears below is from the checks that did run.",
+            fg="red", err=True)
+
     if flight is not None:
         click.echo(f"worst verdict: {flight}")
     if sensor is not None and sensor != GOOD:
         click.secho(
             f"instrument: {sensor} — equipment fault, not a flying problem. "
             "The data may still be usable; see the report.", fg="yellow")
+    # An ungraded run outranks a clean one and yields to a breach: a line flown
+    # out of spec is a finding someone must act on, while "some checks did not
+    # run" is a finding about the run. Reporting the breach loses nothing —
+    # both are on stdout — and reporting Good would be a false statement.
+    if ungraded and _VERDICT_EXIT[flight] < EXIT_OUT_OF_SPEC:
+        return EXIT_UNGRADED
     return _VERDICT_EXIT[flight]
 
 

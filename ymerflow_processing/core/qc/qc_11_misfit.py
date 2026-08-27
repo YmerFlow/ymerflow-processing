@@ -51,7 +51,7 @@ import numpy as np
 
 from ..distribution import summarize
 from ..misfit import RMS_COLUMN
-from ..pipeline import StepReport
+from ..pipeline import OPTIONAL, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -103,6 +103,7 @@ def data_misfit(
             f"against an inversion result first. This check is optional by "
             f"design and its absence is not an error."
         )
+        report.ungraded = OPTIONAL
         return dataset, report
 
     misfit = frame[column].to_numpy(dtype=float)
@@ -145,6 +146,7 @@ def data_misfit(
             "No thresholds given, so the misfit is reported and left unjudged. "
             "Supply good_max and marginal_max to classify it."
         )
+        report.ungraded = report.ungraded or UNJUDGED
 
     kept = (~is_tier(verdicts, OUT_OF_SPEC) if verdicts is not None
             else np.ones(len(frame), dtype=bool))

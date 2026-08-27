@@ -33,6 +33,11 @@ import yaml
 
 log = logging.getLogger(__name__)
 
+#: Why a check produced no verdict — see :attr:`StepReport.ungraded`.
+UNJUDGED = "unjudged"      # no thresholds supplied; the caller's choice
+OPTIONAL = "optional"      # input absent, and expected to be
+MISSING = "missing"        # input absent, and it should not have been
+
 FILTER_GROUP = "ymerflow.processing.filters"
 QC_GROUP = "ymerflow.processing.qc"
 COMPARE_GROUP = "ymerflow.processing.compare"
@@ -137,6 +142,26 @@ class StepReport:
     #: ``01`` makes the same choice for ``line_type``.
     finding: str | None = None
 
+    #: Why no verdict was produced, when none was. ``None`` means one was.
+    #:
+    #: Three things look identical in a report and are not, and conflating them
+    #: is how six checks failed to find their columns on a real delivery while
+    #: the run exited 0 and read as a clean survey:
+    #:
+    #: ``"unjudged"``
+    #:     Measured, and no thresholds were supplied to judge it against. The
+    #:     caller's choice, and the distribution is the deliverable.
+    #: ``"optional"``
+    #:     The input is absent and its absence is expected — data_misfit needs
+    #:     an inversion, culled_fraction needs processing history, and a raw
+    #:     delivery has neither. ``03`` requires these be absent *"with no
+    #:     error"*.
+    #: ``"missing"``
+    #:     The input should have been there and was not. **This is a finding
+    #:     about the run**, not about the flight: a check that was asked for and
+    #:     could not act leaves the flight ungraded rather than clean.
+    ungraded: str | None = None
+
     #: Distribution of whatever was thresholded on, before and after.
     distributions: dict[str, Any] = field(default_factory=dict)
     #: Anything worth surfacing that is not a failure — an overwritten column,
@@ -148,6 +173,7 @@ class StepReport:
             "step": self.step,
             "params": self.params,
             "verdict_column": self.verdict_column,
+            "ungraded": self.ungraded,
             "finding": self.finding,
             "soundings": {"total": self.soundings_total,
                           "affected": self.soundings_affected},

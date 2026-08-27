@@ -74,7 +74,7 @@ import pandas as pd
 
 from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import MISSING, StepReport
 from . import aggregate
 from .thresholds import (
     CENTERED, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -192,6 +192,7 @@ def system_attitude(
             "'pitch_column:' / 'roll_column:' if they are present under "
             "unusual names."
         )
+        report.ungraded = MISSING
         return dataset, report
     if len(axes) == 1:
         report.notes.append(

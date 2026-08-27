@@ -91,7 +91,7 @@ import numpy as np
 import pandas as pd
 
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import OPTIONAL, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -214,9 +214,13 @@ def powerline_noise(
     monitor = column or find_powerline_column(frame)
     if monitor is None:
         report.notes.append(
-            "No powerline monitor column found; check skipped. Name one with "
+            "No powerline monitor column found. Not every system carries one, "
+            "so this is an absent instrument rather than a missing "
+            "column: the check is skipped and the run is not marked "
+            "ungraded. Name one with "
             "'column:' if it is present under an unusual name."
         )
+        report.ungraded = OPTIONAL
         return dataset, report
 
     xyz = dataset.survey.xyz
@@ -272,6 +276,7 @@ def powerline_noise(
             "No thresholds given, so the excess is measured and left unjudged. "
             "Supply good_max and marginal_max to classify it."
         )
+        report.ungraded = report.ungraded or UNJUDGED
 
     kept = (~is_tier(verdicts, OUT_OF_SPEC) if verdicts is not None
             else np.ones(len(frame), dtype=bool))

@@ -472,3 +472,49 @@ that records its own processing is worth having independently of any comparison.
 
 `dataset.history.append(...)` would now append to a list rebuilt from the file and
 thrown away, so it is replaced by `record_step()`, and the runner calls that.
+
+## Addition, 2026-08-27 — a sixth exit code, for a run that graded nothing
+
+`04` decided five codes and argued the split well: `0-2` ran, `3-4` did not, and
+`[ $? -le 2 ]` is *"did the QC happen?"*, which is the question monitoring asks.
+
+Real data found a question those five cannot answer: **did the checks actually
+grade anything?**
+
+Six of nine checks on a real delivery found no columns. Each said so politely in
+a note. The run wrote its report and exited **0** — *"completed, everything
+Good"* — because `_VERDICT_EXIT[None]` mapped no-verdict to `EXIT_GOOD`. That is
+the most dangerous answer available: a scheduler gates on it, and a reader
+believes it. Nine notes in a run nobody reads is indistinguishable from a clean
+run.
+
+```
+5   ran, wrote a report, and could not grade — the flight is UNGRADED, not clean
+```
+
+**It sits outside the original split, deliberately.** `-le 2` still means "the
+run completed", and 5 is excluded from it. That is the cost and it is the right
+way round: a run that graded nothing should not pass a test for having happened
+usefully.
+
+**A breach outranks it.** A line flown out of spec is a finding someone must act
+on; "some checks did not run" is a finding about the run. Both are printed, so
+reporting the breach loses nothing — but reporting *Good* would be a false
+statement, which is what this fixes.
+
+### Three reasons for no verdict, and only one is a problem
+
+The code needs a check to say *why* it produced nothing, so `StepReport` gains
+`ungraded`:
+
+| | meaning |
+|---|---|
+| `unjudged` | measured, and no thresholds were supplied. The caller's choice. |
+| `optional` | input absent and expected to be — `03` requires data_misfit and culled_fraction be absent *"with no error"*. |
+| `missing` | the input should have been there. **Only this sets exit 5.** |
+
+The classification is a judgement per check, not a rule. A missing **height**
+column is `missing` — every airborne survey has one. A missing **powerline
+monitor** is `optional`, because not every system carries one, and treating an
+absent instrument as a fault would make the code fire on correct use — which is
+the failure mode this repository has objected to everywhere else.

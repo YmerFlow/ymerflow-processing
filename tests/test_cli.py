@@ -523,3 +523,101 @@ def test_the_order_of_datasets_is_preserved(delivery, pipeline_file, tmp_path):
     assert result.return_value == EXIT_GOOD
     series = json.loads(out.read_text())["steps"][0]["distributions"]["series"]
     assert [entry["value"] for entry in series] == [3, 5, 7]
+
+
+# ── Exit 5: ran, and could not grade ─────────────────────────────────────────
+# The defect this closes: _VERDICT_EXIT[None] was EXIT_GOOD, so a run that
+# graded nothing at all exited 0 — "completed, everything Good". Six of nine
+# checks found no columns on a real delivery and the run read as a clean survey.
+
+UNGRADEABLE = """
+kind: qc
+steps:
+  - height_above_ground: {good_max: 45, marginal_max: 65, column: no_such_column}
+"""
+
+
+def test_a_run_that_could_not_grade_does_not_exit_good(delivery, pipeline_file,
+                                                       tmp_path):
+    """A check that was asked for and could not act leaves the flight ungraded,
+    not clean."""
+    from ymerflow_processing.core.cli import EXIT_UNGRADED
+
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    document = """
+        kind: qc
+        steps:
+          - system_attitude: {good: 5, marginal: 7.5}
+    """
+    out = tmp_path / "out"
+    # A delivery with no attitude at all: the check cannot act.
+    dataset = load(xyz, gex)
+    frame = dataset.flightlines.drop(columns=["tilt_x", "tilt_y"])
+    dataset.survey.xyz.flightlines = frame
+    dataset.survey.dump(xyzfile=str(xyz))
+
+    result = run_qc(pipeline_file(document, "u.yaml"), xyz, gex, out)
+    assert result.return_value == EXIT_UNGRADED
+    assert "UNGRADED, not clean" in result.output
+
+
+def test_a_breach_still_outranks_an_ungraded_run(delivery, pipeline_file,
+                                                 tmp_path):
+    """A line flown out of spec is a finding someone must act on; 'some checks
+    did not run' is a finding about the run. Both are on stdout, so reporting
+    the breach loses nothing."""
+    heights = np.concatenate([np.full(10, 30.0), np.full(10, 90.0)])
+    xyz, gex = delivery(heights, n_lines=2, n_flights=1)
+    document = """
+        kind: qc
+        steps:
+          - height_above_ground: {good_max: 45, marginal_max: 65}
+          - transmitter_stability: {good_fraction: 0.01, marginal_fraction: 0.02}
+    """
+    result = run_qc(pipeline_file(document, "b.yaml"), xyz, gex, tmp_path / "o")
+    assert result.return_value == EXIT_OUT_OF_SPEC
+    assert "UNGRADED" in result.output          # said, but does not set the code
+
+
+def test_an_optional_check_does_not_make_a_run_ungraded(delivery, pipeline_file,
+                                                        tmp_path):
+    """03 requires data_misfit and culled_fraction be absent 'with no error' on
+    a delivery that was never inverted."""
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    document = """
+        kind: qc
+        steps:
+          - height_above_ground: {good_max: 45, marginal_max: 65}
+          - data_misfit: {good_max: 1.0, marginal_max: 2.0}
+          - culled_fraction: {}
+    """
+    result = run_qc(pipeline_file(document, "o.yaml"), xyz, gex, tmp_path / "o")
+    assert result.return_value == EXIT_GOOD
+    assert "UNGRADED" not in result.output
+
+
+def test_a_missing_powerline_monitor_is_an_absent_instrument():
+    """Not every system carries one, so its absence is not a fault."""
+    from ymerflow_processing.core.pipeline import OPTIONAL
+    from ymerflow_processing.core.qc.qc_05_powerline import powerline_noise
+
+    dataset = make_dataset(n=8, n_lines=1, n_gates=4)
+    _, report = powerline_noise(dataset)
+    assert report.ungraded == OPTIONAL
+
+
+def test_the_reason_is_in_the_report(delivery, pipeline_file, tmp_path):
+    """Three things look identical in a report and are not."""
+    xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
+    document = """
+        kind: qc
+        steps:
+          - height_above_ground: {good_max: 45, marginal_max: 65}
+          - data_misfit: {}
+    """
+    out = tmp_path / "o"
+    run_qc(pipeline_file(document, "r.yaml"), xyz, gex, out)
+    written = {s["step"]: s["ungraded"] for s in _report(out)["steps"]}
+
+    assert written["height_above_ground"] is None      # graded
+    assert written["data_misfit"] == "optional"

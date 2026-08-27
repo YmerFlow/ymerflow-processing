@@ -387,3 +387,13 @@ def test_a_non_integer_number_is_not_an_epsg_code():
     dataset.survey.xyz.model_info["projection"] = "32610.5"
 
     assert dataset.crs == "32610.5"
+
+
+def test_a_real_float_from_a_dump_is_recognized():
+    """Confirmed against the platform side: a round trip yields a float 32610.0,
+    not the string. int() survives it; f-string interpolation and isdigit() do
+    not, which is why the code is parsed numerically."""
+    dataset = make_dataset(n=4, n_lines=1, n_gates=4)
+    dataset.survey.xyz.model_info["projection"] = 32610.0
+
+    assert dataset.crs == "EPSG:32610"

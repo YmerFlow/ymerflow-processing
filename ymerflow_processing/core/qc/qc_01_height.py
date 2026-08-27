@@ -46,7 +46,7 @@ import numpy as np
 
 from ..dataset import HEIGHT_COLUMNS, find_column
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import MISSING, StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -168,6 +168,7 @@ def height_above_ground(
                 "No height-above-ground column found; check skipped. "
                 "Name one with 'column:' if it is present under an unusual name."
             )
+            report.ungraded = MISSING
             return dataset, report
 
     spec = {"kind": ASCENDING, "good_max": good_max, "marginal_max": marginal_max}
