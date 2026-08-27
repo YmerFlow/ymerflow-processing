@@ -540,3 +540,35 @@ The general lesson, and the reason this is recorded rather than just fixed:
 its column says so in a note, which is right — but nine notes in a run nobody
 reads is indistinguishable from a clean run. Worth deciding separately whether a
 QC run where most checks found nothing should exit non-zero.
+
+## Addition, 2026-08-27 — qc_11 against a real inversion, and what a real misfit looks like
+
+The first real inversion result the library has read. Two things worth recording.
+
+**A real misfit distribution**, from a delivered SCI inversion of 568 soundings:
+
+| median | p05 | p95 | max | no value |
+|---|---|---|---|---|
+| 0.66 | 0.43 | 0.94 | 2.04 | 37 |
+
+A well-fitted inversion sits **below one sigma** — it is fitting inside the
+uncertainties it was given. This is evidence rather than a default: qc_11 still
+ships no thresholds, because misfit is measured in standard deviations and a
+threshold on it grades the uncertainty model as much as the fit. But anyone
+choosing one now has a real distribution to choose against, and `good_max: 1.0`
+with `marginal_max: 2.0` graded this delivery 518 Good, 12 Marginal, 1 OOS.
+
+**A note that asserted a cause it could not know.** 37 soundings carried no
+misfit, and the note said *"nothing of theirs was in use when the fit was
+measured"* — which is true when `compute_misfit` wrote the column and a guess
+when an inversion did. On a real inversion result the likelier reason is that the
+sounding was never inverted at all. The note now names both and says it cannot
+tell which.
+
+**What the delivered inversion does not carry**, which matters for anyone
+expecting to compute misfit from it: no gatewise residuals and no forward
+predictions. It is a *model* deliverable — resistivities, depths, DOI, and the
+per-sounding `resdata`. So `compute_misfit` correctly refuses it, naming both
+channels and saying the result carries neither a residual nor a prediction. The
+error path holds on real data, which is the first time it has been exercised
+against anything but a forward model we wrote ourselves.

@@ -109,8 +109,11 @@ def data_misfit(
     unmeasured = int((~np.isfinite(misfit)).sum())
     if unmeasured:
         report.notes.append(
-            f"{unmeasured} sounding(s) have no misfit — nothing of theirs was "
-            f"in use when the fit was measured — and carry no verdict."
+            f"{unmeasured} sounding(s) carry no misfit and so no verdict. Why "
+            f"depends on who wrote the column: computed here it means nothing "
+            f"of theirs was in use when the fit was measured; written by an "
+            f"inversion it more likely means the sounding was never inverted. "
+            f"This cannot tell which."
         )
 
     verdicts = None

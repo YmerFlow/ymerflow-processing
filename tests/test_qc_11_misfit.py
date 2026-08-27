@@ -214,3 +214,16 @@ def test_the_report_survives_serialization():
 
 def test_registered():
     assert STEP in load_steps(QC_GROUP)
+
+
+def test_a_missing_misfit_does_not_claim_to_know_why():
+    """The column may have been written here or by an inversion, and the two
+    mean different things. Asserting one on a real inversion result — where 37
+    of 568 soundings carried no misfit — would have been a guess stated as a
+    fact."""
+    values = np.full(N, 1.0)
+    values[3] = np.nan
+    _, report = data_misfit(graded(values), good_max=1.5, marginal_max=3.0)
+
+    note = next(n for n in report.notes if "no misfit" in n)
+    assert "cannot tell which" in note
