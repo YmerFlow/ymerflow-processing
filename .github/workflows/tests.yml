@@ -35,6 +35,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+          # setup-python hashes a dependency file to key the cache and looks
+          # only for requirements.txt or pyproject.toml by default. This project
+          # declares its dependencies in setup.py, so it has to be told — the
+          # default is not "no cache", it is a hard error.
+          cache-dependency-path: setup.py
 
       - name: Install
         run: |
