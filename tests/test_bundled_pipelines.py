@@ -50,14 +50,31 @@ def test_the_package_ships_pipelines():
 
 
 def test_no_shipped_document_names_a_column_it_cannot_know():
-    """A shipped default must degrade rather than die. altimeter_agreement
-    raises when told to read a column that is not there — correct when a user
-    asked for it by name, fatal as a guess — so it ships commented out."""
+    """A shipped default must degrade rather than die.
+
+    Naming a column in a shipped document overrides discovery and raises on any
+    delivery that spells it differently. Both times this rule was broken the
+    symptom was the same — a real delivery, a hard stop, a column name nobody
+    could have guessed right for every file:
+
+    * ``altimeter_agreement`` naming its two altimeters, which every system
+      spells differently. It ships commented out instead.
+    * ``correct_tilt`` naming ``tilt_x``/``tilt_y`` while the delivery spelled
+      them ``AngleX``/``AngleY``.
+
+    So the rule is general rather than a list of the two we found: a shipped
+    document names no column at all. Where a step genuinely cannot work without
+    one, it ships commented out with instructions."""
+    offenders = []
     for name in NAMES:
         for step, params in Pipeline.load(name).steps:
-            assert step != "altimeter_agreement", (
-                f"{name}: altimeter columns cannot be guessed; ship it "
-                f"commented out with instructions instead")
+            for parameter in params:
+                if parameter == "columns" or parameter.endswith("_column"):
+                    offenders.append(f"{name}: {step}.{parameter}")
+    assert not offenders, (
+        "shipped documents must let columns be discovered, since a named one "
+        "raises on a delivery that spells it differently: "
+        + "; ".join(offenders))
 
 
 def test_each_carries_a_name_and_a_description():

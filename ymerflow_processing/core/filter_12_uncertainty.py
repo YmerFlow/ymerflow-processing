@@ -40,6 +40,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from .dataset import role_key
 from .distribution import summarize
 from .noise import recorded
 from .pipeline import StepReport
@@ -78,33 +79,42 @@ def assign_uncertainty(dataset, stash: bool = True):
         report.notes.append("No channels; nothing to assign.")
         return dataset, report
 
-    per_channel, missing = {}, []
+    per_channel, missing, created = {}, [], []
     for channel in channels:
-        if not channel.std_key or channel.std_key not in dataset.layer_data:
-            missing.append(str(channel))
-            continue
-
         values = dataset.layer_data[channel.data_key]
         times = np.asarray(channel.axis.values, dtype=float)
         if times.size != values.shape[1]:
             missing.append(f"{channel} (no gate times)")
             continue
 
-        before = dataset.layer_data[channel.std_key]
-        if stash:
-            dataset.layer_data[f"{channel.std_key}{STASH_SUFFIX}"] = before.copy()
+        # A raw delivery legitimately carries no uncertainties — assigning them
+        # is precisely how they come to exist, and refusing to act without an
+        # array to overwrite left the whole noise half of the standard chain
+        # dead on exactly the data it is for. The mask already worked this way:
+        # created under a discoverable name so the next lookup finds it.
+        std_key = channel.std_key
+        if not std_key or std_key not in dataset.layer_data:
+            std_key = role_key(channel, "std")
+            created.append(str(channel))
+            before = None
+        else:
+            before = dataset.layer_data[std_key]
+            if stash:
+                dataset.layer_data[f"{std_key}{STASH_SUFFIX}"] = before.copy()
 
         relative = model.relative(
             values.to_numpy(dtype=float), times,
             dipole_moment=getattr(channel, "dipole_moment", None),
             normalization=dataset.normalization)
-        dataset.layer_data[channel.std_key] = pd.DataFrame(
+        dataset.layer_data[std_key] = pd.DataFrame(
             relative, index=values.index, columns=values.columns)
 
         finite = relative[np.isfinite(relative)]
         per_channel[str(channel)] = {
-            "column": channel.std_key,
-            "before": summarize(before.to_numpy(dtype=float).ravel()),
+            "column": std_key,
+            "created": before is None,
+            "before": (None if before is None
+                       else summarize(before.to_numpy(dtype=float).ravel())),
             "after": summarize(finite),
             # Where the floor has overtaken the signal entirely. Not an error —
             # it is the model saying those gates are noise, which is what the
@@ -114,8 +124,16 @@ def assign_uncertainty(dataset, stash: bool = True):
 
     if missing:
         report.notes.append(
-            f"No uncertainty array or gate times for {', '.join(missing)}; "
-            f"those channels were not assigned.")
+            f"No gate times for {', '.join(missing)}; those channels were not "
+            f"assigned. Gate times come from the system description, so this "
+            f"is a description that does not describe this data.")
+    if created:
+        report.notes.append(
+            f"The delivery carried no uncertainty array for "
+            f"{', '.join(created)}; one was created from the noise model. That "
+            f"is the ordinary case for raw data — there is nothing to compare "
+            f"against, so the 'before' distribution is absent rather than "
+            f"empty.")
     if not per_channel:
         return dataset, report
 

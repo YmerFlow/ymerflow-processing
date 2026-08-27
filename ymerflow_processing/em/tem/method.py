@@ -56,12 +56,13 @@ NAMED_MOMENT = r"^([a-z]+)_([xyz])_g\d+$"
 #: key with the role appended. Matched so the array this library created is
 #: claimed by the channel it belongs to rather than reported as unclaimed.
 #:
-#: There is deliberately **no std pattern** for this family. Nothing writes one:
-#: a delivery in this convention ships no uncertainties, and ``assign_uncertainty``
-#: skips a channel that has none rather than inventing an array. Adding a pattern
-#: for a name nothing produces is how the "two families" claim above this came to
-#: be wrong.
 NAMED_MOMENT_INUSE = r"^([a-z]+)_([xyz])_g\d+_inuse$"
+
+#: The uncertainty array for a named moment, as ``dataset.role_key`` writes it.
+#: A delivery in this convention ships none — ``assign_uncertainty`` creates it
+#: from the noise model — so this exists to claim what the library itself wrote,
+#: not to match a vendor's spelling.
+NAMED_MOMENT_STD = r"^([a-z]+)_([xyz])_g\d+_std$"
 
 
 def _by_moment_and_component(groups, system) -> int | None:
@@ -124,7 +125,7 @@ MAX_CHANNELS = 32
 #:
 TEM_NAMING = ChannelNaming(
     data=(r"^dbdt_ch(\d+)", r"^gate_ch(\d+)", NAMED_MOMENT),
-    std=(r"^dbdt_std_ch(\d+)", r"^std_ch(\d+)"),
+    std=(r"^dbdt_std_ch(\d+)", r"^std_ch(\d+)", NAMED_MOMENT_STD),
     inuse=(r"^dbdt_inuse_ch(\d+)", r"^inuse_ch(\d+)", NAMED_MOMENT_INUSE),
     resolve=_by_moment_and_component,
 )

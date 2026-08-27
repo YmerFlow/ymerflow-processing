@@ -372,6 +372,40 @@ HEIGHT_COLUMNS = ("tx_altitude", "txaltitude", "tx_alt", "height",
 TIMESTAMP_EPOCH = "1900-01-01"
 
 
+#: How each convention spells a channel's roles, keyed by the prefix its data
+#: array carries. ``None`` means the role has no established spelling in that
+#: convention and the generic suffix form is used instead.
+ROLE_SPELLINGS = {
+    "gate_": {"std": "STD_", "inuse": "InUse_"},
+    "dbdt_": {"std": "dbdt_std_", "inuse": "dbdt_inuse_"},
+}
+
+
+def role_key(channel, role: str) -> str:
+    """A key for one of a channel's arrays, derived from its **data key**.
+
+    Both numbered conventions put the role in the same position, so the key is
+    the data key with the role substituted rather than a name assembled from a
+    channel number. That is what makes this work for a convention nobody has
+    enumerated — including one that identifies its channels by name, where
+    there is no number to assemble from.
+
+    Used wherever the library has to *create* an array a delivery did not carry:
+    a raw delivery legitimately ships neither a mask nor uncertainties, and
+    creating them under a discoverable name is what lets the next lookup find
+    them without anything being kept in sync (``Channel`` is frozen and
+    ``Dataset.channels`` rediscovers on every access).
+    """
+    data = channel.data_key
+    lowered = data.lower()
+    for prefix, roles in ROLE_SPELLINGS.items():
+        if lowered.startswith(prefix):
+            return roles[role] + data[len(prefix):]
+        if prefix in lowered:
+            return data.replace(prefix, roles[role], 1)
+    return f"{data}_{role}"
+
+
 def find_column(frame, spellings) -> str | None:
     """The first of ``spellings`` present in ``frame``, matched case-insensitively.
 

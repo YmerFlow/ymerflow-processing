@@ -63,9 +63,11 @@ steps:
   # where that approximation stops holding, rather than applying a large and
   # confidently wrong one.
 
+  # The attitude columns are DISCOVERED, not named here. Naming them would
+  # override the discovery and raise on any delivery spelling them differently
+  # — which is what a shipped default must never do. Add `pitch_column:` /
+  # `roll_column:` only if yours are under a name discovery misses.
   - correct_tilt:
-      pitch_column: tilt_x    # EDIT if this system names its axes differently
-      roll_column: tilt_y
       max_correction: 4.0     # refuse beyond this factor
 
   # Normalization is where unit confusion concentrates: the conventions differ

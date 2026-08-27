@@ -1605,3 +1605,42 @@ the count was wrong because it was written from the files we happened to have. T
 comment now says which three and why the third needs a resolver — but the honest
 lesson is that there will be a fourth, which is the argument for the resolver
 being a general hook rather than a special case for this one.
+
+## Addition, 2026-08-25 — filter_12 creates the array a raw delivery lacks
+
+`01` describes filter_12 as assigning uncertainty from the noise model. The
+implementation refused to act on a channel with no uncertainty array to
+overwrite, which meant **the whole noise half of the standard chain was dead on
+exactly the data it exists for**: a raw delivery legitimately ships no
+uncertainties, and assigning them is precisely how they come to exist.
+
+Found by running the shipped processing document against a real delivery, where
+`assign_uncertainty` skipped both channels and `cull_by_uncertainty` then had
+nothing to inspect. Neither failed.
+
+The mask had already settled this. `mask.resolve` creates an all-in-use array
+when the delivery carried none, under a name derived from the *data* key so the
+next lookup finds it — nothing is kept in sync, because `Channel` is frozen and
+`Dataset.channels` rediscovers on every access. Uncertainty now works the same
+way, through a shared `dataset.role_key`, which also means it works for a
+convention nobody has enumerated: there is no channel number to assemble a name
+from in `LM_Z_G01`, and none is needed.
+
+**What is still refused is a gate-time mismatch.** Gate times come from the
+system description, so a channel whose array is a different width is a
+description that does not describe this data — not something to invent around.
+The note now says that, rather than lumping it in with the absent-array case as
+"no uncertainty array or gate times", which named two causes for one symptom.
+
+### And a shipped document must name no columns at all
+
+`standard-processing.yaml` named `pitch_column: tilt_x` and `roll_column:
+tilt_y`, which overrode the discovery fixed in the previous addition and raised
+on the real delivery. The same mistake as `altimeter_agreement` naming its two
+altimeters, and it survived the test written for that one because the test named
+the *step* rather than the *rule*.
+
+So the rule is now general and enforced: **no shipped document names a column.**
+Where a step genuinely cannot work without one, it ships commented out with
+instructions. A named column overrides discovery and turns a delivery that
+spells it differently into a hard stop.

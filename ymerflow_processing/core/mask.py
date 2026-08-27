@@ -87,6 +87,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from .dataset import role_key
+
 log = logging.getLogger(__name__)
 
 #: In use, and culled. Integers rather than booleans because that is what both
@@ -199,17 +201,10 @@ def ensure(dataset, channel) -> pd.DataFrame:
 def _inuse_key_for(channel) -> str:
     """A mask key matching the channel's own data key.
 
-    Both conventions in circulation put the role in the same position, so the
-    mask key is the data key with the role substituted rather than a name
-    assembled from a channel number — which is what makes this work for a
-    convention nobody has enumerated yet.
+    Shared with the uncertainty array, which faces the same problem: see
+    :func:`~ymerflow_processing.core.dataset.role_key`.
     """
-    data = channel.data_key
-    if data.lower().startswith("gate_"):
-        return "InUse_" + data[len("Gate_"):]
-    if "dbdt_" in data.lower():
-        return data.replace("dbdt_", "dbdt_inuse_", 1)
-    return f"{data}_inuse"
+    return role_key(channel, "inuse")
 
 
 def provenance(dataset, channel) -> pd.DataFrame:

@@ -322,3 +322,108 @@ def test_the_reports_survive_serialization():
                                   "perturb_from_uncertainty"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)
+
+
+# ── A raw delivery carries no uncertainties ──────────────────────────────────
+# Found on the first real delivery: assign_uncertainty refused to act without an
+# array to overwrite, so the whole noise half of the standard chain was dead on
+# exactly the data it exists for.
+
+def _raw(n=8, gates=5):
+    """A delivery with data and no uncertainty array, as a real one arrives."""
+    from conftest import make_dataset
+    dataset = make_dataset(n=n, n_lines=1, n_gates=gates)
+    for channel in dataset.channels:
+        del dataset.layer_data[channel.std_key]
+    return dataset
+
+
+def _with_model(dataset):
+    from ymerflow_processing.core.noise import estimate_noise_model
+    dataset, _ = estimate_noise_model(
+        dataset, noise_level_1ms=5.0e-10, noise_exponent=-0.5,
+        relative_fraction=0.03)
+    return dataset
+
+
+def test_an_absent_uncertainty_array_is_created_rather_than_skipped():
+    """Assigning uncertainty is precisely how it comes to exist."""
+    from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
+
+    dataset = _with_model(_raw())
+    assert all(c.std_key is None for c in dataset.channels)
+
+    dataset, report = assign_uncertainty(dataset)
+    assert all(c.std_key is not None for c in dataset.channels)
+    assert any("created from the noise model" in n for n in report.notes)
+
+
+def test_the_created_array_is_discoverable_afterwards():
+    """Created under a name the next lookup finds, so nothing is kept in sync —
+    Channel is frozen and channels rediscover on every access."""
+    from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
+
+    dataset, _ = assign_uncertainty(_with_model(_raw()))
+    for channel in dataset.channels:
+        assert channel.std_key in dataset.layer_data
+        assert dataset.layer_data[channel.std_key].shape == \
+            dataset.layer_data[channel.data_key].shape
+
+
+def test_creation_reports_no_before_distribution():
+    """There is nothing to compare against, so it is absent rather than a
+    summary of an array that never existed."""
+    from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
+
+    _, report = assign_uncertainty(_with_model(_raw()))
+    for entry in report.distributions["per_channel"].values():
+        assert entry["created"] is True
+        assert entry["before"] is None
+        assert entry["after"]["n"] > 0
+
+
+def test_an_existing_array_is_still_stashed_and_overwritten():
+    """The ordinary path is unchanged."""
+    from ymerflow_processing.core.filter_12_uncertainty import (
+        STASH_SUFFIX, assign_uncertainty,
+    )
+    from conftest import make_dataset
+
+    dataset = _with_model(make_dataset(n=8, n_lines=1, n_gates=5))
+    key = dataset.channels[0].std_key
+    dataset, report = assign_uncertainty(dataset)
+
+    assert f"{key}{STASH_SUFFIX}" in dataset.layer_data
+    entry = report.distributions["per_channel"][str(dataset.channels[0])]
+    assert entry["created"] is False and entry["before"] is not None
+
+
+def test_a_channel_whose_gate_times_do_not_match_is_still_refused():
+    """Gate times come from the system description, so a mismatch is a
+    description that does not describe this data — not something to invent
+    around."""
+    from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
+
+    dataset = _with_model(_raw())
+    channel = dataset.channels[0]
+    dataset.layer_data[channel.data_key] = \
+        dataset.layer_data[channel.data_key].iloc[:, :2]
+
+    _, report = assign_uncertainty(dataset)
+    assert any("does not describe this data" in n for n in report.notes)
+
+
+def test_the_role_key_follows_whatever_convention_the_data_uses():
+    """Both numbered conventions put the role in the same position; a named one
+    has no number to assemble from, so the key is derived from the data key."""
+    from ymerflow_processing.core.dataset import role_key
+
+    class Fake:
+        def __init__(self, data_key):
+            self.data_key = data_key
+
+    assert role_key(Fake("dbdt_ch1gt"), "std") == "dbdt_std_ch1gt"
+    assert role_key(Fake("Gate_Ch01"), "std") == "STD_Ch01"
+    assert role_key(Fake("Gate_Ch01"), "inuse") == "InUse_Ch01"
+    assert role_key(Fake("LM_Z_G01"), "std") == "LM_Z_G01_std"
+    assert role_key(Fake("LM_Z_G01"), "inuse") == "LM_Z_G01_inuse"
