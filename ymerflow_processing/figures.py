@@ -44,6 +44,7 @@ import logging
 import numpy as np
 
 from .core.mask import in_use
+from .core.noise import recorded
 from .core.pipeline import FILTER_GROUP, load_steps
 
 log = logging.getLogger(__name__)
@@ -304,6 +305,7 @@ def _uncertainty(fig, before, after, channel, sounding, report):
     """The error bars, which are the subject — the values may not move at all."""
     ax = fig.subplots()
     times, values, _ = _transient(after, channel, sounding)
+    ax.plot(times, np.abs(values), "-", color="0.85", linewidth=1, zorder=0)
 
     for dataset, colour, label in ((before, "0.6", "before"),
                                    (after, "C0", "after")):
@@ -318,9 +320,31 @@ def _uncertainty(fig, before, after, channel, sounding, report):
         ax.errorbar(times, np.abs(values), yerr=spread, fmt="o", color=colour,
                     markersize=3, linewidth=0, elinewidth=1, capsize=2,
                     label=label)
+    # estimate_noise_model records a model and writes no uncertainty array, so
+    # there may be nothing to put error bars on. Draw the floor it estimated
+    # instead — that IS what the step produced, and it is the thing a reader
+    # wants to see against the transient.
+    model = recorded(after)
+    if model is not None and model.level_1ms is not None:
+        # Only across the gates that are actually there. The axis carries every
+        # gate the system description declares, including the early ones
+        # disabled at load — drawing the floor across all of them stretches the
+        # x axis a decade to the left of any data and leaves the transient
+        # squashed into a corner.
+        live = np.isfinite(values)
+        span = times[live] if live.any() else times
+        floor = model.floor(span,
+                            dipole_moment=getattr(channel, "dipole_moment", None),
+                            normalization=after.normalization)
+        ax.plot(span, np.abs(floor), "--", color="C3", linewidth=1.4,
+                label="estimated noise floor")
+
     _decorate(ax, channel, times)
     ax.set_ylabel("|response| with uncertainty")
-    ax.legend(fontsize=8, frameon=False)
+    # legend() on an axes with nothing labelled warns rather than drawing
+    # nothing, which is noise on a correct path.
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(fontsize=8, frameon=False)
     ax.set_title(f"{channel}", fontsize=9)
     return fig
 
