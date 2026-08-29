@@ -47,7 +47,9 @@ jobs:
           # The pin goes on last and alone. Installing the package first lets
           # its own resolution pick a numpy, and forcing the major afterwards is
           # what makes the cell mean what its name says.
-          pip install -e ".[test]"
+          # [figures] as well, so the figure code is exercised rather than
+          # skipped in every cell — a test that always skips is not a test.
+          pip install -e ".[test,figures]"
           # rasterio 1.5 declares numpy>=2, so the numpy-1 cell needs a rasterio
           # that still supports it. Found by building the cell locally: the
           # suite passes either way, but pip reports a conflict and a resolver

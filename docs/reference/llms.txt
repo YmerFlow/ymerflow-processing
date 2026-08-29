@@ -1,0 +1,221 @@
+# ymerflow-processing
+
+Airborne geophysical data processing, QC and comparison.
+Generated from the entry-point registry — do not edit by hand.
+
+## Invariants
+
+These are easy to violate silently and cannot be inferred from a signature.
+
+- Culling is subtractive. Data already culled stays culled, and provenance names the step that FIRST removed each datum.
+- QC writes attributes, never the mask. Deciding what to remove is a separate job from deciding what is wrong.
+- Verdicts are numeric codes on a fixed scale (0 out of spec, 1 marginal, 2 good), not labels. NaN means not evaluated.
+- External inputs arrive typed, not as paths. Format is a loader's concern.
+- A step returns (result, StepReport) and never prints.
+- The number of channels comes from the data. No default may name a specific moment.
+- One noise model per dataset, so uncertainty cannot be assigned with one floor and data culled with another.
+- disable_initial_gates is applied automatically when a survey and its system description meet. Do not list it in a pipeline.
+
+## Ordering
+
+A wrong order here does not fail. It produces plausible nonsense.
+
+- `estimate_noise_model` before `assign_uncertainty` — estimation precedes assignment: there is nothing to assign from
+- `assign_uncertainty` before `perturb_from_uncertainty` — noise is drawn from the assigned uncertainty, not from a system default
+- `assign_uncertainty` before `average_along_line` — averaging propagates the uncertainty, so it must exist first
+- `cull_negatives` before `average_along_line` — cull before averaging, or a bad gate is smeared into its neighbours
+- `apply_manual_edits` last — replays last, so a human decision is never overwritten by an automated one
+
+## filters
+
+dataset in, dataset out. These change the data.
+
+### apply_manual_edits
+apply_manual_edits(diff, checkpoint: str | None = None)
+Apply a hand-authored in-use diff at the soundings it names.
+
+### apply_nominal_current
+apply_nominal_current(columns = None, stash: bool = True)
+Overwrite the per-sounding transmitter current with the declared nominal.
+
+### apply_terrain_model
+apply_terrain_model(terrain, crs = None, band: int = 1, preserve: str = 'elevation', altitude_column: str | None = None, elevation_column: str | None = None, stash: bool = True)
+Re-express altitude against a terrain model.
+
+### assign_uncertainty
+assign_uncertainty(stash: bool = True)
+Replace uncertainties with the dataset's recorded noise model.
+
+### average_along_line
+average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True)
+Average each sounding with its along-line neighbours.
+
+### classify_lines
+classify_lines(criterion: str, line_type: str, threshold: float | None = None, lines = None, altitude_column: str | None = None, line_column: str | None = None, default_line_type: str = 'Production')
+Label flightlines, without removing anything.
+
+### compute_misfit
+compute_misfit(result, rms_column: str = 'resdata')
+Write misfit between the data and a forward synthetic as columns.
+
+### convert_normalization
+convert_normalization(to: str = 'rx_tx', stash: bool = True)
+Convert amplitudes into ``to``, from whatever the dataset declares.
+
+### copy_array
+copy_array(source: str, destination: str)
+filter_15 — copy a per-gate array, leaving the original.
+
+### copy_attribute
+copy_attribute(source: str, destination: str)
+filter_14 — copy a per-sounding attribute, leaving the original.
+
+### correct_tilt
+correct_tilt(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
+Rescale amplitudes to what a horizontal transmitter would have measured.
+
+### cull_below_noise_floor
+cull_below_noise_floor(margin: float = 1.0, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable gates at or below the dataset's noise floor.
+
+### cull_by_curvature
+cull_by_curvature(max_curvature: float | None = None, min_curvature: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable data whose local curvature is implausible.
+
+### cull_by_decay_rate
+cull_by_decay_rate(shallowest: float | None = None, steepest: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable data whose local decay rate is implausible.
+
+### cull_by_external_evidence
+cull_by_external_evidence(criterion: str, infrastructure = None, distance_first = None, distance_last = None, result = None, max_misfit: float | None = None, crs = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable data that evidence from outside the transient says is suspect.
+
+### cull_by_geometry
+cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str = 'tilt_x', roll_column: str = 'tilt_y', altitude_column: str | None = None)
+Disable soundings flown outside the geometry the forward model assumes.
+
+### cull_by_uncertainty
+cull_by_uncertainty(max_uncertainty: float, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
+
+### cull_negatives
+cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable gates whose measured value is negative.
+
+### cull_sparse_soundings
+cull_sparse_soundings(minimum_gates: int)
+Disable soundings whose usable gate count has fallen below ``minimum``.
+
+### disable_initial_gates
+disable_initial_gates(gates: dict | int | None = None)
+Disable each channel's declared initial gates in the in-use mask.
+
+### estimate_noise_model
+estimate_noise_model(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float | None = None, relative_fraction: float | None = None, late_gates: int | None = None)
+Estimate the dataset's noise model, and record it for every consumer.
+
+### export_vector
+export_vector(path, crs, source_crs = None, columns = None, lines: bool = True, unclassified: str = 'Unclassified', format: str | None = None)
+Write the dataset's per-sounding attributes out as vector geometry.
+
+### inflate_uncertainty
+inflate_uncertainty(fraction, gates = None)
+Add ``fraction`` to the uncertainty of the nominated gates.
+
+### nominate_gates
+nominate_gates(enable_gates = None, disable_gates = None)
+Set named gates in the mask, either direction, per channel.
+
+### perturb_from_uncertainty
+perturb_from_uncertainty(seed: int = 42, channels = None, again: bool = False, stash: bool = True)
+Add noise drawn from each datum's assigned uncertainty.
+
+### remove_array
+remove_array(name: str)
+filter_19 — remove a per-gate array.
+
+### remove_attribute
+remove_attribute(name: str)
+filter_18 — remove a per-sounding attribute.
+
+### rename_array
+rename_array(source: str, destination: str)
+filter_17 — rename a per-gate array.
+
+### rename_attribute
+rename_attribute(source: str, destination: str)
+filter_16 — rename a per-sounding attribute.
+
+### select_channels
+select_channels(criterion: str, keep, drop_system_blocks: bool = True, drop_unclaimed: bool = False)
+Keep only the channels whose ``criterion`` value is in ``keep``.
+
+### select_lines
+select_lines(criterion: str, line_types = None, lines = None, line_column: str | None = None)
+Reduce the dataset to the flightlines wanted. **Drops soundings.**
+
+### zero_attitude
+zero_attitude(pitch_column: str | None = None, roll_column: str | None = None, stash: bool = True)
+Force the recorded attitude to zero, keeping the originals.
+
+
+## qc
+
+dataset in, dataset plus a report out. These grade it and change no measurement.
+
+### altimeter_agreement
+altimeter_agreement(columns, good_max: float, marginal_max: float, output_column: str = 'qs_altim', spread_column: str = 'alt_spread', line_column: str | None = None, unit: str = 'm', gap_tolerance: float = 0.0)
+Classify the disagreement between independent altimeters.
+
+### culled_fraction
+culled_fraction(good_max: float | None = None, marginal_max: float | None = None, output_column: str = 'qs_culled', fraction_column: str = 'cull_frac', line_column: str | None = None, gap_tolerance: float = 0.0)
+Measure how much of each sounding culling disabled.
+
+### data_misfit
+data_misfit(good_max: float | None = None, marginal_max: float | None = None, column: str = 'resdata', output_column: str = 'qs_misfit', line_column: str | None = None, gap_tolerance: float = 0.0)
+Classify how well a previous inversion explained each sounding.
+
+### ground_speed
+ground_speed(good_min: float, good_max: float, marginal_min: float, marginal_max: float, column: str | None = None, time_column: str | None = None, output_column: str = 'qs_speed', line_column: str | None = None, unit: str = 'km/h', scale: float = 3.6, gap_tolerance: float = 0.0)
+Classify each sounding's ground speed against the contracted window.
+
+### height_above_ground
+height_above_ground(good_max: float, marginal_max: float, column: str | None = None, output_column: str = 'qs_height', line_column: str | None = None, unit: str = 'm', gap_tolerance: float = 0.0)
+Classify each sounding's height above ground against the contracted spec.
+
+### powerline_noise
+powerline_noise(good_max: float | None = None, marginal_max: float | None = None, window: int = 101, column: str | None = None, output_column: str = 'qs_pline', excess_column: str = 'pl_excess', line_column: str | None = None, gap_tolerance: float = 0.0)
+Measure how far the powerline monitor rose above its local background.
+
+### sounding_spacing
+sounding_spacing(good_max: float, marginal_max: float, output_column: str = 'qs_spacing', spacing_column: str = 'spacing', line_column: str | None = None, units_per_km: float = 1000.0, gap_tolerance: float = 0.0)
+Classify local sounding density against the contracted minimum.
+
+### system_attitude
+system_attitude(good: float, marginal: float, pitch_column: str | None = None, roll_column: str | None = None, pitch_output: str = 'qs_pitch', roll_output: str = 'qs_roll', output_column: str = 'qs_tilt', line_column: str | None = None, unit: str = 'deg', gap_tolerance: float = 0.0)
+Classify each sounding's pitch and roll against the contracted limits.
+
+### transmitter_stability
+transmitter_stability(good_fraction: float, marginal_fraction: float, nominal_good_fraction: float | None = None, nominal_marginal_fraction: float | None = None, jump_fraction: float = 0.01, columns: dict | None = None, output_column: str = 'qs_cur', nominal_column: str | None = 'qs_nom', nominal_offset_prefix: str | None = 'nom_', per_moment_prefix: str | None = 'qs_cur_', line_column: str | None = None, flight_column: str | None = None, gap_tolerance: float = 0.0)
+Classify transmitter output stability, and agreement with nominal.
+
+
+## compare
+
+N reports or datasets in, one report out. These answer questions no single run can.
+
+### implementation_equivalence  [consumes: datasets]
+implementation_equivalence(reference = None, relative: float = 1e-06, absolute: float = 0.0, justification: str | None = None, expected_differences = (), quantities = ('data', 'uncertainty', 'mask'), position_tolerance: float = 0.5)
+Compare a candidate implementation against a baseline, per datum.
+
+### noise_floor_drift
+noise_floor_drift(reference = None, source_step: str = 'estimate_noise_model', max_ratio: float | None = None)
+Trend the estimated noise floor across a sequence of deliveries.
+
+### parameter_sweep  [consumes: datasets]
+parameter_sweep(reference = None, response_column: str | None = None, flat_fraction: float = 0.1, position_tolerance: float = 0.5)
+Trace how the output responds to one varied parameter.
+
+### version_diff  [consumes: datasets]
+version_diff(reference = None, quantities = ('data', 'uncertainty', 'mask'), relative: float = 1e-09, absolute: float = 0.0, position_tolerance: float = 0.5)
+What changed between two processing versions of the same data.

@@ -36,6 +36,11 @@ setup(
     ],
     extras_require={
         "test": ["pytest"],
+        # Figures are a documentation concern, not a processing one. A runner
+        # that only processes data should not pull a plotting stack to do it,
+        # so matplotlib stays out of install_requires and the figure module
+        # imports it lazily.
+        "figures": ["matplotlib"],
     },
     entry_points={
         # Three runners, three groups — see building_plans/02.
