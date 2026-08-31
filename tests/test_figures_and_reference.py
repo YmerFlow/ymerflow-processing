@@ -75,9 +75,17 @@ def test_matplotlib_is_not_a_required_dependency():
 
 # ── They actually draw ───────────────────────────────────────────────────────
 
-def _ran(document, **kw):
-    """A before/after pair and the report, from a real run."""
+def _ran(document, negatives=False, **kw):
+    """A before/after pair and the report, from a real run.
+
+    ``negatives`` puts a real sign reversal in the late gates: the synthetic
+    fixture is uniformly positive, so a culling filter run against it correctly
+    culls nothing and a test asserting it did would be asserting a bug.
+    """
     before = make_dataset(n=20, n_lines=1, n_gates=8, **kw)
+    if negatives:
+        for channel in before.channels:
+            before.layer_data[channel.data_key].iloc[:, -2:] *= -1
     after, report = ProcessingRunner(Pipeline.parse(document)).run(before.copy())
     return before, after, report
 
@@ -88,7 +96,7 @@ def test_a_culling_figure_marks_what_went():
         kind: filters
         steps:
           - cull_negatives: {start_gate: 2}
-    """)
+    """, negatives=True)
     step = next(s for s in report.steps if s.step == "cull_negatives")
     fig = figures.figure("cull_negatives", before, after, step)
 
@@ -96,7 +104,36 @@ def test_a_culling_figure_marks_what_went():
     # Two panels only when a threshold was recorded; cull_negatives has none.
     assert len(fig.axes) >= 1
     labels = [t.get_text() for ax in fig.axes for t in ax.get_legend().texts]
-    assert "before" in labels and "kept" in labels
+    assert any("culled" in label for label in labels)
+
+
+@needs_matplotlib
+def test_sign_is_visible_rather_than_folded_into_a_magnitude():
+    """The transient is drawn as |dB/dt| on a log axis, so a negative gate reads
+    as a bounce. On the one filter whose subject IS negatives that hid the
+    thing being filtered — and worse, a gate that went negative and was NOT
+    culled was indistinguishable from a good one.
+
+    Colour carries sign, marker carries fate, so all four combinations read."""
+    before = make_dataset(n=6, n_lines=1, n_gates=6)
+    channel = before.channels[0]
+    before.layer_data[channel.data_key].iloc[:, 4] = -1e-9      # a real negative
+    after = before.copy()
+
+    fig = figures.figure("cull_negatives", before, after)
+    colours = {line.get_color() for line in fig.axes[0].get_lines()
+               if line.get_linestyle() == "None"}
+    assert figures.NEGATIVE in colours, "a negative gate is not drawn as negative"
+    assert figures.POSITIVE in colours
+
+
+@needs_matplotlib
+def test_a_sounding_with_no_negatives_does_not_claim_any():
+    """A legend entry for negatives where there are none is noise."""
+    before = make_dataset(n=6, n_lines=1, n_gates=6)
+    fig = figures.figure("cull_negatives", before, before.copy())
+    labels = [t.get_text() for t in fig.axes[0].get_legend().texts]
+    assert not any("negative" in label for label in labels)
 
 
 @needs_matplotlib

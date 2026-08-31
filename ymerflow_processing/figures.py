@@ -49,6 +49,79 @@ from .core.pipeline import FILTER_GROUP, load_steps
 
 log = logging.getLogger(__name__)
 
+#: Colour carries SIGN, marker carries FATE. Red for negative is the house
+#: convention in both views — a single sounding, where two moments leave colour
+#: free for sign, and a profile, where a switch colours every point by sign.
+#:
+#: Keeping them on separate channels matters: an earlier version used red for
+#: *culled*, which collides with red for *negative* on the one filter where both
+#: are the subject. Colour and shape are independent, so all four combinations
+#: read — and a gate that went negative and was NOT culled, which is the case a
+#: reader most needs to check, becomes visible instead of indistinguishable from
+#: a good one.
+POSITIVE = "C0"        # blue
+NEGATIVE = "C3"        # red
+CULLED = "0.75"        # light grey: gone, so it recedes
+BEFORE = "0.6"         # the connecting line, behind everything
+
+
+def _sign_split(values):
+    """``(positive, negative)`` masks over finite values."""
+    finite = np.isfinite(values)
+    return finite & (values >= 0), finite & (values < 0)
+
+
+def _draw_transient(ax, times, values, mask, marker, size, label_prefix=""):
+    """One transient, coloured by sign and marked by fate.
+
+    Returns what it actually drew, so a legend can name only that — a legend
+    entry for negatives on a sounding with none is noise.
+    """
+    drawn = []
+    positive, negative = _sign_split(np.where(mask, values, np.nan))
+    for present, colour, sign in ((positive, POSITIVE, "positive"),
+                                  (negative, NEGATIVE, "negative")):
+        if not present.any():
+            continue
+        ax.plot(times[present], np.abs(values[present]), marker, color=colour,
+                markersize=size, linestyle="none",
+                markeredgewidth=1.6 if marker == "x" else 0.5,
+                label=f"{label_prefix}{sign}", zorder=3)
+        drawn.append(sign)
+    return drawn
+
+
+#: What the y axis is measuring, by the normalization the dataset declares.
+#: The three conventions differ by orders of magnitude and are easy to mistake
+#: for one another, so a figure that just says "response" is one a reader cannot
+#: check — and the convention is a property of the dataset precisely so it does
+#: not have to be asserted.
+#:
+#: TEM-specific: dB/dt is what a time-domain instrument measures. When a second
+#: method registers (#11) this belongs on the method adapter beside the gate-time
+#: axis, which is the same knowledge one level up.
+Y_UNITS = {
+    "raw": "instrument units",
+    "rx": "V/m$^2$",
+    "rx_tx": "V/(A$\\cdot$m$^4$)",
+}
+
+#: What the instrument measures. TEM-specific, like the units above.
+Y_QUANTITY = "dB/dt"
+
+
+def _y_label(dataset, absolute: bool = False) -> str:
+    """What the vertical axis is: the quantity, then its unit.
+
+    Built in two parts rather than one string so the absolute-value bars wrap
+    the quantity alone — ``|dB/dt| [V/m^2]`` rather than ``|dB/dt [V/m^2]|``,
+    which reads as the magnitude of a unit.
+    """
+    quantity = f"|{Y_QUANTITY}|" if absolute else Y_QUANTITY
+    unit = Y_UNITS.get(getattr(dataset, "normalization", None))
+    return f"{quantity} [{unit}]" if unit else quantity
+
+
 #: What a filter does to a transient, for drawing purposes.
 CULLING = "culling"            # removes data; show what went and why
 TRANSFORM = "transform"        # changes values; show before against after
@@ -192,19 +265,22 @@ def _culling(fig, before, after, channel, sounding, report):
     _, was, live_before = _transient(before, channel, sounding)
 
     ax = axes[0]
-    ax.plot(times, np.abs(was), "o-", color="0.6", markersize=3.5,
-            linewidth=1, label="before", zorder=1)
-    ax.plot(times, np.abs(kept), "o-", color="C0", markersize=3.5,
-            linewidth=1.2, label="kept", zorder=3)
+    # The line only — grey, behind, so the eye follows the shape of the decay
+    # while the markers carry sign and fate.
+    ax.plot(times, np.abs(was), "-", color=BEFORE, linewidth=1, zorder=1)
 
-    # The gates this step removed, marked where they were rather than dropped.
+    # Culled gates in light grey rather than by sign: they are gone, so they
+    # should recede and let the eye follow what survived. Sign colouring is
+    # reserved for data that is still in play, which is where a reader has a
+    # decision to make about it.
     went = live_before & ~live_after
     if went.any():
-        ax.plot(times[went], np.abs(was[went]), "x", color="C3", markersize=8,
-                markeredgewidth=1.6, label=f"culled ({int(went.sum())})",
-                zorder=4)
+        ax.plot(times[went], np.abs(was[went]), "x", color=CULLED,
+                markersize=8, markeredgewidth=1.8, linestyle="none",
+                label=f"culled ({int(went.sum())})", zorder=2)
+    _draw_transient(ax, times, was, live_after, "o", 4)
     _decorate(ax, channel, times)
-    ax.set_ylabel("|response|")
+    ax.set_ylabel(_y_label(after, absolute=True))
     ax.legend(fontsize=8, frameon=False)
     ax.set_title(f"{channel}", fontsize=9)
 
@@ -295,7 +371,7 @@ def _transform(fig, before, after, channel, sounding, report):
     ax.plot(times, np.abs(now), "o-", color="C0", markersize=3.5,
             linewidth=1.2, label="after")
     _decorate(ax, channel, times)
-    ax.set_ylabel("|response|")
+    ax.set_ylabel(_y_label(after, absolute=True))
     ax.legend(fontsize=8, frameon=False)
     ax.set_title(f"{channel}", fontsize=9)
     return fig
@@ -340,7 +416,7 @@ def _uncertainty(fig, before, after, channel, sounding, report):
                 label="estimated noise floor")
 
     _decorate(ax, channel, times)
-    ax.set_ylabel("|response| with uncertainty")
+    ax.set_ylabel(_y_label(after, absolute=True) + ", with uncertainty")
     # legend() on an axes with nothing labelled warns rather than drawing
     # nothing, which is noise on a correct path.
     if ax.get_legend_handles_labels()[0]:
