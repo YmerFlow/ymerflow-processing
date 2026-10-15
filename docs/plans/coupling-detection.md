@@ -89,13 +89,56 @@ ambiguous and one reading is signal. Elevation is the unambiguous case: no
 geology produces a smooth, symmetric, locally confined lift in dB/dt about a
 mapped conductor with a null directly over it.
 
-That narrows the filter and makes it more defensible. It also leaves a real
-question open, which belongs with `#5` rather than here: **what `cull_negatives`
-should do in polarizable ground.** Worth flagging now because the shipped
-`standard-processing.yaml` runs it with `spread_earlier: 1` and
-`disable_tail: true` — so on encountering IP it removes the gate, the gate
-before, and every gate after. In a clay-over-sand or mineralized setting that is
-a large deletion of real data, made by a default rather than a decision.
+That narrows the filter and makes it more defensible.
+
+### Culling IP is deliberate, and should be said out loud
+
+The above is not an argument that `cull_negatives` is wrong. **We cannot model
+IP at present**, and data the forward model cannot represent cannot be inverted
+correctly — so culling it is the honest response, and it is what the industry
+does. The same applies to three-dimensionality: everything here is 1D, which is
+a known flaw and also standard practice.
+
+What is worth changing is not the behavior but the **account of it**. The
+library should say that it is discarding signal and why, rather than implying a
+negative is merely noise. `filter_32`'s defence of `disable_tail` — "a transient
+does not recover once it has gone bad" — is true of coupling and of noise, and
+false of IP, where the transient is doing something physical and repeatable.
+Culling it is a decision forced by the inversion's assumptions, not a judgement
+about the data.
+
+Recording it that way costs nothing and matters later: when an IP-capable
+forward model arrives, the thing to revisit is findable, and anyone reading a
+culled dataset in the meantime knows what went and why.
+
+### The 1D assumption is a false-positive source for *this* detector
+
+This is the part that bears directly on the design rather than on documentation.
+
+A reconstruction-residual detector flags whatever its basis cannot reproduce. If
+the basis is built from 1D responses, then "implausible" means "not 1D" — and
+**genuine three-dimensional geology will produce reconstruction error**.
+
+Asif's auto-encoder has exactly this blind spot by construction: it is trained
+on a million forward responses from **1D** resistivity models, so a compact 3D
+conductor is as foreign to it as a powerline. The paper does not test that case.
+
+The consequence is pointed: a detector of this kind can cull the anomaly the
+survey was flown to find. That is a worse failure than missing a coupling,
+because a missed coupling produces a visible artifact somebody can question,
+while a culled target leaves nothing behind to notice.
+
+Two things follow:
+
+- **The profile criterion is less exposed to this than the reconstruction
+  criterion.** It keys on a geometric signature — symmetric, locally confined,
+  null in the centre — rather than on fidelity to a 1D model. A 3D conductor
+  produces an anomaly, but not generally a symmetric double peak with a null
+  directly over it.
+- **Any reconstruction criterion needs a 3D false-positive test** before it
+  culls anything in anger, and Kang's released SimPEG-EM makes one buildable:
+  simulate a compact 3D conductor with no powerline present and confirm the
+  detector leaves it alone.
 
 That is not inferred. `blossPowerlineContaminationAirborne2016` states it:
 
