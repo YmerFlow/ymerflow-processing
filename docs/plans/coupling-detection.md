@@ -154,8 +154,8 @@ and three things follow:
 1. **The monitor's role depends on context.** "Corroborates, never triggers" is
    right for hydrogeology, where missing a quiet crossing costs more than
    culling a conductor. In mineral exploration the costs invert, so
-   corroboration becomes close to mandatory. That is `require_corroboration` —
-   a parameter, not a constant.
+   corroboration becomes close to mandatory. That is the `corroborate` mode —
+   a setting, not a constant.
 2. **Neither criterion may run unsupervised on mineral data.** Belongs in the
    docstring, not only here.
 3. **The second pass is not optional there.** A tool that can discard the target
@@ -175,18 +175,29 @@ the detector has to be told which setting it is in; it cannot work that out.
 - **Neither moment is privileged.** The effect peaks in a *time window* near the
   LM/HM crossover rather than in a moment, so run on both. **Appendix C.**
 
-## Two systems: VTEM and SkyTEM
+## The systems: SkyTEM is the exception, not the template
 
-Both are in scope, and almost every number in this plan comes from one or the
-other rather than from both.
+All the major players are in scope — **SkyTEM, VTEM, HeliTEM and NRG** — and
+almost every number in this plan comes from SkyTEM, which is the one that is
+least like the others.
 
-| | SkyTEM | VTEM |
+| | SkyTEM | VTEM, HeliTEM, NRG |
 |---|---|---|
-| moments | dual — LM and HM | single |
-| high-rate delivery | yes | **sometimes** — a 10 Hz product, not guaranteed |
+| moments | dual — LM and HM | **single**, all three |
+| high-rate delivery | yes | **sometimes** — a 10 Hz product on VTEM, not guaranteed |
 | per-gate error estimates | yes | **no, never** |
-| in this plan | Kang's simulation and field data; Asif's airborne case | `bloss…2016`, `bloss…2017` |
-| currently being processed | yes | yes |
+| in this plan | Kang's simulation and field data; Asif's airborne case | `bloss…2016`, `bloss…2017` (VTEM) |
+
+**Single-moment is the normal case.** That simplifies two things and sharpens a
+third:
+
+- The LM/HM question (Appendix C) is a SkyTEM question only. Everywhere else
+  the whole burden falls on one transient and there is no moment to choose.
+- Network count, if the auto-encoder is ever built, is **one per system** rather
+  than two — four networks for four vendors, not seven.
+- But the three VTEM-like systems are also the three with **no error
+  estimates**, so the modeled denominator below is not a fallback for an edge
+  case. It is the path almost everything takes.
 
 **And "raw" is not raw.** Every vendor applies a processing layer between the
 instrument and the delivery, and what that layer does is not published. The
@@ -340,7 +351,7 @@ earlier draft argued for a light hand because over-culling is invisible — but
 that is the premise the three points above remove. With the confidence column
 and the culled-fraction report, over-culling is visible, while under-culling is
 the one that quietly smears. The guard against discarding real targets is
-`require_corroboration` where geology can imitate the pattern, not a globally
+the `corroborate` mode where geology can imitate the pattern, not a globally
 timid threshold.
 
 ## Shape of the step
@@ -356,7 +367,8 @@ already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
     window: 7                     # soundings smoothed over; Asif's W
     max_uncertainty: 0.2          # mask noise-dominated gates; Asif's delta_max
     confidence_column: qs_coupling  # write C_avg, so pass two can re-threshold
-    require_corroboration: false  # true where geology can imitate the pattern
+    corroborate: none             # none | plni | infrastructure | any | all
+    infrastructure: null          # vector geometry, as filter_30 takes it
     spread_earlier: 1
     disable_tail: true
 ```
@@ -433,24 +445,100 @@ uncertainty source moves them.
 
 ### Corroboration
 
-The powerline monitor **corroborates and never triggers — in hydrogeology**. No
-two crossings are alike, and a pole with poor grounding may produce almost no
-monitor response, so a detector gated on the monitor would miss the quiet
-crossings entirely. Where a monitor exists and agrees, confidence rises; where
-it is absent — 3133 soundings in the one real delivery have a flat monitor — the
-data decides alone.
+In hydrogeology the detector decides alone: no two crossings are alike, a pole
+with poor grounding may produce almost no monitor response, and a detector gated
+on a witness would miss the quiet crossings entirely. Where a witness exists and
+agrees, confidence rises; where it is absent — 3133 soundings in the one real
+delivery have a flat monitor — the data still decides.
 
-**Where geology can imitate the pattern, that inverts.** `require_corroboration:
-true` demands that at least one non-geophysical witness agree — an
-infrastructure layer, a monitor response, or a height excursion — before
-anything is culled. It trades false negatives for false positives deliberately,
-and it should default on for mineral surveys and off for hydrogeological ones.
+**Where geology can imitate the pattern, that inverts**, and the witness becomes
+a precondition rather than a bonus. So corroboration is a mode, not a boolean:
 
-A height excursion is worth wiring in: `height_above_ground` (qc_01) already
+```yaml
+corroborate: none        # none | plni | infrastructure | any | all
+infrastructure: ...      # vector geometry, as filter_30 takes it
+```
+
+| mode | cull when the pattern is found and… | |
+|---|---|---|
+| `none` | always | hydrogeology default |
+| `plni` | the monitor agrees | |
+| `infrastructure` | a mapped feature is within range | |
+| `any` | either agrees | |
+| `all` | both agree | strictest; protects targets hardest |
+
+This splits the ambiguity in "PLNI and shapefile": **`any` and `all` are
+different tools.** `all` is the conservative one — two independent witnesses
+must line up before anything is removed — and is the right default where the
+cost of culling a target is catastrophic. `any` is the middle setting, for a
+survey where the infrastructure layer is known to be patchy and the monitor
+known to be insensitive, so either alone is worth acting on.
+
+**The infrastructure layer needs almost nothing new.** `filter_30` already takes
+vector geometry as a *type* (a `GeoDataFrame`, with a path accepted for
+standalone runs), and already carries the thing a naive proximity test would get
+wrong: the exclusion distance **widens with gate time**, interpolated in `log t`
+between a first-gate and last-gate value, **per moment**, because late-time data
+senses a larger volume and is affected from further away. The coupling step
+should reuse that distance logic rather than reimplement it — the difference is
+only that `filter_30` culls on proximity while this queries it.
+
+It is also the one witness that is wholly independent of the geophysics, which
+is what makes it the most valuable. Its weakness is coverage: Kang had to find
+lines in satellite imagery that were in no database, and still noted "there
+could be other power lines that were not observed due to poor satellite imagery
+or other objects (e.g., trees) obscuring the power lines." **A missing line is
+normal; absence from the layer is not evidence of absence.**
+
+### How the PLNI channel was made changes what it is worth
+
+It changes it a lot, and the plan should not treat "the monitor" as one thing.
+Two vendor practices are in circulation:
+
+| | separate coil tuned to 50/60 Hz | bandpass of a late gate on the main receiver |
+|---|---|---|
+| independence | a genuinely separate sensor | derived from the same data stream being judged |
+| sensitivity | optimized for the frequency | works *against* the system's own 50/60 Hz rejection |
+| spatial response | its own position and orientation, so its peak need not coincide with the TEM receiver's | the receiver's |
+| failure at the crossing | degrades independently | degrades with whatever disturbed the stack |
+
+Three consequences:
+
+- **Corroboration is only worth something if it is independent.** A PLNI
+  bandpassed out of the same late gates the detector is examining is weaker
+  evidence than it appears, because a disturbance that moves one can move the
+  other. A tuned coil does not have this problem.
+- **A bandpass-derived PLNI is insensitive by construction.** TEM suppresses
+  50/60 Hz at acquisition deliberately — synchronous detection with alternating
+  transmitter polarity — so recovering a powerline field from the main receiver
+  means working against a rejection the system was designed around, with a
+  rejection ratio that varies with how well the base frequency is locked to the
+  mains. It will miss quiet lines that a tuned coil would see.
+- **So the sensible mode depends on which PLNI the survey has.** With a tuned
+  coil, `corroborate: plni` is reasonable. With a bandpass-derived channel,
+  requiring it can block legitimate culls, and `infrastructure` is the better
+  witness. **Record which one a survey carries**; it is a property of the
+  delivery, not of the step.
+
+**And in both cases the PLNI measures the wrong thing, slightly.** It senses
+the line's own 50/60 Hz emission, which says the line is present and energized
+— not that it is coupling to our transmitter. A de-energized line still couples
+inductively; a heavily loaded line with corroded grounding may emit strongly and
+couple weakly. The two are correlated, not the same, which is the deepest reason
+the monitor corroborates rather than triggers.
+
+Practically, that means the PLNI must be read **relatively** — elevated against
+this line's own baseline — never against an absolute threshold, because its
+calibration is vendor-specific and undocumented.
+
+### Height excursion
+
+Worth wiring in as a third witness: `height_above_ground` (qc_01) already
 computes it, pilots climb over powerlines, and the climb is coincident with the
-crossing by construction. Like the monitor, it corroborates and must not
-trigger — not every crossing gets a climb, and terrain produces climbs of its
-own.
+crossing by construction. It is the weakest of the three — not every crossing
+gets a climb, and terrain produces climbs of its own — so it belongs as an
+advisory input that raises confidence rather than as a mode of its own. If it
+later earns one, the enum above extends without changing shape.
 
 ## Cost, for a 2700 line-km survey at 30 m
 
@@ -520,10 +608,14 @@ not a per-survey one, and where a GPU forward model would pay for itself.
   departure? If not, the profile criterion has a real discriminator and the
   mineral restriction loosens. **The highest-value simulation to run**, and
   SimPEG can run it: one dipping plate, one power-line loop, same flight line.
-- **How is a survey's setting declared?** `require_corroboration` has to be set
-  by someone who knows whether conductive targets are expected. A project-level
+- **How is a survey's setting declared?** `corroborate` has to be set by
+  someone who knows whether conductive targets are expected. A project-level
   fact, not derivable from the data, so it probably belongs beside the other
   project configuration rather than buried in a step.
+- **Which PLNI derivation does each survey carry** — a tuned coil or a bandpass
+  of the main receiver? It decides whether `corroborate: plni` is sound or
+  actively harmful for that delivery, and it is not something the data
+  announces. Worth asking each vendor once and recording per survey.
 - **Which window** for the profile criterion — measured per crossing, or derived
   from flight height and line class? Measuring is probably better, with a
   derived value only bounding the search, because the realised extent runs well
