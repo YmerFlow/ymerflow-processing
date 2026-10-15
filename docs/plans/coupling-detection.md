@@ -356,6 +356,64 @@ timid threshold.
 
 ## Shape of the step
 
+### Flag or cull is two registrations, not a parameter
+
+The switch is wanted, and the library already has it — but as its central
+split rather than as an `action` argument. `core/qc/__init__.py`:
+
+> **QC writes attributes. Culling writes the mask.** … A check writes its Good /
+> Marginal / Out of Spec verdict as a column on `flightlines`, which changes
+> nothing about what the inversion sees. Culling writes the in-use mask, which
+> does. QC records a judgment; culling acts on one.
+
+An `action: flag | cull` parameter would straddle that boundary, and the two
+behaviors already have different entry-point groups and different runners. So:
+
+| | group | writes | |
+|---|---|---|---|
+| `coupling_detected` | `ymerflow.processing.qc` | a verdict column and the confidence, on `flightlines` | the flag |
+| `cull_by_coupling` | `ymerflow.processing.filters` | the mask and the provenance | the cull |
+
+**Two registrations over one detection core.** The reconstruction and profile
+criteria, the confidence metric, the smoothing and the corroboration check are
+shared; only the last act differs. You choose by which step goes in the chain,
+and a chain may hold **both** — QC first, so the verdict and the confidence are
+recorded whatever happens next, then the filter if this survey wants the cull.
+That is strictly better than a parameter, because the flag survives into the
+output even on a culling run, which is what pass two needs to reverse anything.
+
+Two things come free with the QC side:
+
+- **A representation already exists.** Verdicts are Good / Marginal / Out of
+  Spec (`core/qc/thresholds.py`), with four threshold kinds; coupling confidence
+  is `descending` — lower is worse. The per-line and per-flight rollups in
+  `aggregate.py` apply unchanged.
+- **Measuring without judging is the house stance.** `thresholds.py`: "A metric
+  with no threshold entry gets **no classification at all** rather than a
+  default." So the confidence is always written and a verdict appears only when
+  thresholds are supplied — exactly what `qc_05_powerline` already does.
+
+**What is not free is the plot.** Nothing in the frontend reads `qs_` columns
+today — a search for them returns nothing. So the flag has no representation in
+PlotView yet, and giving it one is real front-end work: a per-sounding verdict
+shaded along the profile, and the continuous confidence available underneath it.
+That is the one genuinely unbuilt piece in this half of the design.
+
+### `qc_05_powerline` has already solved the monitor baseline
+
+Worth knowing before writing any of the corroboration code. It finds **local
+peaks** in the monitor — "each sounding is compared to its neighbours — a
+rolling window along the line — rather than to the line as a whole" — because
+"the ambient level moves within a line", and a line flown from farmland into a
+town would otherwise read as one long spike.
+
+That is precisely the relative-not-absolute reading the PLNI section argues
+for, already implemented. **The corroboration check should consume qc_05's
+excess column rather than re-deriving a baseline**, which also means the two
+agree by construction instead of by coincidence.
+
+### The culling step
+
 One filter, several criteria, following `cull_by_external_evidence` — which
 already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
 
@@ -568,6 +626,11 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 
 ## Staging
 
+0. **The QC check.** `coupling_detected` — the detection core, the confidence
+   column, the verdict, no mask written. It is the smaller half of the work,
+   it is useful on its own as a QA/QC product, and it keeps the culling step
+   honest by existing separately. Needs a PlotView representation for `qs_`
+   columns, which does not exist yet and is front-end work.
 1. **The framework, with a linear reconstructor.** Residual in sigmas, the
    confidence metric and column, along-line smoothing, the fuzzy decision, mask
    and provenance. No new dependency. Testable against synthetic couplings now.
