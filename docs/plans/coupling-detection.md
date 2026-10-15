@@ -74,24 +74,26 @@ documents the effects in real ATEM data. Culling a negative is therefore not a
 neutral act of hygiene — it discards a measurement somebody else publishes
 methods to invert.
 
-**So `kangEffectPowerLines2021` is too narrow on this point.** It treats
-capacitive effects as arising from a buried insulated cable acting as a
-capacitor, and concludes that "without large metallic objects such as pipes, it
-will not be possible to observe significant capacitive coupling in AEM data."
-That is sound for the noise sources *that paper* set out to examine — those
-associated with water wells — but it is not the whole account of late-time
-oscillatory behavior in AEM, because polarizable geology produces it without
-any infrastructure present at all.
+**So "capacitive" is the wrong label for most of what we see, and it matters
+which sense is meant.** `kangEffectPowerLines2021` uses the term for a specific
+infrastructure mechanism — a buried insulated cable acting as a capacitor —
+and concludes within that scope that "without large metallic objects such as
+pipes, it will not be possible to observe significant capacitive coupling in AEM
+data." That is a statement about the well-associated noise sources that paper
+examines, and it is fine as such. It simply does not cover the late-time
+oscillatory behavior we most often meet, which is polarizable geology and needs
+no infrastructure at all. When this plan says the oscillatory signature is
+usually signal, it means **IP**, not that mechanism.
 
 ### What this means for scope
 
 **This detector targets smooth elevation only.** Sign reversals and late-time
 oscillation are explicitly out of scope, because the reading of them is
-ambiguous and one reading is signal. Elevation is the unambiguous case: no
-geology produces a smooth, symmetric, locally confined lift in dB/dt about a
-mapped conductor with a null directly over it.
+ambiguous and one reading is signal.
 
-That narrows the filter and makes it more defensible.
+That narrows the filter. It does **not** make the remaining case unambiguous —
+see "The double peak is not diagnostic" below. Smooth elevation is the half we
+can look for; it is not a half that geology cannot produce.
 
 ### Culling IP is deliberate, and should be said out loud
 
@@ -160,15 +162,14 @@ it measures, and worth keeping in those words.
 
 Two things follow:
 
-- **The profile criterion is less exposed to this than the reconstruction
-  criterion.** It keys on a geometric signature — symmetric, locally confined,
-  null in the centre — rather than on fidelity to a 1D model. A 3D conductor
-  produces an anomaly, but not generally a symmetric double peak with a null
-  directly over it.
-- **Any reconstruction criterion needs a 3D false-positive test** before it
-  culls anything in anger, and Kang's released SimPEG-EM makes one buildable:
-  simulate a compact 3D conductor with no powerline present and confirm the
-  detector leaves it alone.
+- **The profile criterion is exposed differently, not less.** It keys on a
+  geometric signature rather than on fidelity to a 1D model — but that signature
+  is produced by a whole class of real targets, which is the subject of the next
+  section. Neither criterion is safe here; they fail on different geology.
+- **Any criterion needs a 3D false-positive test** before it culls anything in
+  anger, and Kang's released SimPEG-EM makes one buildable: simulate a steeply
+  dipping sheet conductor with no powerline present and confirm the detector
+  leaves it alone.
 
 That is not inferred. `blossPowerlineContaminationAirborne2016` states it:
 
@@ -233,10 +234,11 @@ pattern **sweeps across the gates** as the system passes:
 > data points afterward.
 
 That is a signature in the time–distance plane, not just in distance, and it is
-ordered: late gates light up first on approach and go out last on departure.
-Geology crossing a flight line does not do that. It is probably the strongest
-single discriminator available to the profile criterion, and it is free — the
-data is already a 2D array of gate against distance.
+ordered: late gates light up first on approach and go out last on departure. It
+is the strongest discriminator the profile criterion has, and it is free — the
+data is already a 2D array of gate against distance. Whether geology can imitate
+*this* as well as it imitates the double peak is an open question, and the next
+section is why that question matters.
 
 A per-sounding detector run across this pattern does the wrong thing twice: it
 flags the flanks and **keeps the centre**, leaving an island of apparently good
@@ -244,6 +246,73 @@ data directly over the conductor.
 
 Detecting the pattern rather than the sounding is the contribution available
 here, and it is ours.
+
+### The double peak is not diagnostic
+
+An earlier draft of this plan claimed no geology produces a symmetric, locally
+confined elevation with a null directly over it. **That is wrong, and the
+counter-examples are ordinary exploration targets.**
+
+**A steeply dipping conductive sheet is a current loop in a vertical plane.**
+Kang's flux-cancellation argument is a statement about geometry, not about
+infrastructure: directly above a vertical conductor, the induced current flows
+in a vertical plane and the field it produces at the receiver is horizontal, so
+the vertical component nulls. Move off to either side and the coupling grows,
+peaks, and falls away. **The same symmetric double peak with a central trough,
+from geology, with no powerline present.** It is the textbook signature of a
+steeply dipping conductor, and recognising it is how one is identified.
+
+**Off-line conductors also channel current into themselves and are seen from
+away**, which widens the problem beyond bodies directly under the line.
+Graphitic faults and shear zones, tilted banded iron formation, conductive
+stratigraphy — these gather regional induced current, concentrate it, and
+produce a confined anomaly whose peak is not where the aircraft is.
+
+So the profile criterion is not the safe one. It has a false-positive class of
+its own, and **it is the same class as the reconstruction criterion's**: the
+conductive, compact, strongly responding bodies a mineral survey exists to find.
+Both criteria can cull the target, arriving by different routes — one because
+the target is not 1D, the other because the target is shaped like a power line.
+
+**What actually separates them, and what does not:**
+
+| | discriminates? |
+|---|---|
+| symmetric double peak with central null | **no** — a vertical sheet gives the same |
+| strict symmetry | **partly** — a *tilted* body is asymmetric, so symmetry argues against dip, but a vertical graphitic fault is symmetric too |
+| peak separation vs flight height | **weakly** — a shallow source gives a narrower pattern; a deep conductor a broader one |
+| ruler-straight over kilometres, constant bearing across many flight lines | **somewhat** — geology is linear too, but it bends, splays and varies in strength along strike |
+| the sweep-across-gates ordering | **unknown** — worth testing, see open questions |
+| an infrastructure layer | **yes** |
+| the powerline monitor | **yes, where it responds** |
+| a height excursion over the crossing | **yes, where the pilot climbed** |
+
+The pattern is three-quarters of the way down that table before anything
+reliable appears, and everything reliable is **non-geophysical**. That is the
+finding.
+
+**Three consequences, and they are not small:**
+
+1. **The powerline monitor's role has to change with context.** This plan says
+   it "corroborates and never triggers," which is right for hydrogeology, where
+   the cost of missing a quiet crossing exceeds the cost of culling a conductor.
+   In mineral exploration the costs invert: culling the target is the
+   catastrophic outcome, so corroboration becomes close to mandatory. That is a
+   parameter — `require_corroboration` — not a constant, and its default should
+   follow the survey's purpose.
+2. **The reconstruction criterion must not run unsupervised on mineral data**,
+   which was already the conclusion from Asif's own scoping. The profile
+   criterion now inherits the same restriction rather than being the escape from
+   it.
+3. **The second pass is not optional in that context.** A tool that can discard
+   the target needs a human reading what it discarded, which is the workflow
+   described below and an argument for building the confidence column before the
+   cull rather than after.
+
+This does not sink the approach. Most of the surveys in hand are hydrogeological
+or in sedimentary settings where a bedded clay layer is not going to imitate a
+vertical sheet. But the detector has to know which setting it is in, and it
+cannot work that out for itself.
 
 ## The trough is physics, and the window is derivable
 
@@ -289,7 +358,9 @@ area of the power-line loop is proportional to the moment of the power-line
 loop, which is equivalent to the product of the current and the area of the
 power-line loop." The loop area is **span × pole height**, so a transmission
 line on 40 m towers at 350 m spans encloses roughly seventeen times the area of
-the case simulated.
+the case simulated. (**Area is not the whole story** — inductance rises with
+loop size and limits the current it can carry. See "Resistance is not
+resistivity" below.)
 
 `blossPowerlineContaminationTimedomain2017` Fig. 2-6 separates the classes for
 exactly this reason — transmission above 230 kV, subtransmission around 100 kV,
@@ -325,8 +396,13 @@ state:
 | grows with | shrinks with |
 |---|---|
 | span × pole height (loop area) | transmitter height |
-| conductivity of the ground pathway | ground contact resistance (unknowable) |
-| number of contributing loops, to ~15 | catenary sag |
+| number of contributing loops, to ~15 | **total loop resistance**, which is contact resistance (unknowable) |
+| | loop inductance, which rises with loop size |
+| | catenary sag |
+
+Note what is *absent*: the bulk resistivity of the ground. It enters only weakly,
+through the electrode contact resistance, and the earth-return term is
+negligible at any plausible value — see "Resistance is not resistivity" below.
 
 The search width should come from the survey's own flight height, its average
 resistivity, and **the line class where that is known** — an infrastructure
@@ -337,17 +413,176 @@ runs well under the predicted one and varies pole to pole.
 
 **Two further consequences for the detector:**
 
-- **The low moment carries the signature more strongly.** "the LM response shows
-  a stronger double-peak signature than the HM response … due to the limited
-  frequency spectrum of the power-line effect, which is mostly included in the
-  LM response." As ρ_g falls, lower-frequency content grows and the effect
-  reaches later gates. So LM is the better place to look first, which is the
-  opposite of Asif's tTEM choice to train on HM.
-- **Conductive ground makes it worse**, and also makes the earth response
-  smaller — "an increase in ρ_background causes a decrease in the amplitude of
-  the subsurface signals, resulting in a net increase in the percentage
-  power-line effect." A fixed amplitude threshold would therefore be wrong in
-  both directions across a survey.
+- **Which moment carries it is not settled, and the paper argues both ways.**
+  See below — this was initially read out of Kang as "LM is the better place to
+  look first," and that is wrong as a design decision.
+- **Resistive ground does not protect you** — see "Resistance is not
+  resistivity" below, which is the largest disagreement with Kang in this plan.
+  What survives from Kang is the *percentage* argument, and it runs the other
+  way: "an increase in ρ_background causes a decrease in the amplitude of the
+  subsurface signals, resulting in a net increase in the percentage power-line
+  effect." A fixed amplitude threshold is therefore wrong in both directions
+  across a survey.
+
+### What limits the loop current is contact resistance, not the background
+
+The detector needs a prior about *where* coupling is likely, and the obvious one
+— that resistive terrain is safer — does not hold up. It is worth setting out
+why, because it is the difference between looking everywhere and looking
+selectively.
+
+Treat the skywire as a circuit, which is what
+`blossPowerlineContaminationTimedomain2017` §2.2.4.2 does: six resistive
+elements — the top wire, two pole wires, the earth return, and two contact
+resistances at the grounding points. The conductor terms are trivial. The
+interesting one is the earth return, and it behaves in a way that is easy to get
+backwards.
+
+Current between two grounded poles does not run along a narrow corridor; it
+spreads into the half-space as a curved bundle of flow lines — the current
+banana. Borrowing the pole-pole array from DC resistivity, the transfer
+resistance between two surface electrodes separated by `a` is
+
+```
+R_earth = ρ / (2 π a)
+```
+
+**inversely** proportional to separation, so longer spans have *lower*
+earth-return resistance.
+
+That is not a quirk of the pole-pole array. It is the general result the
+electrical and MT literature states in plainer form: **more volume engaged means
+more parallel current pathways means lower resistance.** Widening the electrode
+separation drives current deeper and wider, recruits more of the half-space, and
+the resistance falls. Any intuition built on "longer path, more resistance" —
+which is what a fixed-cross-section model encodes — has the sign wrong.
+
+The thesis works an example: a 100 m span on a 100 Ω·m
+half-space gives **0.16 Ω**, against 4.8 mΩ for 150 m of conductor. Take the case
+that intuition says is protective — **1000 Ω·m with poles 30–40 m apart — and it
+is still only 5.3 to 4.0 Ω.** Single digits on ground an order of magnitude more
+resistive than most survey areas.
+
+So the earth return is almost never the limiting term, and the thesis says what
+is: "Neglecting the CR at the grounding points the total resistance of the
+Skywire is 0.16 Ω! This low number suggests that the CR is the limiting factor
+here." **Contact resistance at the electrodes dominates the circuit** — aimed at
+<20 Ω, degrading unpredictably with corrosion, construction and season — and it
+is the one quantity no survey can measure.
+
+Three things follow:
+
+1. **Do not deprioritise resistive terrain.** Bulk resistivity enters the loop
+   only weakly, so a 300+ Ω·m survey area is not thereby safe. The *percentage*
+   effect moves the other way as well — a resistive background has a weaker
+   earth response, so the same absolute coupling is a larger fraction of the
+   signal. Resistive ground may be the harder case.
+2. **The threshold that matters is a circuit threshold.** The thesis found one
+   by varying loop resistance directly: "Resistances above 100 ohms yield
+   Skywire contributions so low in amplitude that when superimposed on the
+   geologic response the data were largely unchanged." That is total loop
+   resistance, overwhelmingly contact resistance — and it fits Kang's field
+   observation that clean soundings appear from only ~60% of the predicted
+   distance, which they attribute to "degradation of the grounded electrodes".
+   Both are saying the grounding decides.
+3. **Which is the snowflake problem, restated as a circuit.** The quantity that
+   decides whether a crossing is loud or silent is the one that cannot be known,
+   so the detector must carry no prior about which surveys or which crossings
+   will be affected. It has to look everywhere.
+
+**This also tempers the transmission-versus-distribution scaling above.** Loop
+area raises the EMF, but inductance rises with loop size and limits the current
+that results: the thesis gives **0.67 mH** for a 225 m × 20 m transmission-style
+skywire against **0.14 mH** for a 100 m × 10 m one, and finds that "as inductance
+increases, the maximum amplitude of the Skywire response lessens", with the
+response pushed later in time. So bigger lines are not simply "17× worse" — this
+plan said that too confidently. The search *window* should still scale with loop
+size; the amplitude does not scale with it the same way.
+
+### LM or HM? The effect lives in a time window, not in a moment
+
+This decides where the detector looks, so it is worth getting right.
+
+**Field experience is that the LM sees less powerline effect than the HM.** The
+simulation result in `kangEffectPowerLines2021` is LM-stronger for the case
+modeled there — "the LM response shows a stronger double-peak signature than the
+HM response … due to the limited frequency spectrum of the power-line effect,
+which is mostly included in the LM response" (E131) — and the paper also notes
+that the ordering reverses under other conditions, so HM-dominance is within
+what it describes rather than against it. The two accounts are reconcilable, and
+the reconciliation is useful to the design.
+
+**1. The controlling variable is where the loop puts its energy in time.** Lower
+loop resistance lengthens the time constant and pushes the response later;
+higher resistance pulls it earlier. Kang see this in ρ_g (E131, and Figure 9,
+where the late-time HM effect grows steadily as ρ_near falls from 340 to
+1 Ω·m), and `blossPowerlineContaminationTimedomain2017` §3.1.2.4 sees the same
+thing in a different code by varying the loop resistance directly:
+
+> As Skywire resistance increases, the observed anomaly is earlier in time and
+> as Skywire resistance decreases the observed anomaly is pushed to later times.
+
+Two independent codes, same dependence. So whichever moment's gates happen to
+sit over that time window is the one that looks worst — and since loop
+resistance is dominated by contact resistance, which varies pole to pole, so
+does the answer.
+
+**2. Kang's field data shows the effect peaking between the two moments.**
+From E134, on real SkyTEM 312 data:
+
+> (1) the magnitude of the power-line effect in the LM data **increases with
+> increasing time channel**, and (2) the power-line effect in the HM data **is
+> strong in the early time channels, but it decreases with the increasing time
+> channels**.
+
+LM spans 0.016–1.4 ms and HM spans 0.36–11 ms, so those two trends point at the
+same place: the effect is maximal in the **overlap window, roughly 0.4–1.4 ms**,
+and falls away on both sides of it. Late LM gates and early HM gates are the
+same times.
+
+That reframes the question. **The powerline effect peaks in a time window, not
+in a moment.** Which moment appears worse is then a question of where that
+window sits relative to each moment's gates, how large the earth response is
+there, and how conductive the ground is — all survey-dependent.
+
+**3. And Kang identify a mechanism that suppresses the LM in the field.** They
+note their measured LM effect comes in below the simulated one, and say why:
+
+> we expect and see the first few time channels of the LM data show a power-line
+> effect smaller in magnitude than the simulation results; this is due to the
+> increasing flight height around the power line.
+
+**Pilots climb over powerlines.** They also show (E132) that "the LM response
+shows greater sensitivity to changes in h than does the HM response," because
+early gates decay geometrically faster with height. Together those give the
+field observation its mechanism: the aircraft is higher than nominal at exactly
+the crossing, and the LM early gates are the most height-sensitive part of the
+dataset, so the LM effect is preferentially knocked down right where the line
+is. It is the paper's own explanation of why field LM is quieter than modeled
+LM, and it generalises.
+
+**What the detector should do:**
+
+- **Run on all moments, and do not privilege one.** On a dual-moment system that
+  is two passes; on single-moment VTEM the question does not arise.
+- **Expect the strongest signature near the LM/HM crossover**, and treat the
+  time axis as part of the pattern rather than collapsing it — which the
+  sweep-across-gates ordering above already requires.
+- **Treat a height excursion as a corroborating covariate.** `height_above_ground`
+  (qc_01) already computes it. A climb coincident with a candidate profile
+  anomaly is evidence for a line, and it is free. Like the powerline monitor, it
+  corroborates and must not trigger — not every crossing gets a climb, and
+  terrain produces climbs of its own.
+- **Do not calibrate an amplitude threshold on simulated LM data.** It will be
+  optimistic by whatever the pilot did.
+
+**And TPPE is a ratio** — worth remembering when comparing anything to anything.
+Kang's 44% is a percentage of the subsurface response, so a moment can look
+worse simply by having a weaker earth signal at the times it measures. They make
+the same point themselves: a more resistive background gives "a net increase in
+the percentage power-line effect" with no change in the coupling. Absolute and
+percentage comparisons are different questions, and the one that matters for
+inversion damage is the percentage.
 
 **And it may solve the validation problem.** Kang released the Jupyter notebooks
 that generated the paper's examples, and the 3D simulation code is SimPEG-EM —
@@ -546,6 +781,7 @@ already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
     window: 7                     # soundings smoothed over; Asif's W
     max_uncertainty: 0.2          # mask noise-dominated gates; Asif's delta_max
     confidence_column: qs_coupling  # write C_avg, so pass two can re-threshold
+    require_corroboration: false  # true where geology can imitate the pattern
     spread_earlier: 1
     disable_tail: true
 ```
@@ -621,11 +857,20 @@ evidence behind them — with a note in the docstring that they were calibrated
 against measured stack scatter on tTEM and SkyTEM, and that a different
 uncertainty source moves them.
 
-The powerline monitor **corroborates and never triggers**. No two crossings are
-alike, and a pole with poor grounding may produce almost no monitor response, so
-a detector gated on the monitor would miss the quiet crossings entirely. Where a
-monitor exists and agrees, confidence rises; where it is absent — 3133 soundings
-in the one real delivery have a flat monitor — the data decides alone.
+The powerline monitor **corroborates and never triggers — in hydrogeology**. No
+two crossings are alike, and a pole with poor grounding may produce almost no
+monitor response, so a detector gated on the monitor would miss the quiet
+crossings entirely. Where a monitor exists and agrees, confidence rises; where
+it is absent — 3133 soundings in the one real delivery have a flat monitor — the
+data decides alone.
+
+**Where the geology can imitate the pattern, that inverts.** Because a steeply
+dipping conductor produces the same profile signature, culling on the pattern
+alone risks the target; `require_corroboration: true` demands that at least one
+non-geophysical witness agree — an infrastructure layer, a monitor response, or
+a height excursion — before anything is culled. It trades false negatives for
+false positives deliberately, and it should be the default on mineral surveys
+and off on hydrogeological ones.
 
 ## Cost, for a 2700 line-km survey at 30 m
 
@@ -676,6 +921,19 @@ would pay for itself.
   `estimate_noise_model` has different statistics from measured stack scatter,
   so 2.5 and 0.99 are not transferable on their face. `parameter_sweep` against
   a manually processed line is the way to find out, once per system.
+- **Does the sweep-across-gates ordering survive as a discriminator?** It is the
+  one candidate left that is geophysical rather than circumstantial. The
+  question is whether a steeply dipping conductor, approached along a flight
+  line, produces the same ordered progression through the gates that Asif
+  describe for a coupling — late first on approach, early first on departure.
+  If it does not, the profile criterion has a real discriminator and the
+  mineral-survey restriction loosens; if it does, corroboration is the only
+  thing left. **This is the highest-value simulation to run**, and SimPEG can
+  run it: one dipping plate, one power-line loop, same flight line.
+- **How is a survey's setting declared?** `require_corroboration` has to be set
+  by someone who knows whether conductive targets are expected. That is a
+  project-level fact, not something derivable from the data, and it probably
+  belongs beside the other project configuration rather than buried in a step.
 - **Which window** for the profile criterion. Kang's 174 m is for a 10 m × 80 m
   distribution-line loop and does not transfer to transmission lines, whose
   loops enclose an order of magnitude more area. The dependence is known —
