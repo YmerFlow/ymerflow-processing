@@ -242,6 +242,18 @@ def test_a_parameter_description_stops_at_its_own_entry():
         assert "Returns ``(dataset" not in (REFERENCE_DIR / name).read_text()
 
 
+def test_descriptions_and_summary_are_readable_one_step_at_a_time():
+    """A form built for one step reads these directly, not the generated
+    markdown."""
+    cull_negatives = load_steps(FILTER_GROUP)["cull_negatives"]
+    described = reference.parameter_descriptions(cull_negatives)
+    assert set(described) == {"start_gate", "spread_earlier", "disable_tail"}
+    assert described["start_gate"].startswith("Where evaluation begins")
+    assert "Returns" not in described["disable_tail"]
+    assert reference.summary(cull_negatives) == (
+        "Disable gates whose measured value is negative.")
+
+
 def test_the_agent_index_carries_what_a_signature_cannot():
     """Ordering and invariants are what a plausible-looking wrong pipeline gets
     wrong, and neither is inferable from a signature."""
