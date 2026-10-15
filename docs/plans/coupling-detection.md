@@ -371,33 +371,83 @@ behaviors already have different entry-point groups and different runners. So:
 
 | | group | writes | |
 |---|---|---|---|
-| `coupling_detected` | `ymerflow.processing.qc` | a verdict column and the confidence, on `flightlines` | the flag |
-| `cull_by_coupling` | `ymerflow.processing.filters` | the mask and the provenance | the cull |
+| `coupling_detected` | `ymerflow.processing.qc` | a **proposed mask**, plus a per-sounding confidence | the flag |
+| `cull_by_coupling` | `ymerflow.processing.filters` | the real mask and the provenance | the cull |
 
 **Two registrations over one detection core.** The reconstruction and profile
 criteria, the confidence metric, the smoothing and the corroboration check are
 shared; only the last act differs. You choose by which step goes in the chain,
-and a chain may hold **both** — QC first, so the verdict and the confidence are
-recorded whatever happens next, then the filter if this survey wants the cull.
-That is strictly better than a parameter, because the flag survives into the
-output even on a culling run, which is what pass two needs to reverse anything.
+and a chain may hold **both** — QC first, so the proposal is recorded whatever
+happens next, then the filter if this survey wants the cull. That is strictly
+better than a parameter, because the proposal survives into the output even on
+a culling run, which is what pass two needs to reverse anything.
 
-Two things come free with the QC side:
+#### The flag has to be per gate, which the verdict column cannot do
 
-- **A representation already exists.** Verdicts are Good / Marginal / Out of
-  Spec (`core/qc/thresholds.py`), with four threshold kinds; coupling confidence
-  is `descending` — lower is worse. The per-line and per-flight rollups in
-  `aggregate.py` apply unchanged.
-- **Measuring without judging is the house stance.** `thresholds.py`: "A metric
-  with no threshold entry gets **no classification at all** rather than a
-  default." So the confidence is always written and a verdict appears only when
-  thresholds are supplied — exactly what `qc_05_powerline` already does.
+Every QC check so far judges **auxiliary data** — altimeter, tilt, speed,
+current — single channels that describe a whole sounding, so a verdict column
+on `flightlines` fits exactly. **Coupling is not like that.** It affects a band
+of gates, the band moves with distance from the line, and the whole
+time-window finding (Appendix C) says *which* gates is the information. One
+value per sounding throws that away.
 
-**What is not free is the plot.** Nothing in the frontend reads `qs_` columns
-today — a search for them returns nothing. So the flag has no representation in
-PlotView yet, and giving it one is real front-end work: a per-sounding verdict
-shaded along the profile, and the continuous confidence available underneath it.
-That is the one genuinely unbuilt piece in this half of the design.
+So the QC side writes a **proposed mask** into `layer_data` — same shape and
+same encoding as `inuse_{channel}`, under a **prefixed** key so it stays
+outside the anchored channel-discovery patterns, which is the lesson `why_`
+already encodes. Five things fall out of reusing the mask's own shape:
+
+1. **It is per gate**, which is what the phenomenon is.
+2. `culled_fraction` arithmetic works by pointing at a different array.
+3. The figure code in `figures.py` already draws culling; it needs no new shape.
+4. Promoting a flag run to a cull run is a copy.
+5. **It is the same object the frontend's edit format already carries** — see
+   below, which is the part worth building around.
+
+The per-sounding confidence column stays, but with a different job: it is the
+**index**, not the payload. It drives the per-line and per-flight rollups in
+`aggregate.py`, and it is what somebody scans to find which crossings to look
+at. The proposed mask is what they then look at.
+
+#### The per-gate view is the easy one to draw, not the hard one
+
+Worth checking before assuming this is expensive. `ChannelPlot` already renders
+a **four-state per-gate overlay**, GPU-shaded:
+
+```
+0 = auto-enabled       1 = manually-enabled
+2 = auto-disabled      3 = manually-disabled
+```
+
+State is computed per sounding **per gate**, from the committed mask overlaid
+with a pending in-memory edit. So the plot already distinguishes *what the
+pipeline did* from *what a human proposed*, at gate resolution, today.
+
+A flag is a third category of the same kind — proposed by the algorithm rather
+than by a person — so it is one more state in a shader that already branches on
+four, fed by an array shaped exactly like one it already reads.
+
+By contrast, **nothing in the frontend reads `qs_` columns at all** — a search
+returns nothing, for any QC check. So the per-sounding verdict route, which
+looked like the cheap one, has no rendering whatsoever, while the per-gate route
+is mostly there. That is the opposite of the intuition and it decides the design.
+
+#### Which closes the loop with the manual-edit machinery
+
+The frontend's edit format is `layer_data["InUse_{channel}"]` with **NaN meaning
+no override**, addressed by `flightlines.apply_idx`, marked by
+`model_info.diff_dummy`. **A proposed mask is that object**, with 0 where the
+detector proposes culling and NaN everywhere else.
+
+So a flagging run can emit a diff that the existing editor loads and renders,
+a person brushes to adjust, and `apply_manual_edits` (filter_33) applies —
+through machinery that is already built and tested. The detector's proposal and
+a human's correction become the same kind of thing, which is exactly the
+two-pass workflow, and nothing new has to be invented to carry it.
+
+The one gap: the frontend builds that overlay from its own in-memory reducer,
+not from a diff loaded off storage. Giving it a path to load a pipeline-emitted
+diff is the real front-end work here — smaller than a new visualization, and it
+makes every future proposing filter reviewable the same way.
 
 ### `qc_05_powerline` has already solved the monitor baseline
 
@@ -626,11 +676,13 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 
 ## Staging
 
-0. **The QC check.** `coupling_detected` — the detection core, the confidence
-   column, the verdict, no mask written. It is the smaller half of the work,
-   it is useful on its own as a QA/QC product, and it keeps the culling step
-   honest by existing separately. Needs a PlotView representation for `qs_`
-   columns, which does not exist yet and is front-end work.
+0. **The QC check.** `coupling_detected` — the detection core, the per-sounding
+   confidence, and a **proposed mask** per gate; the real mask untouched. The
+   smaller half of the work, useful on its own as a QA/QC product, and it keeps
+   the culling step honest by existing separately. Emitting the proposal in the
+   existing diff format makes it reviewable in the editor that already exists;
+   the front-end work is a path to load a pipeline-emitted diff, plus one more
+   state in `ChannelPlot`'s overlay.
 1. **The framework, with a linear reconstructor.** Residual in sigmas, the
    confidence metric and column, along-line smoothing, the fuzzy decision, mask
    and provenance. No new dependency. Testable against synthetic couplings now.
