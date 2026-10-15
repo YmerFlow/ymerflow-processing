@@ -732,41 +732,65 @@ it has to produce.
 produces a model and a misfit. Nobody adjudicates individual soundings. The
 output is a defensible first answer and the evidence needed to question it.
 
-**Pass two is guided by pass one.** A human reads the first result and adjusts
-the culling — more in places, less in others — then reruns. `apply_manual_edits`
+**Pass two is guided by pass one.** A human reads the first result and adjusts:
+add culled data back, leave it, or cull more by hand. `apply_manual_edits`
 (filter_33) is already the checkpoint for exactly this, and `version_diff` and
 `parameter_sweep` in the compare group already exist to show what changed.
 
-Three design consequences, all of which cost little if done from the start and
-are awkward to retrofit:
+### Pass one culls. It does not merely flag
+
+**Decided.** The alternative — flag the suspect data, leave it in, let a human
+decide later — is tempting because it cannot delete a target. It is wrong here,
+for three reasons.
+
+**The model is the QC instrument, so it has to be clean enough to read.** You
+cannot look at a transient and pronounce it good; that judgement is only
+available downstream, as whether the data inverted into something sensible. So
+the first-pass product is the model and its misfit, and anything that degrades
+the model degrades the instrument. Leaving coupling in to be safe corrupts the
+very thing pass one exists to produce.
+
+**Coupling does not stay where you left it.** Uncalled, it does not sit quietly
+in a few soundings — lateral and spatial constraints and the regularisation
+spread it, which is the documented failure in
+`blossPowerlineContaminationAirborne2016`: false conductors "get smeared out into
+the model domain." A flag on three soundings does not contain an artifact that
+ends up thirty soundings wide. Convergence suffers too, and Asif measured the
+other side of it: inversion of automatically processed data "takes fewer
+iterations to converge as compared to the manually processed data due to the
+improved handling of the couplings."
+
+**And the cull is reversible, so it is not the risky act.** Pass two reruns from
+the original data regardless — culling is subtractive, so nothing is ever
+un-culled in place — which means a pass-one cull costs nothing permanent. The
+irreversible failure is not *removing* the target; it is **nobody noticing that
+it was removed**. That is a reporting problem, and it is solvable.
+
+So the design obligation moves from "do not cull" to **"cull legibly."** Three
+consequences, each cheap at the start and awkward to retrofit:
 
 - **Write the confidence, not only the verdict.** If the step records `C_avg`
   per sounding as a column alongside the mask, pass two has a continuous field
-  to re-threshold and a figure that shows *how close to the line* each sounding
-  sat. Without it, "cull more" is a blind re-run; with it, it is a judgement
+  to re-threshold and a figure showing *how close to the line* each sounding
+  sat. Without it, "put some back" is a blind re-run; with it, it is a judgement
   about a visible margin. This is the single change that makes the two-pass
   workflow work, and it is one array.
 - **The coupling cull must be distinguishable in the provenance.** The library
   already writes `why_` arrays with a step code, so this is nearly free — but
-  pass two needs to find *coupling* culls specifically among everything else
-  that culled a gate, in order to reverse some of them.
-- **Pass two adjusts parameters, not the mask.** Culling is subtractive, so
-  nothing can be un-culled in place; a lighter second pass is a rerun from the
-  original data with different thresholds, plus manual edits on top. That is
-  already how the runner works, and it means the thresholds are the control
-  surface — which is what makes the next section matter.
+  pass two has to find *coupling* culls specifically, among everything else that
+  culled a gate, to reverse them selectively.
+- **What the filter took must appear in the report, not just in the mask.**
+  `culled_fraction` (qc_12) exists; it needs to break out this step so a reader
+  sees at a glance that the coupling filter removed 4% of the survey, and where.
+  A cull that is reported is a cull somebody can argue with.
 
-**Default to the lighter hand.** Both failure modes cost, but they differ in
-detectability: coupled data left in produces false conductors that a reader can
-see and question, while a culled target leaves nothing behind to notice. Pass
-one's job is to produce something judgeable, so it should fail in the visible
-direction and let pass two tighten. This is the same argument as the 3D
-false-positive section above, arriving from the workflow rather than the physics.
-
-A practical note from Asif worth having: inversion of their automatically
-processed data "takes fewer iterations to converge as compared to the manually
-processed data due to the improved handling of the couplings." If that holds
-here, pass one is cheaper than the manual baseline as well as faster.
+**Default to Asif's calibrated thresholds**, not deliberately light ones. An
+earlier draft argued for a light hand on the grounds that over-culling is
+invisible — but that was the premise the three points above remove. With the
+confidence column and the culled-fraction report, over-culling is visible, while
+under-culling is the one that quietly smears. The guard against discarding real
+targets is `require_corroboration` in settings where geology can imitate the
+pattern, not a globally timid threshold.
 
 ## Shape of the step
 
