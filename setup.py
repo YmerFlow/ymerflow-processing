@@ -4,6 +4,7 @@ setup(
     name="ymerflow-processing",
     version="0.1.0",
     description="Airborne geophysical data processing, QC and comparison for YmerFlow",
+    license="GPL-3.0-or-later",
     packages=find_packages(),
     # 02's first lever: "load a standard chain and adjust it" only works if
     # the chains install with the package.
