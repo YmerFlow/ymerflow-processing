@@ -2,7 +2,9 @@
 
 **Status:** planned, not started. Literature reviewed 2026-10-15.
 **Decided:** detect and cull only, never repair. The powerline monitor
-corroborates; it does not trigger.
+corroborates; it does not trigger. Primarily a **QA/QC tool**, run unattended on
+a first pass and adjusted by hand on a second. Both **VTEM and SkyTEM** are in
+scope.
 
 ## The problem, stated by the sources
 
@@ -121,12 +123,40 @@ the basis is built from 1D responses, then "implausible" means "not 1D" — and
 
 Asif's auto-encoder has exactly this blind spot by construction: it is trained
 on a million forward responses from **1D** resistivity models, so a compact 3D
-conductor is as foreign to it as a powerline. The paper does not test that case.
+conductor is as foreign to it as a powerline. They do not test the case, but
+they do state it plainly:
+
+> If there are 2-D or 3-D effects in the data that cannot be represented by any
+> 1-D resistivity model, a low confidence value may be obtained for such data,
+> which consequently might be identified as an anomaly by our expert system.
+
+Their proposed remedy is to build a 2D/3D model database, which they
+acknowledge "would be much more computationally expensive." It is not available.
 
 The consequence is pointed: a detector of this kind can cull the anomaly the
 survey was flown to find. That is a worse failure than missing a coupling,
 because a missed coupling produces a visible artifact somebody can question,
 while a culled target leaves nothing behind to notice.
+
+**And it gets sharper outside hydrogeology.** Asif scope their work explicitly:
+
+> Our methodology is designed in a hydro-geological context. If the
+> infrastructure that induces coupling response in the data is considered as
+> exploration targets, a different strategy may be required where similar
+> coupling patterns are identified. However, it is beyond the scope of this work.
+
+A mineral survey is the case they are excluding. A compact, highly conductive,
+strongly polarizable body is both the thing the survey is for and the thing most
+likely to reconstruct badly against a 1D basis. **The reconstruction criterion
+should not be run unsupervised on mineral exploration data**, and that belongs
+in the docstring rather than in a plan nobody rereads.
+
+The inverse failure is theirs too, and limits what a good score means: "when a
+coupling response mimics a geological response. If such data can be represented
+by 1-D model parameters, the autoencoder reconstructs the data with low error
+and the data will not be discarded." The criterion is a test of
+one-dimensionality, not of cleanliness — which is the honest description of what
+it measures, and worth keeping in those words.
 
 Two things follow:
 
@@ -192,6 +222,21 @@ in the library:
   be per line type, or per time gate — Fig. 2-8 notes the affected region is
   narrower at early times than late.
 - wider at late time than early (Fig. 2-8)
+
+To which Asif add a fourth dimension the thesis figures do not isolate — the
+pattern **sweeps across the gates** as the system passes:
+
+> the signature of couplings generally appears in late time data points first
+> and in early time data points afterward as the system approaches the coupling
+> source. On the contrary, when the system moves away from the coupling source,
+> the coupling effect fades in early time data points first and in late time
+> data points afterward.
+
+That is a signature in the time–distance plane, not just in distance, and it is
+ordered: late gates light up first on approach and go out last on departure.
+Geology crossing a flight line does not do that. It is probably the strongest
+single discriminator available to the profile criterion, and it is free — the
+data is already a 2D array of gate against distance.
 
 A per-sounding detector run across this pattern does the wrong thing twice: it
 flags the flanks and **keeps the centre**, leaving an island of apparently good
@@ -382,6 +427,112 @@ locally confined. Polzer's own result that the stripped response is "symmetric
 about the loop with a positive amplitude envelope … of about 40%" is independent
 corroboration of the symmetry the 2016 abstract describes.
 
+## Two systems: VTEM and SkyTEM
+
+Both are in scope, and almost every number quoted so far comes from one or the
+other rather than from both.
+
+| | SkyTEM | VTEM |
+|---|---|---|
+| moments | dual — LM and HM | single |
+| in this plan | Kang's simulation and field data; Asif's airborne case | `bloss…2016`, `bloss…2017` |
+| currently being processed | yes | yes |
+
+**The profile signature is the part that crosses systems.** The double peak with
+a central trough was observed in VTEM data in the thesis and derived from 3D
+simulation of a SkyTEM geometry by Kang, independently, and they agree. That is
+not a small thing: it means the geometric criterion rests on the physics of the
+power-line loop rather than on any one system's waveform, and it is the criterion
+that should port without retraining.
+
+**The reconstruction criterion is the part that does not.** Three
+system-dependencies, in increasing order of how much work they are:
+
+1. **A single-moment system has no LM/HM contrast to exploit.** Kang's finding
+   that "the LM response shows a stronger double-peak signature than the HM
+   response" is a statement about two moments of one system; on VTEM the whole
+   burden falls on one transient, and the strategy of looking at the low moment
+   first has no analogue. It also halves the network count — one per system, not
+   two.
+2. **Retraining is required, and it is a forward-modeling job rather than a
+   labeling job.** Asif are explicit that the method "is largely insensitive to
+   the system transfer functions, e.g., system waveforms and low-pass filters in
+   the receiver system, unless significant changes are made" and "can easily be
+   extended for other TEM systems by retraining on forward responses for those
+   systems." No labelled VTEM data is needed — which is fortunate, because we do
+   not have any.
+3. **Raw data stacks may not exist in the delivery.** This is the real obstacle,
+   and Asif name it:
+
+   > Obtaining the raw data stacks and the corresponding data uncertainties is
+   > not trivial and may not be available for some TEM systems on the normal
+   > user/client level. In that case, the thresholds α and β_max may be
+   > empirically adjusted to obtain adequate processing results.
+
+   Their uncertainties come from the standard deviation of the raw transients
+   within a stacking window, and they add that the window must be "relatively
+   short … to obtain good uncertainty estimates and to prevent the coupling
+   signatures to be smeared." A delivery that arrives already stacked and
+   processed has neither the scatter nor the choice of window.
+
+**What follows for us.** The residual is measured in sigmas, so the denominator
+has to come from somewhere. Where a delivery carries raw stacks, use their
+scatter as Asif do. Where it does not, the library already has the fallback:
+`estimate_noise_model` followed by `assign_uncertainty` puts a modeled
+uncertainty on every gate, which is the same denominator `compute_misfit`
+already divides by. That is weaker — a modeled sigma cannot see a stack that
+happened to be noisy — but it is the difference between the criterion working on
+a client delivery and not running at all.
+
+So the ordering in the staging below is not arbitrary. The profile criterion is
+second rather than third because it is the one that works on both systems, on
+delivered data, with no training artifact.
+
+## How this gets used: two passes
+
+This is a QA/QC tool first and a processing step second, and that changes what
+it has to produce.
+
+**Pass one is unattended.** Data arrives, goes through the chain, inverts, and
+produces a model and a misfit. Nobody adjudicates individual soundings. The
+output is a defensible first answer and the evidence needed to question it.
+
+**Pass two is guided by pass one.** A human reads the first result and adjusts
+the culling — more in places, less in others — then reruns. `apply_manual_edits`
+(filter_33) is already the checkpoint for exactly this, and `version_diff` and
+`parameter_sweep` in the compare group already exist to show what changed.
+
+Three design consequences, all of which cost little if done from the start and
+are awkward to retrofit:
+
+- **Write the confidence, not only the verdict.** If the step records `C_avg`
+  per sounding as a column alongside the mask, pass two has a continuous field
+  to re-threshold and a figure that shows *how close to the line* each sounding
+  sat. Without it, "cull more" is a blind re-run; with it, it is a judgement
+  about a visible margin. This is the single change that makes the two-pass
+  workflow work, and it is one array.
+- **The coupling cull must be distinguishable in the provenance.** The library
+  already writes `why_` arrays with a step code, so this is nearly free — but
+  pass two needs to find *coupling* culls specifically among everything else
+  that culled a gate, in order to reverse some of them.
+- **Pass two adjusts parameters, not the mask.** Culling is subtractive, so
+  nothing can be un-culled in place; a lighter second pass is a rerun from the
+  original data with different thresholds, plus manual edits on top. That is
+  already how the runner works, and it means the thresholds are the control
+  surface — which is what makes the next section matter.
+
+**Default to the lighter hand.** Both failure modes cost, but they differ in
+detectability: coupled data left in produces false conductors that a reader can
+see and question, while a culled target leaves nothing behind to notice. Pass
+one's job is to produce something judgeable, so it should fail in the visible
+direction and let pass two tighten. This is the same argument as the 3D
+false-positive section above, arriving from the workflow rather than the physics.
+
+A practical note from Asif worth having: inversion of their automatically
+processed data "takes fewer iterations to converge as compared to the manually
+processed data due to the improved handling of the couplings." If that holds
+here, pass one is cheaper than the manual baseline as well as faster.
+
 ## Shape of the step
 
 One filter, several criteria, following `cull_by_external_evidence` — which
@@ -393,6 +544,8 @@ already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
     max_residual: 2.5             # sigmas; Asif's alpha
     confidence: 0.99              # Asif's beta_max
     window: 7                     # soundings smoothed over; Asif's W
+    max_uncertainty: 0.2          # mask noise-dominated gates; Asif's delta_max
+    confidence_column: qs_coupling  # write C_avg, so pass two can re-threshold
     spread_earlier: 1
     disable_tail: true
 ```
@@ -418,6 +571,56 @@ turns a residual into a decision:
 - a fuzzy band rather than one threshold: clearly high `C` keeps everything,
   clearly low culls everything, and between them only gates with `ε ≤ 1` survive
 
+### The heavy hand and the light hand are two of these parameters
+
+Asif expose four, and describe them in exactly the terms the second pass needs
+(Section V):
+
+> The automated processing involves several parameters, i.e., α, β_max, W, and
+> Δ_max. **The thresholds α and β_max give an intuition about the leniency or
+> strictness in the automated data processing.**
+
+So the control surface already exists in the published method, and it is two
+numbers rather than a vague dial:
+
+| parameter | theirs | what moving it does | heavier hand |
+|---|---|---|---|
+| `max_residual` (α) | 2.5 | how far a gate may miss, in sigmas, and still count as reconstructing | **lower** |
+| `confidence` (β_max) | 0.99 | what fraction of gates must reconstruct for the sounding to be kept | **higher** |
+| `window` (W) | 7 stacks | smooths short-term fluctuation before deciding | neither — see below |
+| `max_uncertainty` (Δ_max) | 20% | where a gate stops being data and becomes noise | **lower** |
+
+Three qualifications, all theirs:
+
+- **`W` is not a strictness dial and should not be used as one.** "A larger
+  value of W would smear the effect of couplings in the data" — it is set by the
+  stacking rate and the along-line sounding spacing, and raising it to get a
+  quieter answer destroys the signature being looked for.
+- **`Δ_max` is self-correcting in one direction.** A higher value admits gates
+  affected by background noise, but "the values of ε for such data points will
+  still be low due to their higher data uncertainty and they will be classified
+  as uncoupled." Loosening it is therefore safer than it looks; tightening it is
+  the sharper move.
+- **They are not twitchy.** "These parameters are not very sensitive and can be
+  adjusted in different ways to obtain similar data processing results", and a
+  grid search across several survey areas found one set of thresholds matched
+  manual processing best in all of them. The caveat is pointed, though, and it
+  is ours: "This scenario may not be true if the signal levels are drastically
+  low, e.g., in a very resistive case."
+
+That last point and the raw-stack problem above meet in the same place. Asif's
+advice where stacks and uncertainties are unavailable is that "α and β_max may
+be empirically adjusted" — which is to say the published defaults are tied to
+their uncertainty estimates, and on a delivery where we model the sigmas instead
+of measuring them, the two thresholds have to be recalibrated rather than
+copied. `parameter_sweep` in the compare group is the tool for that, and the
+recalibration is a per-system exercise, not a per-survey one.
+
+**The step's defaults should be Asif's**, because they are the only values with
+evidence behind them — with a note in the docstring that they were calibrated
+against measured stack scatter on tTEM and SkyTEM, and that a different
+uncertainty source moves them.
+
 The powerline monitor **corroborates and never triggers**. No two crossings are
 alike, and a pole with poor grounding may produce almost no monitor response, so
 a detector gated on the monitor would miss the quiet crossings entirely. Where a
@@ -434,6 +637,12 @@ in the one real delivery have a flat monitor — the data decides alone.
 | passes | × 2 moments = **180,000** |
 | per pass | ~97k MAC — 24-point input, three 32-filter conv layers |
 | total | **≈35 GFLOP**, ~17 MB — seconds on CPU, under a second on GPU |
+
+Asif measured it rather than estimating: **0.3 ms per raw data stack** on one
+Xeon Gold 6132 core, fast enough that they propose running it in the instrument
+in real time. At that rate the whole survey above is **~54 s on a single CPU
+core**, which agrees with the arithmetic and settles the question — inference
+cost is not a consideration in this design.
 
 Training: Asif's 1M TEM-resolvable model dataset is **publicly available**, so
 the expensive half — forward-modeling von Kármán structures and then *inverting*
@@ -458,6 +667,15 @@ would pay for itself.
 
 ## Open questions
 
+- **Do our deliveries carry raw stacks and measured uncertainties?** This
+  decides whether the reconstruction criterion can use Asif's defaults or has to
+  be recalibrated against modeled sigmas, and it is answerable today by looking
+  at what the real SkyTEM and VTEM deliveries actually contain. Check this
+  first — it is cheap and it gates the choice of denominator.
+- **If not, what do α and β_max become?** A modeled sigma from
+  `estimate_noise_model` has different statistics from measured stack scatter,
+  so 2.5 and 0.99 are not transferable on their face. `parameter_sweep` against
+  a manually processed line is the way to find out, once per system.
 - **Which window** for the profile criterion. Kang's 174 m is for a 10 m × 80 m
   distribution-line loop and does not transfer to transmission lines, whose
   loops enclose an order of magnitude more area. The dependence is known —
@@ -490,7 +708,10 @@ would pay for itself.
 
 All keys are in `~/Codes/_refs/library.bib`; PDFs in the YmerFlow shared library.
 
-- `asifAutomatedTransientElectromagnetic2022` — the auto-encoder expert system
+- `asifAutomatedTransientElectromagnetic2022` — the auto-encoder expert system.
+  Section V is the one to reread: the four tunable parameters and what they
+  mean, the raw-stack requirement, retraining for other systems, and the
+  authors' own statements of the 1D/3D and mineral-exploration limits
 - `andersenArtificialNeuralNetworks2016` — the earlier supervised ANN
 - `larsenRemovalPowerlineNoise2022` — harmonic removal; **not applicable here**
 - `xieImprovedPrincipalComponent2014` — PCA denoising; a reconstruction basis
