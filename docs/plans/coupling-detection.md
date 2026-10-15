@@ -129,32 +129,73 @@ Flux cancellation directly over the loop. The double peak with a null between is
 **what the geometry requires**, which is what makes it worth detecting rather
 than a pattern we happened to notice.
 
-**Numbers, for a SkyTEM 312 at 40 m over ~20 Ω·m:**
+**Numbers — but read the geometry first.** These hold for *one* power line:
 
-| | |
+| Kang's modeled line (Table 3) | |
+|---|---|
+| pole height | **10 m** |
+| span, i.e. one loop's length | **80 m** |
+| loops simulated | 15, total 1.2 km of line |
+| transmitter height | 40 m |
+| half-space | ~20 Ω·m |
+
+| result for that geometry | |
 |---|---|
 | peak effect | TPPE ≈ 44%, at **~30 m** from the line |
 | below 3% (their noise level) | beyond **174 m** |
-| observed in the field | high-quality data from only **~60%** of that distance |
+| observed in their field data | high-quality soundings from only **~60%** of that |
 
-That last row is the one to hold onto. Kang attribute the discrepancy to "the
-high ground contact resistance caused by degradation of the grounded electrodes
-located at the bottom of the power-line poles" — their simulation assumes
-negligible contact resistance and therefore computes an **upper limit**.
+**10 m poles on 80 m spans is a distribution line.** It is not a transmission
+line, and the difference is not small. Kang state the scaling themselves: "the
+area of the power-line loop is proportional to the moment of the power-line
+loop, which is equivalent to the product of the current and the area of the
+power-line loop." The loop area is **span × pole height**, so a transmission
+line on 40 m towers at 350 m spans encloses roughly seventeen times the area of
+the case simulated.
 
-This is the snowflake problem, quantified: theory says 174 m, reality says
-~104 m, and the gap is corroded grounding that varies pole to pole.
+`blossPowerlineContaminationTimedomain2017` Fig. 2-6 separates the classes for
+exactly this reason — transmission above 230 kV, subtransmission around 100 kV,
+distribution below 69 kV, residential under 1000 V — and the thesis shows
+different signatures for a transmission crossing (Fig. 2-7) and a two-wire
+distribution crossing (Figs. 2-9, 2-10).
 
-**So the window is derivable rather than constant.** It falls with transmitter
-height and rises as the ground pathway gets more conductive — at ρ_g = 340 Ω·m
-there is no visible double peak at all; at 1–5 Ω·m it is strong. A detector
-should take its search width from the survey's own flight height and average
-resistivity, and then **measure the extent per crossing** rather than assume
-it, because the realised value is smaller and varies.
+**So 174 m is not a constant to code against.** It is one point on a surface,
+and the 300 m and ~1 km figures elsewhere are plausibly the same physics over
+larger loops rather than a contradiction — though that should be checked
+against which line type each observation came from before anyone relies on it.
 
-This also reconciles the 300 m and ~1 km figures: they are different criteria
-at different sites, not a contradiction. Kang's 174 m is where TPPE drops under
-3%; the 2016 abstract's 300 m is where it stops being "prominent" in a profile.
+**Kang's figure is an upper limit in three separate ways**, two of which they
+state:
+
+1. **Negligible ground contact resistance** is assumed. Their own field data
+   shows clean soundings from only ~60% of the predicted distance, which they
+   attribute to "the high ground contact resistance caused by degradation of
+   the grounded electrodes." This is the snowflake problem with a number on it:
+   174 m predicted, ~104 m observed, the gap being corroded grounding that
+   varies pole to pole.
+2. **No catenary.** "The power line is assumed to be straight; thus, the
+   catenary effect related to the curvature in the power line between the poles
+   is not taken into account. This catenary effect reduces the area of the
+   power-line loop; thus, the simulated power-line effect could be larger than
+   the true power-line effect." Sag reduces the enclosed area, and the longer
+   the span the more it sags — so the correction grows with exactly the
+   parameter that makes transmission lines worse.
+3. **A small loop.** Everything above applies to an 800 m² loop.
+
+**What the detector should take from this.** Not a distance. A dependence:
+
+| grows with | shrinks with |
+|---|---|
+| span × pole height (loop area) | transmitter height |
+| conductivity of the ground pathway | ground contact resistance (unknowable) |
+| number of contributing loops, to ~15 | catenary sag |
+
+The search width should come from the survey's own flight height, its average
+resistivity, and **the line class where that is known** — an infrastructure
+layer usually carries voltage class, which proxies for tower height and span.
+Where it is not known, the extent has to be **measured per crossing** rather
+than assumed, which is the safer default anyway given that the realised value
+runs well under the predicted one and varies pole to pole.
 
 **Two further consequences for the detector:**
 
@@ -324,12 +365,18 @@ would pay for itself.
 
 ## Open questions
 
-- **Which window** for the profile criterion. Kang makes this derivable rather
-  than arbitrary — ~30 m to the peak, <3% beyond 174 m for their system and
-  ground — but the parameters are the survey's own flight height and ground
-  resistivity, and the realised extent runs ~60% of the predicted one. Decide
-  whether to derive a search width and then measure the actual extent per
-  crossing, or to fit the extent directly.
+- **Which window** for the profile criterion. Kang's 174 m is for a 10 m × 80 m
+  distribution-line loop and does not transfer to transmission lines, whose
+  loops enclose an order of magnitude more area. The dependence is known —
+  loop area, ground-pathway conductivity, flight height — but the two largest
+  unknowns per crossing, contact resistance and catenary sag, both reduce the
+  effect and neither is measurable from our data. **Measuring the extent per
+  crossing is therefore probably better than deriving it**, with the derived
+  value used only to bound the search. Decide which.
+- **Does line class need to be an input?** Voltage class proxies for tower
+  height and span, and an infrastructure layer usually carries it —
+  `cull_by_external_evidence` already accepts such a layer. Using it would
+  sharpen the window but makes the criterion dependent on data we often lack.
 - **How the profile criterion finds candidates** without being told where the
   powerlines are. With an infrastructure layer it is easy, and
   `cull_by_external_evidence` already accepts one; without, it is an
