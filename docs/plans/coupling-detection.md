@@ -183,8 +183,15 @@ other rather than from both.
 | | SkyTEM | VTEM |
 |---|---|---|
 | moments | dual — LM and HM | single |
+| high-rate delivery | yes | **sometimes** — a 10 Hz product, not guaranteed |
+| per-gate error estimates | yes | **no, never** |
 | in this plan | Kang's simulation and field data; Asif's airborne case | `bloss…2016`, `bloss…2017` |
 | currently being processed | yes | yes |
+
+**And "raw" is not raw.** Every vendor applies a processing layer between the
+instrument and the delivery, and what that layer does is not published. The
+high-rate product is *minimally processed*, not unprocessed. Two consequences
+run through everything below.
 
 **The profile signature is the part that crosses systems.** The double peak with
 a central trough was observed in VTEM data in the thesis and derived from 3D
@@ -203,28 +210,69 @@ order of difficulty:
    functions … and can easily be extended for other TEM systems by retraining on
    forward responses for those systems." No labelled VTEM data is needed, which
    is fortunate, because we have none.
-3. **Raw data stacks may not exist in the delivery.** The real obstacle, and
-   Asif name it:
+3. **Asif's method cannot run as published on VTEM at all.** They flag the
+   possibility; for us it is the normal case:
 
    > Obtaining the raw data stacks and the corresponding data uncertainties is
    > not trivial and may not be available for some TEM systems on the normal
    > user/client level. In that case, the thresholds α and β_max may be
    > empirically adjusted to obtain adequate processing results.
 
-   Their uncertainties come from the scatter of raw transients within a short
-   stacking window. A delivery that arrives already stacked has neither the
-   scatter nor the choice of window.
+   Their ε is a residual **in sigmas**, and the sigma comes from the scatter of
+   raw transients within a short stacking window. **VTEM deliveries carry no
+   error estimates**, so that denominator does not exist. SkyTEM carries both,
+   but the uncertainties are the *vendor's*, computed over the *vendor's*
+   stacking window — and Asif are explicit that the window must be "relatively
+   short … to obtain good uncertainty estimates and to prevent the coupling
+   signatures to be smeared." We do not choose it and are not told it.
 
-**What follows.** The residual is in sigmas, so the denominator must come from
-somewhere. Where a delivery carries raw stacks, use their scatter as Asif do.
-Where it does not, `estimate_noise_model` followed by `assign_uncertainty` puts a
-modeled uncertainty on every gate — the same denominator `compute_misfit`
-already divides by. Weaker, because a modeled sigma cannot see a stack that
-happened to be noisy, but it is the difference between the criterion working on
-a client delivery and not running at all.
+**So the modeled denominator is the default path, not the fallback.**
+`estimate_noise_model` followed by `assign_uncertainty` puts a modeled
+uncertainty on every gate — the same denominator `compute_misfit` already
+divides by. It is weaker, because a modeled sigma cannot see a stack that
+happened to be noisy. It is also the only thing that works on VTEM, and it has
+one real advantage: it is the *same* denominator across systems, so a threshold
+calibrated once is not silently re-scaled by a vendor changing their stacking.
 
-This is why the profile criterion is staged second rather than third: it is the
-one that works on both systems, on delivered data, with no training artifact.
+Where SkyTEM uncertainties exist they are worth using and worth comparing
+against the modeled ones — the comparison is itself a QC check, and
+`noise_floor_drift` in the compare group is close to the right shape for it.
+
+### The black box is a systematic, and it is why stage 1 is a PCA basis
+
+The vendor's pre-processing is an unknown change to the effective system
+transfer function. Asif's tolerance — "largely insensitive to the system
+transfer functions … **unless significant changes are made**" — is doing real
+work in that sentence, and an undocumented filtering and stacking chain is
+exactly the change it excludes.
+
+This matters more for a network trained on forward responses than it looks,
+because the mismatch is **systematic**: every delivered sounding differs from a
+clean forward in the same direction, so every sounding reconstructs slightly
+badly, and the confidence metric is depressed across the board rather than at
+the couplings. That is survivable — a uniform offset only moves where the
+threshold sits — but it means α and β_max must be recalibrated **per vendor and
+system**, not per system, and it removes any value in copying numbers across
+deliveries.
+
+**A linear basis fitted on the delivered survey itself does not have this
+problem.** It learns what delivered transients look like *in this survey*,
+black box included, and the vendor's processing lands in the basis rather than
+in the residual. That is a stronger argument for staging the PCA reconstructor
+first than "it is cheap and needs no training" — on data we actually receive it
+may be the more robust of the two.
+
+**Its own failure mode is the mirror image**, and must be designed around: a
+basis fitted on data that contains coupling will absorb the coupling too, if
+there is enough of it to reach the leading components. Three mitigations, in
+order of preference — keep the component count low enough that only the smooth
+decay is captured; fit on line segments with no infrastructure within the
+search window; or iterate, fitting, detecting, and refitting with the detections
+excluded. Decide this when stage 1 is built; it is the one real design question
+in it.
+
+This is also why the profile criterion is staged second rather than third: it
+needs no uncertainties at all, so the whole denominator problem passes it by.
 
 ## How this gets used: two passes
 
@@ -435,6 +483,8 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 1. **The framework, with a linear reconstructor.** Residual in sigmas, the
    confidence metric and column, along-line smoothing, the fuzzy decision, mask
    and provenance. No new dependency. Testable against synthetic couplings now.
+   Fitted on the delivered survey, it also absorbs the vendor's pre-processing
+   instead of mistaking it for an anomaly — see "The black box is a systematic".
 2. **The profile criterion** — the double-peak-with-central-trough search. The
    part that addresses the real gap, works on both systems and on delivered
    data, and has nothing to copy.
@@ -445,15 +495,24 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 
 ## Open questions
 
-- **Do our deliveries carry raw stacks and measured uncertainties?** Decides
-  whether the reconstruction criterion can use Asif's defaults or must be
-  recalibrated against modeled sigmas. Answerable today by looking at what the
-  real SkyTEM and VTEM deliveries contain. **Check this first** — it is cheap
-  and it gates the choice of denominator.
-- **If not, what do α and β_max become?** A modeled sigma has different
-  statistics from measured stack scatter, so 2.5 and 0.99 are not transferable
-  on their face. `parameter_sweep` against a manually processed line, once per
-  system.
+- **~~Do our deliveries carry raw stacks and measured uncertainties?~~**
+  **Answered 2026-10-15.** SkyTEM carries a high-rate product and per-gate error
+  estimates; VTEM sometimes carries a 10 Hz product and **never** error
+  estimates. All of it is minimally processed by the vendor, not raw. So the
+  modeled denominator is the default path. See "Two systems".
+- **What do α and β_max become against a modeled sigma?** The remaining half of
+  that question, and now the first thing to settle. A modeled sigma has
+  different statistics from measured stack scatter, so 2.5 and 0.99 are not
+  transferable on their face — and with vendor processing in the chain the
+  calibration is per vendor and system. `parameter_sweep` against a manually
+  processed line is the tool. **Needs real deliveries to do at all**, which is
+  the next thing to get hold of.
+- **How much does the vendor's pre-processing move the reconstruction
+  residual?** Measurable directly once there is data: fit the basis, reconstruct
+  known-clean soundings, and look at whether the residual distribution sits
+  where a clean forward would put it. If the offset is uniform it only moves the
+  threshold; if it varies along the line, the black box is doing something
+  adaptive and the criterion is on shakier ground than it looks.
 - **Does the sweep-across-gates ordering survive as a discriminator?** The one
   candidate left that is geophysical rather than circumstantial: does a steeply
   dipping conductor, approached along a flight line, produce the same ordered
