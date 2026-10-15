@@ -110,12 +110,8 @@ def _signature(function) -> str:
     return ", ".join(rendered)
 
 
-def parameter_descriptions(function) -> dict[str, str]:
-    """Each ``:param name:`` entry in a step's docstring, by parameter name.
-
-    Public because a caller building a form for a step needs exactly this: the
-    platform's process types show it under each field.
-    """
+def _parameters(function) -> list[tuple[str, str, str]]:
+    """``(name, default, description)`` for each parameter after the first."""
     doc = inspect.getdoc(function) or ""
     described: dict[str, str] = {}
     current = None
@@ -134,12 +130,7 @@ def parameter_descriptions(function) -> dict[str, str]:
             described[current] += " " + stripped
         elif stripped.startswith(":"):
             current = None
-    return described
 
-
-def _parameters(function) -> list[tuple[str, str, str]]:
-    """``(name, default, description)`` for each parameter after the first."""
-    described = parameter_descriptions(function)
     rows = []
     for parameter in list(inspect.signature(function).parameters.values())[1:]:
         default = ("required" if parameter.default is inspect.Parameter.empty
@@ -149,7 +140,7 @@ def _parameters(function) -> list[tuple[str, str, str]]:
     return rows
 
 
-def summary(function) -> str:
+def _summary(function) -> str:
     """The docstring's first paragraph — what the step does, in prose."""
     doc = inspect.getdoc(function) or ""
     out = []
@@ -184,9 +175,9 @@ def markdown(group: str) -> str:
     for step in sorted(steps):
         function = steps[step]
         out += [f"## `{step}`", ""]
-        summary_text = summary(function)
-        if summary_text:
-            out += [summary_text, ""]
+        summary = _summary(function)
+        if summary:
+            out += [summary, ""]
 
         consumes = _consumes(function)
         if consumes:
@@ -232,9 +223,9 @@ def llms_txt() -> str:
             suffix = f"  [consumes: {consumes}]" if consumes else ""
             out.append(f"### {step}{suffix}")
             out.append(f"{step}({_signature(function)})")
-            summary_text = summary(function)
-            if summary_text:
-                out.append(summary_text)
+            summary = _summary(function)
+            if summary:
+                out.append(summary)
             out.append("")
     return "\n".join(out).rstrip() + "\n"
 

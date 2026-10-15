@@ -114,7 +114,7 @@ def _open(diff):
     return XYZ(str(diff))
 
 
-def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
+def apply_manual_edits(dataset, diff: str | XYZ, checkpoint: str | None = None):
     """Apply a hand-authored in-use diff at the soundings it names.
 
     :param diff: The edit set — a ``libaarhusxyz`` XYZ, or a path to one.

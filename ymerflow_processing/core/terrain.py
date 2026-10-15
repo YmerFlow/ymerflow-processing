@@ -148,7 +148,8 @@ def sample_terrain(raster, easting, northing, source_crs=None, band: int = 1):
             opened.close()
 
 
-def apply_terrain_model(dataset, terrain, crs=None, band: int = 1,
+def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None = None,
+                        band: int = 1,
                         preserve: str = PRESERVE_ELEVATION,
                         altitude_column: str | None = None,
                         elevation_column: str | None = None,

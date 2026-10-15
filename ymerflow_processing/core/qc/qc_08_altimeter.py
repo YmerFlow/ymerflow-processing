@@ -65,7 +65,7 @@ STEP = "altimeter_agreement"
 
 def altimeter_agreement(
     dataset,
-    columns,
+    columns: list[str],
     good_max: float,
     marginal_max: float,
     output_column: str = "qs_altim",

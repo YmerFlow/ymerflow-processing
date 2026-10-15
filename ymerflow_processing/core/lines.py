@@ -110,7 +110,8 @@ def _check_label(label: str) -> str:
 
 
 def classify_lines(dataset, criterion: str, line_type: str,
-                   threshold: float | None = None, lines=None,
+                   threshold: float | None = None,
+                   lines: list[int | str] | None = None,
                    altitude_column: str | None = None,
                    line_column: str | None = None,
                    default_line_type: str = DEFAULT_LINE_TYPE):
@@ -207,7 +208,8 @@ def classify_lines(dataset, criterion: str, line_type: str,
     return dataset, report
 
 
-def select_lines(dataset, criterion: str, line_types=None, lines=None,
+def select_lines(dataset, criterion: str, line_types: list[str] | None = None,
+                 lines: list[int | str] | None = None,
                  line_column: str | None = None):
     """Reduce the dataset to the flightlines wanted. **Drops soundings.**
 
