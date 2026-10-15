@@ -32,20 +32,70 @@ a different phenomenon with a different signature.
 
 ## Two signatures, and we catch only one
 
-`blossPowerlineContaminationTimedomain2017` Fig. 1-1 separates them:
+`blossPowerlineContaminationTimedomain2017` Fig. 1-1 separates them by shape:
 
 | | what it looks like |
 |---|---|
-| **Capacitive** | oscillatory behavior at later times |
-| **Inductive** | **smoothly elevated** dB/dt curves |
+| "capacitive" | oscillatory behavior at later times |
+| inductive / galvanic | **smoothly elevated** dB/dt curves |
 
 The existing culling filters — `cull_negatives`, `cull_by_curvature`,
 `cull_by_decay_rate` — are shape tests on one sounding at a time. They catch the
 oscillatory kind, because oscillation breaks monotonicity and curvature.
 
-**They cannot catch smooth elevation.** An inductively coupled sounding is still
+**They cannot catch smooth elevation.** A galvanically coupled sounding is still
 a plausible-looking decay; it is simply in the wrong place. Nothing about its
 shape is wrong.
+
+### But the oscillatory half is not one thing, and is often signal
+
+A late-time sign reversal has at least three causes, and the library's own
+specification already says so — `01`, quoted in `filter_32`'s docstring:
+
+> a sign change indicates coupling, **an IP effect**, or noise dominating
+
+`cull_negatives` culls all three identically. One of them is **geology**.
+
+**Induced polarization is not a special case.** Any interface that charges
+produces it: a conductive clay layer in a sand or sandstone background
+polarizes at the contact, which is an ordinary sedimentary situation rather
+than an exotic one. In mineralized ground, sulphides are strongly polarizable
+and effectively glow in the data. And IP is present long before it is strong
+enough to drive the transient negative — a negative is the end of a continuum,
+not the start of one.
+
+It is also **recoverable information, not just a nuisance**:
+`macnaeQuantifyingAirborneInduced2016` and
+`macnaeQuantitativeEstimationIntrinsic2016` quantify and estimate intrinsic IP
+parameters from airborne EM, and `grombacherInducedPolarizationEffects2021`
+documents the effects in real ATEM data. Culling a negative is therefore not a
+neutral act of hygiene — it discards a measurement somebody else publishes
+methods to invert.
+
+**So `kangEffectPowerLines2021` is too narrow on this point.** It treats
+capacitive effects as arising from a buried insulated cable acting as a
+capacitor, and concludes that "without large metallic objects such as pipes, it
+will not be possible to observe significant capacitive coupling in AEM data."
+That is sound for the noise sources *that paper* set out to examine — those
+associated with water wells — but it is not the whole account of late-time
+oscillatory behavior in AEM, because polarizable geology produces it without
+any infrastructure present at all.
+
+### What this means for scope
+
+**This detector targets smooth elevation only.** Sign reversals and late-time
+oscillation are explicitly out of scope, because the reading of them is
+ambiguous and one reading is signal. Elevation is the unambiguous case: no
+geology produces a smooth, symmetric, locally confined lift in dB/dt about a
+mapped conductor with a null directly over it.
+
+That narrows the filter and makes it more defensible. It also leaves a real
+question open, which belongs with `#5` rather than here: **what `cull_negatives`
+should do in polarizable ground.** Worth flagging now because the shipped
+`standard-processing.yaml` runs it with `spread_earlier: 1` and
+`disable_tail: true` — so on encountering IP it removes the gate, the gate
+before, and every gate after. In a clay-over-sand or mineralized setting that is
+a large deletion of real data, made by a default rather than a decision.
 
 That is not inferred. `blossPowerlineContaminationAirborne2016` states it:
 
@@ -403,6 +453,10 @@ All keys are in `~/Codes/_refs/library.bib`; PDFs in the YmerFlow shared library
 - `xieImprovedPrincipalComponent2014` — PCA denoising; a reconstruction basis
 - `blossPowerlineContaminationTimedomain2017` — the signatures and the profile
 - `blossPowerlineContaminationAirborne2016` — the quoted characterisation
+- `macnaeQuantifyingAirborneInduced2016`, `macnaeQuantitativeEstimationIntrinsic2016`
+  — airborne IP quantified and estimated: the oscillatory signature is
+  recoverable signal, not only a nuisance
+- `grombacherInducedPolarizationEffects2021` — IP effects in real ATEM data
 - `kangEffectPowerLines2021` — 3D simulation of the mechanism; the
   flux-cancellation explanation of the trough, the distance numbers, and
   released code that makes synthetic coupled data reachable
