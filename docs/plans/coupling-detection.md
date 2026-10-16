@@ -508,7 +508,8 @@ already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
 
 ```yaml
 - cull_by_coupling:
-    criterion: reconstruction     # reconstruction | profile | both
+    action: flag                  # flag | cull
+    criterion: reconstruction     # reconstruction | profile | trend | both
     max_residual: 2.5             # sigmas; Asif's alpha
     confidence: 0.99              # Asif's beta_max
     window: 7                     # soundings smoothed over; Asif's W
@@ -519,6 +520,48 @@ already takes a `criterion` and has the `proximity`/`misfit`/`both` precedent.
     spread_earlier: 1
     disable_tail: true
 ```
+
+#### Where it sits in the chain
+
+`docs/reference/llms.txt` keeps an **Ordering** section, opening "a wrong order
+here does not fail. It produces plausible nonsense." Two placements are forced
+rather than preferred, and both belong in that list:
+
+- **after `assign_uncertainty`** — ε divides by Δd_obs, and before that step
+  there is nothing to divide by. The reconstruction criterion cannot run
+  earlier; it would have to invent a denominator.
+- **before `average_along_line`** — exactly the reason `cull_negatives` is
+  ("cull before averaging, or a bad gate is smeared into its neighbours"), and
+  sharpened here by Asif's own warning that too long a window "would smear the
+  effect of couplings in the data." Averaging first does not merely dilute the
+  signature; it spreads a coupled sounding into its clean neighbours and makes
+  the profile shape the detector is looking for *less* distinct.
+
+So: `estimate_noise_model` → `assign_uncertainty` → `cull_by_coupling` →
+`average_along_line`, with `apply_manual_edits` last as always.
+
+#### Why this is not just `cull_by_external_evidence`
+
+Worth stating, because with an infrastructure layer the two overlap heavily.
+`filter_30` already culls by proximity to mapped features, already widens the
+exclusion with gate time in `log t`, already does it per moment. If a survey has
+a complete, accurate infrastructure layer and nothing else is wanted, **filter_30
+is already the answer** and this step adds little.
+
+What this step adds is for the cases filter_30 cannot cover:
+
+- **the extent is measured, not configured.** filter_30 takes a distance; the
+  realised extent varies per crossing with grounding, line class and flight
+  height, and runs well under the predicted value. Measuring it is the
+  improvement.
+- **no layer, or an incomplete one.** The common case. Kang had to find lines in
+  satellite imagery that were in no database.
+- **coupling from things that are not mapped at all** — fences, pipelines,
+  buried cable, rail.
+
+An honest alternative is to **extend filter_30 with a measured-extent mode**
+rather than build a second step, and to leave the unmapped case to this one.
+That would be less code and clearer provenance. Not decided; see open questions.
 
 **The reconstructor is swappable behind one interface.** `reconstruct(transient)
 -> transient` is all the criterion needs; the confidence metric, the smoothing
@@ -687,6 +730,116 @@ gets a climb, and terrain produces climbs of its own — so it belongs as an
 advisory input that raises confidence rather than as a mode of its own. If it
 later earns one, the enum above extends without changing shape.
 
+## Designing the profile criterion — the unbuilt half
+
+**This plan is strong on why and weak on how, and this is where.** The
+reconstruction criterion is specified completely, because Asif specified it.
+The profile criterion — the part that addresses the actual gap, the part with
+nothing to copy, the contribution that is ours — is at present a description of
+a pattern rather than a method. `criterion: profile` names something that has
+not been designed.
+
+Five questions have to be answered before it can be written, and three of them
+are failure modes rather than details.
+
+### 1. What is the detector, concretely?
+
+The pattern is: symmetric, double-peaked, a central trough, locally confined,
+wider at late time than early, and sweeping across the gates in a fixed order
+as the system passes. Candidate shapes for a test, none yet chosen:
+
+- **Matched filter** against a template double-peak, per gate, with the width a
+  free parameter. Cheap, but the template's width is exactly the thing that
+  varies per crossing.
+- **Polzer's decomposition, used for detection** — fit *smooth background +
+  symmetric departure* along the line and test the departure, which is what
+  Appendix A proposes and which needs no template.
+- **Symmetry score** about a candidate centre, combined with a trough test.
+- **A test in the time–distance plane** rather than per gate, which is the only
+  one that can use the sweep ordering.
+
+They are not exclusive. What matters is that one gets chosen and written down
+with its parameters, because everything in staging step 2 is downstream.
+
+### 2. A line sub-parallel to the flight direction defeats all of them
+
+**The most serious hole in the plan.** Every formulation above compares a
+sounding to its along-line neighbours. If the power line runs *along* the
+flight line rather than across it, there is no uncoupled background to be
+anomalous against: the whole line is elevated, nothing stands out, and the
+detector reports clean data with no indication that it failed.
+
+This is not an edge case. Lines follow roads and valleys, and survey grids are
+often laid out relative to the same terrain, so a flight direction
+sub-parallel to local infrastructure is ordinary. It is `qc_05`'s "farmland
+into town" problem with no return to baseline.
+
+Partial answers, none sufficient alone: the **tie lines** cross at right angles
+and sample the same ground independently; an **infrastructure layer** gives the
+bearing directly; **cross-line collinearity** (below) is orientation-free; and
+the detector could at minimum **refuse to claim a clean verdict** where a mapped
+feature runs within some angle of the flight direction, rather than silently
+seeing nothing.
+
+### 3. Crossing angle changes the apparent width
+
+Appendix C reasons entirely in **perpendicular** distance from the line. The
+detector only ever sees **along-line** distance. The two differ by `1 / sin θ`,
+so a crossing at 30° presents a pattern twice as wide as the physics predicts
+and one at 15° nearly four times.
+
+Any window derived from loop geometry therefore has to be converted before it
+can be compared to anything measured, and the conversion needs the feature's
+bearing — available from an infrastructure layer, and not otherwise. Without
+one, the width has to be measured per crossing and the angle left unknown,
+which is another argument for measuring rather than deriving.
+
+### 4. Cross-line collinearity is unexploited, and may be the strongest test
+
+A power line is **ruler-straight over kilometres** and crosses flight line
+after flight line at positions that fall on a straight trend. Geology is linear
+too, but it bends, splays, changes strength along strike and rarely stays
+perfectly straight for 10 km.
+
+Nothing in the plan uses this, although the discriminator table lists
+straightness as "somewhat" useful. A criterion that collects per-line
+candidates across the whole survey and tests them for collinearity would:
+
+- **discriminate** against the dipping-conductor false positive, which is the
+  problem the plan otherwise has no geophysical answer to;
+- **find candidates without an infrastructure layer**, because collinearity
+  across many lines is a strong prior and currently an open question with no
+  proposal behind it;
+- **be orientation-free**, which helps with (2);
+- **recover the bearing**, which is what (3) needs.
+
+It answers four of this section's problems at once, which is reason enough to
+treat it as a third criterion — `criterion: trend` — rather than as a remark.
+Its cost is that it is a **survey-level** test, not a line-level one, so it does
+not fit the one-line-at-a-time shape the other criteria have.
+
+### 5. The horizontal component could close the central trough
+
+Deliveries carry a horizontal component — the real SkyTEM delivery ships
+`HM_X_G01` alongside `HM_Z_G01`, and the library already discovers it and
+leaves it unclaimed rather than feeding it to a Z-only inversion.
+
+Over a vertical conductor the geometry that nulls the vertical field **peaks
+the horizontal one**. So X is loud exactly where Z goes quiet, and the "island
+of apparently good data directly over the conductor" — which the plan currently
+accepts as a known weakness — would be visible in a channel we already receive
+and currently discard.
+
+It does **not** discriminate power line from dipping conductor; the geometry is
+the same for both, which is the whole point of "the double peak is not
+diagnostic". It fixes coverage, not ambiguity.
+
+### What this section is
+
+Not a design. A list of what the design has to answer, written down so the gap
+is visible instead of implied. (1) is the work; (2) is the risk; (4) is the
+most promising idea in it.
+
 ## Cost, for a 2700 line-km survey at 30 m
 
 **Inference is free. The million forwards are training, paid once.**
@@ -727,15 +880,37 @@ not a per-survey one, and where a GPU forward model would pay for itself.
    and provenance. No new dependency. Testable against synthetic couplings now.
    Fitted on the delivered survey, it also absorbs the vendor's pre-processing
    instead of mistaking it for an anomaly — see "The black box is a systematic".
-2. **The profile criterion** — the double-peak-with-central-trough search. The
-   part that addresses the real gap, works on both systems and on delivered
-   data, and has nothing to copy.
+2. **The profile criterion** — the double-peak-with-central-trough search. It
+   works on both systems and on delivered data and needs no uncertainties,
+   which is why it is staged before the auto-encoder. But it is also **the
+   riskiest stage, not the safest**: it is the only part with nothing to copy,
+   and it is not yet designed. See "Designing the profile criterion".
 3. **The auto-encoder reconstructor**, behind the interface from (1), once there
    is a trained artifact and a decision about shipping weights in a
    GPL-licensed repository. May never be worth it, given per-system retraining
    plus the 1D blind spot.
 
+## What the library will require of it
+
+Small, concrete, and both are enforced by tests that fail rather than warn:
+
+- **A figure shape must be declared.** `test_every_registered_filter_declares_a_figure_shape`
+  asserts `figures.missing_shapes() == []`, so a new filter with no entry in
+  `figures.SHAPES` breaks the suite. `CULLING` is the right shape, and the
+  threshold panel applies if a threshold is recorded on the step report.
+- **`docs/reference/` must be regenerated.**
+  `test_the_committed_reference_matches_the_registry` compares the committed
+  reference against the live registry, and `test_every_step_appears_in_the_reference`
+  checks the filter is listed. The regeneration command is in the first test's
+  docstring.
+
+Beyond the tests, the agent index carries what a signature cannot — the
+Ordering list above needs its two new entries, since that file is what another
+agent reads to build a chain.
+
 ## Open questions
+
+The profile criterion's own design questions are gathered in "Designing the profile criterion" above rather than listed here — including how it finds candidates without an infrastructure layer, and whether the sweep-across-gates ordering discriminates against a dipping conductor (**still the highest-value simulation to run**: one dipping plate, one power-line loop, same flight line, in SimPEG).
 
 - **~~Do our deliveries carry raw stacks and measured uncertainties?~~**
   **Answered 2026-10-15.** SkyTEM carries a high-rate product and per-gate error
@@ -755,13 +930,6 @@ not a per-survey one, and where a GPU forward model would pay for itself.
   where a clean forward would put it. If the offset is uniform it only moves the
   threshold; if it varies along the line, the black box is doing something
   adaptive and the criterion is on shakier ground than it looks.
-- **Does the sweep-across-gates ordering survive as a discriminator?** The one
-  candidate left that is geophysical rather than circumstantial: does a steeply
-  dipping conductor, approached along a flight line, produce the same ordered
-  progression through the gates — late first on approach, early first on
-  departure? If not, the profile criterion has a real discriminator and the
-  mineral restriction loosens. **The highest-value simulation to run**, and
-  SimPEG can run it: one dipping plate, one power-line loop, same flight line.
 - **How is a survey's setting declared?** `corroborate` has to be set by
   someone who knows whether conductive targets are expected. A project-level
   fact, not derivable from the data, so it probably belongs beside the other
@@ -777,19 +945,45 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 - **Does line class need to be an input?** Voltage class proxies for tower
   height and span, and an infrastructure layer usually carries it. It would
   sharpen the window but makes the criterion depend on data we often lack.
-- **How the profile criterion finds candidates** without being told where the
-  powerlines are. With an infrastructure layer it is easy; without, it is an
-  unsupervised search for a recurring symmetric pattern.
 - **Where a trained model lives.** Weights are not source, the repository is
   going public under GPL-3.0, and a model artifact carries its own provenance
   and licensing questions.
-- **Validation.** One real delivery, no labelled coupled data. Kang's released
-  notebooks and SimPEG-EM — already in the stack as `YmerFlow/simpeg` — make
-  **synthetic coupled data with known ground truth** reachable: vary
-  ground-pathway resistivity, flight height and loop count, and measure what the
-  detector catches and misses. It does not replace agreement with an expert's
-  manual culling on real data (Asif's 96% is the number to beat), but it is the
-  only way to measure the false-negative rate at all.
+- **What does "working" mean?** There is no success criterion anywhere in this
+  plan. "Asif's 96% is the number to beat" is not one: it does not say against
+  whose judgement, on which survey, or counted how — per gate, per sounding, or
+  per crossing. Per crossing is probably the honest unit, since missing a
+  crossing entirely and trimming its edges differently are not comparable
+  errors. **Decide this before building**, or the first result will be
+  unarguable in both directions.
+
+- **Validation, and the circularity in the obvious plan.** One real delivery, no
+  labelled coupled data. Kang's released notebooks and SimPEG-EM — already in
+  the stack as `YmerFlow/simpeg` — make synthetic coupled data with known ground
+  truth reachable, and that is worth doing for controlled sweeps of flight
+  height, loop count and ground-pathway resistivity.
+
+  **But synthetic validation is partly circular and the plan should say so.**
+  The coupling would be generated by a model whose weakest parameter — contact
+  resistance, which Appendix C shows governs the whole circuit and which nobody
+  can measure — is the one that decides the answer. The detector would then be
+  scored on finding the coupling *that model* makes. The precedent is ours:
+  `blossPowerlineContaminationAirborne2016` built a forward model that gave
+  results "consistent with the collected gTEM data" but which "do not reproduce
+  the amplitude or spatial-scale of powerline distortion observed in ATEM data."
+  Kang's 3D treatment is better and still assumes negligible contact resistance,
+  which is why their own field data came in at ~60% of prediction.
+
+  So synthetic data can measure **sensitivity to parameters** and catch gross
+  failures. It cannot establish that the detector finds real coupling. **The
+  only validation that settles that is an expert marking up a real survey**, and
+  that should be planned for rather than left as the thing SimPEG appears to
+  replace.
+
+- **Should this extend `cull_by_external_evidence` instead of being a new
+  step?** With a good infrastructure layer the two overlap almost completely —
+  see "Why this is not just `cull_by_external_evidence`". Adding a
+  measured-extent mode to filter_30 would be less code and clearer provenance,
+  leaving this step for the unmapped case. Decide before writing either.
 
 ---
 
