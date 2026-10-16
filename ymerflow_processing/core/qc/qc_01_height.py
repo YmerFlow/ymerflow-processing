@@ -136,7 +136,16 @@ def height_above_ground(
     Returns
     -------
     tuple
-        ``(dataset, StepReport)``. The dataset is returned rather than mutated silently, per ``building_plans/02``.  **On terrain models.** ``building_plans/03`` lists a terrain model among this check's inputs. It is not taken here, and that is deliberate: producing a correct height-above-ground column from a DTM is filter_05's job in the processing chain, and duplicating it here would put the same physical statement in two places with two chances to disagree — precisely the defect R9 exists to prevent. This check reads the column; filter_05 is responsible for it being right.
+        ``(dataset, StepReport)``. The dataset is returned rather than mutated
+        silently, per ``building_plans/02``.
+
+    **On terrain models.** ``building_plans/03`` lists a terrain model among
+    this check's inputs. It is not taken here, and that is deliberate:
+    producing a correct height-above-ground column from a DTM is filter_05's
+    job in the processing chain, and duplicating it here would put the same
+    physical statement in two places with two chances to disagree — precisely
+    the defect R9 exists to prevent. This check reads the column; filter_05 is
+    responsible for it being right.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

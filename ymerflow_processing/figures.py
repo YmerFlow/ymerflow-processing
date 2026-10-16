@@ -448,19 +448,32 @@ def figure(step: str, before, after, report=None, channel=None,
            sounding: int = 0, figsize=None):
     """Draw what ``step`` did, as a matplotlib ``Figure``.
 
-    :param step: The registered filter name, which selects the shape.
-    :param before: The dataset as it was. Take a ``copy()`` before running.
-    :param after: The dataset the step returned.
-    :param report: That step's :class:`StepReport`, for the threshold it cut on.
-    :param channel: Which channel to draw. The first, if unset.
-    :param sounding: Which sounding's transient to draw.
+    Parameters
+    ----------
+    step : str
+        The registered filter name, which selects the shape.
+    before
+        The dataset as it was. Take a ``copy()`` before running.
+    after
+        The dataset the step returned.
+    report
+        That step's :class:`StepReport`, for the threshold it cut on.
+    channel
+        Which channel to draw. The first, if unset.
+    sounding : int
+        Which sounding's transient to draw.
 
-    Returns ``None`` for a step declared as changing no measurement — there is
-    nothing a before-and-after transient could show, and drawing one would imply
-    otherwise.
+    Returns
+    -------
+    Figure or None
+        ``None`` for a step declared as changing no measurement — there is
+        nothing a before-and-after transient could show, and drawing one
+        would imply otherwise.
 
-    Raises :class:`FiguresUnavailable` when matplotlib is not installed, naming
-    the extra that provides it.
+    Raises
+    ------
+    FiguresUnavailable
+        When matplotlib is not installed, naming the extra that provides it.
     """
     shape = SHAPES.get(step)
     if shape is None:

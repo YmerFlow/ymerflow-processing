@@ -129,7 +129,18 @@ def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = Tr
     Returns
     -------
     tuple
-        ``(dataset, StepReport)``.  **Refuses to remove everything.** A criterion that matches no channel is almost always a typo or a wrong assumption about the data, and a dataset with no data in it fails much later and much less clearly. It raises here instead, naming what was actually present.  **It cannot promise the result contains only what you asked for.** Selection works through the channel model, and an array no channel claims is outside it — so a delivery carrying an undeclared component keeps it unless ``drop_unclaimed`` says otherwise. That is reported rather than assumed away.
+        ``(dataset, StepReport)``.
+
+    **Refuses to remove everything.** A criterion that matches no channel is
+    almost always a typo or a wrong assumption about the data, and a dataset
+    with no data in it fails much later and much less clearly. It raises here
+    instead, naming what was actually present.
+
+    **It cannot promise the result contains only what you asked for.**
+    Selection works through the channel model, and an array no channel claims
+    is outside it — so a delivery carrying an undeclared component keeps it
+    unless ``drop_unclaimed`` says otherwise. That is reported rather than
+    assumed away.
     """
     report = StepReport(step=STEP)
 

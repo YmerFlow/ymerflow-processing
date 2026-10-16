@@ -318,7 +318,8 @@ def export_vector(
     Returns
     -------
     tuple
-        ``(dataset, StepReport)``. The dataset is returned unchanged — this reads and writes files.
+        ``(dataset, StepReport)``. The dataset is returned unchanged — this
+        reads and writes files.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
