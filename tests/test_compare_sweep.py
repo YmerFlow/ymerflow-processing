@@ -6,8 +6,6 @@ suppresses more noise and resolves less, and the number worth having is where
 one stops buying the other.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

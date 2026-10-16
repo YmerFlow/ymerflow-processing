@@ -65,8 +65,6 @@ from our own prior flight QC work, where a representative attitude spec was Â±5Â
 marginal.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -53,8 +53,6 @@ origin away at parse time, so the vendor's numbering is not recoverable from a
 loaded dataset and cannot be what this addresses.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -6,8 +6,6 @@ the model cannot account for is untouched by everything — which looks exactly
 like success until someone opens the file.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

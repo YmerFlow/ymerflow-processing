@@ -1,7 +1,5 @@
 """Writing a dataset out as vector geometry — the artifact that leaves the building."""
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

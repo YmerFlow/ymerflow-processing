@@ -43,8 +43,6 @@ fault. Supplied, ``max_ratio`` compares each delivery against the baseline — t
 to the outlier being looked for.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

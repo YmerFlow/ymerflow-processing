@@ -5,8 +5,6 @@ and Y being present. Ignoring them is not enough — they have to leave the
 dataset, because the inversion reads the file, not our discovery.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

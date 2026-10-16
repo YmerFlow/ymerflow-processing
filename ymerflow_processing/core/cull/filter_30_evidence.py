@@ -58,8 +58,6 @@ is more selective than either — and ``01`` defers it because it needs an
 inversion to have run.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

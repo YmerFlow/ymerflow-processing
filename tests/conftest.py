@@ -10,8 +10,6 @@ to hand, but R1 is a claim about *one to N* moments, and the only way to test a
 three-moment system and a single-moment system is to construct them.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

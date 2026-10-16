@@ -45,8 +45,6 @@ Reported as an observation, never as a recommendation: the trade is the user's t
 make, and a knee in one response is not a knee in the one they care about.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

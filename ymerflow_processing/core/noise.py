@@ -75,8 +75,6 @@ means estimate, supplied means use, and the common middle case — estimate the
 floor, hold the slope — cannot be expressed by an either/or.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass, field
 

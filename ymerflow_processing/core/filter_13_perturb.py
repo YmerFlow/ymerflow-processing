@@ -60,8 +60,6 @@ signal — receives a perturbation larger than the datum itself. That is correct
 and is what makes the synthetic look like real late-time data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

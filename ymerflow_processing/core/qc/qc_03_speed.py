@@ -48,8 +48,6 @@ R9 in ``building_plans/01`` for how the floor is treated once assigned.
 parameters with no defaults. one prior survey used a target of 85 km/h.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -42,8 +42,6 @@ channel vanish from the model — not an error, and not something this can preve
 without knowing what was intended. What it can do is say so, and it does.
 """
 
-from __future__ import annotations
-
 import logging
 
 from .pipeline import StepReport

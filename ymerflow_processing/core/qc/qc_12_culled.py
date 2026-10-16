@@ -46,8 +46,6 @@ what fraction of a sounding may be culled before the result is untrustworthy
 depends on the inversion, not on this library.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

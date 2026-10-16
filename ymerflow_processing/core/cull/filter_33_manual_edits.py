@@ -68,8 +68,6 @@ does ``& inuse`` and raises. Neither happens, because nothing here writes a NaN:
 the overrides are read out and the sentinel is discarded.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 

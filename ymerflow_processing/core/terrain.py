@@ -79,8 +79,6 @@ default because a terrain model's cell *is* the ground surface it asserts, and
 interpolating between cells invents relief the model does not claim.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

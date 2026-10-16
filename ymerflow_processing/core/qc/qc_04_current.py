@@ -73,8 +73,6 @@ anything; the nominal window is optional, and unset leaves the offset measured
 and unjudged.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

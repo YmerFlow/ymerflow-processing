@@ -31,8 +31,6 @@ shape is wrong", and only the second may cull.
 plausible band lies depends on the instrument and the ground.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

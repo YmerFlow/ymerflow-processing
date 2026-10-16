@@ -83,8 +83,6 @@ anomalies that are real measurements of the wrong thing, see filter_30 in
 which is how it is usually read.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

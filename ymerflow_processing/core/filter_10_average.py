@@ -91,8 +91,6 @@ A window that spanned two lines would average a sounding with one flown minutes
 earlier and hundreds of metres away. Each line is convolved separately.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

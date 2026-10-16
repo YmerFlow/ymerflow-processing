@@ -6,8 +6,6 @@ what follows pins the denominator, because measuring against the wrong thing
 reports the contractor's culling as ours.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

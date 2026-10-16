@@ -6,8 +6,6 @@ and most of its substance is making a wrong ordering detectable rather than
 silently plausible.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

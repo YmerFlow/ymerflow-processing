@@ -40,8 +40,6 @@ A single index, a list, or a ``"first-last"`` range, inclusive — the same form
 ``nominate_gates`` takes, so the idiom is learned once and works everywhere (R7).
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -42,8 +42,6 @@ far above it a datum must sit to be believed, and that is a multiplier on the
 shared floor rather than a number that can drift away from it.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -44,8 +44,6 @@ method", in *Groundwater Geophysics: A Tool for Hydrogeology*, Springer, 2009.
 parameters with no defaults.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

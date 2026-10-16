@@ -33,8 +33,6 @@ converting is wrong by three to four orders of magnitude for a high moment, with
 nothing to signal it.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

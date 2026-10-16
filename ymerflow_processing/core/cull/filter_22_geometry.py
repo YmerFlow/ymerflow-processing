@@ -61,8 +61,6 @@ operational judgement about an instrument, and a house number here would silentl
 cull a client's data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

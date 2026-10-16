@@ -68,8 +68,6 @@ established by counting rows across a corpus of real system descriptions rather
 than assumed.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

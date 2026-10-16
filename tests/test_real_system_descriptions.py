@@ -11,8 +11,6 @@ Both are the kind of mistake that produces plausible numbers rather than an
 error, which is why they are pinned here.
 """
 
-from __future__ import annotations
-
 import os
 from pathlib import Path
 

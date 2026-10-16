@@ -5,8 +5,6 @@ having if that property is enforced rather than intended — so the interesting
 tests here are the two that fail when someone adds a filter and forgets.
 """
 
-from __future__ import annotations
-
 import pathlib
 
 import numpy as np

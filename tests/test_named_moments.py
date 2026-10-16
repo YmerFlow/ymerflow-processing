@@ -10,8 +10,6 @@ The thing worth holding onto: `G01` looks like a channel index and is not. It is
 the same on every array in the file.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

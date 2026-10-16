@@ -56,8 +56,6 @@ Running this filter is the decision qc_04 informs, and the two read the same
 declared value.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

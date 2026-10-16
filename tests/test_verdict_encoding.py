@@ -14,8 +14,6 @@ lives in another repository, and the failure mode is a QC map that silently has
 no QC on it.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

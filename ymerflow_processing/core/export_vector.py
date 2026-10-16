@@ -59,8 +59,6 @@ Shapefile Technical Description*, 1998 — and the DBF field-name and type limit
 it inherits. GeoPackage is OGC 12-128r19.
 """
 
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 

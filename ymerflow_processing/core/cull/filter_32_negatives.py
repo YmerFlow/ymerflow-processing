@@ -47,8 +47,6 @@ Only values strictly below zero are flagged. An exact zero is not a sign change,
 and in practice means a dead channel or a fill value rather than a reversal.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

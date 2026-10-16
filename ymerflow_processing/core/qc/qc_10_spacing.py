@@ -54,8 +54,6 @@ same assumption the contiguous-run distances in :mod:`.aggregate` make.
 parameters with no defaults.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

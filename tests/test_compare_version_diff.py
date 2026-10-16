@@ -5,8 +5,6 @@ eyes cannot do is attribute a difference: spotting that a version culled more is
 easy, and connecting it to the step whose threshold moved is the whole point.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

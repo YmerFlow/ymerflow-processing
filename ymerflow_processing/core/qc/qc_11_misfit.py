@@ -43,8 +43,6 @@ is measured in standard deviations, a threshold here inherits whatever
 as much as the fit.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

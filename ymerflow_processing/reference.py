@@ -33,8 +33,6 @@ A test regenerates and diffs: documentation that can drift from the code will,
 and the only reliable fix is to make drift a failing test rather than a habit.
 """
 
-from __future__ import annotations
-
 import inspect
 import logging
 

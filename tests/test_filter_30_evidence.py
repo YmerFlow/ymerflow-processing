@@ -5,8 +5,6 @@ is a clean, coherent, believable response — of a powerline — so every shape 
 passes it and an inversion turns it into ground. What identifies it is the map.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

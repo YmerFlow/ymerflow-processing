@@ -45,8 +45,6 @@ about how that inversion is configured, and it is not answerable here.
 many layers the inversion solves for, which this library does not know.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -38,8 +38,6 @@ The classification model is carried over from our own prior flight QC work; see
 ``ymerflow_processing/core/qc/thresholds.py``.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

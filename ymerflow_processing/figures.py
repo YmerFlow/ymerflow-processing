@@ -37,8 +37,6 @@ import is therefore lazy, and asking for a figure without it raises a message
 naming the extra rather than an ImportError from three frames down.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

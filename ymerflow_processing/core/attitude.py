@@ -52,8 +52,6 @@ one flown level, and qc_02 would then report perfect attitude on data that was
 salvaged rather than well flown.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

@@ -42,8 +42,6 @@ and moving *both* ways at once is the interesting answer: a version can improve
 the median while pushing a handful of soundings out of spec.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

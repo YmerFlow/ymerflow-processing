@@ -7,8 +7,6 @@ columns were absent, the run exited 0, and a reader would have concluded the
 survey was flown badly.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 

@@ -50,8 +50,6 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 3 and 6 are as readable as 1 and 2 (``YmerFlow/simpeg#3``).
 """
 
-from __future__ import annotations
-
 import logging
 
 from .mask import is_provenance

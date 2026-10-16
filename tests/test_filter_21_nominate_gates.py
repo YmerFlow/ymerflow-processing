@@ -5,8 +5,6 @@ turn data back on. Most of what follows guards that exception: it has to work,
 and it has to stay hard to reach by accident.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

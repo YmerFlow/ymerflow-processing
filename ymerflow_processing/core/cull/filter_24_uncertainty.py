@@ -43,8 +43,6 @@ Both can be true, and neither implies the other.
 inversion and the survey, and a house number would silently cull a client's data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

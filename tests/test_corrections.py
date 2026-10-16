@@ -6,8 +6,6 @@ misapplied — a doubly tilt-corrected sounding, or one converted from the wrong
 convention, is a plausible sounding of a different earth.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np
