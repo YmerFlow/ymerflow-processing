@@ -64,6 +64,11 @@ one raw stack, at a time, and Asif state the failure mode in exactly our terms:
 
 **The state of the art fails on precisely the half our shape filters miss.**
 
+Nor does inversion misfit catch it. A smooth elevation is fitted *comfortably*
+by a 1D model, as a conductor that is not there — so the dangerous case has
+**low** misfit, and anything keyed on misfit selects against it. See "And its
+`misfit` criterion is backwards for our purpose".
+
 What is available instead is the profile, and
 `blossPowerlineContaminationAirborne2016` states it:
 
@@ -559,8 +564,57 @@ works. So this step is not a competitor to it and must not be folded into it —
 it is the path for **when there is no layer**, which is the common case and the
 one nothing currently covers.
 
-Where both are available they compose: filter_30 culls what the map knows,
-this finds what the map missed, and the provenance keeps them distinguishable.
+#### The real difference: the map as instruction, or as evidence
+
+"Mapped versus unmapped" undersells it. `cull_by_external_evidence` is
+**purely geometric** — it culls everything within a distance of a mapped
+feature, having looked at no data at all. That is a blunt instrument in both
+directions, and systematically so:
+
+- **it over-culls the quiet crossings.** A pole with degraded grounding may
+  produce almost no coupling, and a fixed buffer discards good data there
+  anyway. Kang's own field result is the measure of it: 174 m predicted,
+  ~104 m realised, because the grounding decides and the grounding varies pole
+  to pole.
+- **it under-culls the loud ones**, where a large loop and good grounding push
+  the effect past the configured distance.
+
+So the distinction between the two steps is not which features they cover. It
+is what the map *is*:
+
+| | the map is |
+|---|---|
+| `cull_by_external_evidence` | an **instruction** — cull within `D`, regardless of the data |
+| `cull_by_coupling` | **evidence** — the data decides, the map raises confidence |
+
+That is the more useful framing, and it means the detector is worth preferring
+**even where a good layer exists**, with `corroborate: infrastructure` set,
+because it culls what actually coupled rather than everything inside a buffer.
+filter_30 keeps its place as the cheap, deterministic, auditable option, and
+for cases where a zone must be removed whatever the data says.
+
+#### And its `misfit` criterion is backwards for our purpose
+
+Worth stating because it looks like it should already solve this. The `misfit`
+criterion culls gates a previous inversion fitted poorly, beyond
+`max_misfit` standard deviations. That finds the wrong half of the problem:
+
+- **wild coupling** — oscillatory, implausible — no 1D model fits it, misfit is
+  high, and the criterion catches it. But the shape filters already catch that.
+- **smooth inductive coupling** — the actual gap — is a plausible-looking
+  elevation that a 1D inversion fits *comfortably*, as a conductor that is not
+  there. **Low misfit, bad model, and the criterion passes it.**
+
+Asif describe the same thing from the other side: the coupling "appears as an
+enhanced signal level, which could easily be interpreted as a geological
+change." Interpreted as a geological change means fitted by a model, which
+means low misfit.
+
+**So a low-misfit coupled sounding is the dangerous one**, and any detector
+built on misfit is selecting against exactly the case that matters. This is an
+argument for staying in the **data domain, before inversion**, and it applies
+to `data_misfit` (qc_11) in the two-pass workflow as well: a quiet misfit map
+on pass one is not evidence that the data was clean.
 
 Two consequences recorded elsewhere follow from this decision rather than
 standing on their own: the crossing angle is recovered from the **trend**
