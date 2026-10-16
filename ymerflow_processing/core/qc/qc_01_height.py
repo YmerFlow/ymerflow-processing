@@ -108,32 +108,35 @@ def height_above_ground(
 ):
     """Classify each sounding's height above ground against the contracted spec.
 
-    :param good_max: Height at or below which a sounding meets spec, in ``unit``.
-        A contract term — no default, because inventing one would put a number
-        with no authority into a client deliverable.
-    :param marginal_max: Height above which a sounding is Out of Spec. Between
-        the two is Marginal.
-    :param column: Which ``flightlines`` column holds height above ground. Left
-        unset, it is discovered from the survey's own altitude column.
-    :param output_column: Where the per-sounding verdict is written.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param unit: Unit of the height column, used in report text only.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
-        A contract saying "out of spec for 1 km or more" describes a stretch of
-        flying that one recovered sounding does not end. ``0`` measures runs
-        raw; the raw figure is reported either way.
+    Parameters
+    ----------
+    good_max : float
+        Height at or below which a sounding meets spec, in ``unit``. A contract
+        term — no default, because inventing one would put a number with no
+        authority into a client deliverable.
+    marginal_max : float
+        Height above which a sounding is Out of Spec. Between the two is
+        Marginal.
+    column : str | None
+        Which ``flightlines`` column holds height above ground. Left unset, it
+        is discovered from the survey's own altitude column.
+    output_column : str
+        Where the per-sounding verdict is written.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    unit : str
+        Unit of the height column, used in report text only.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured. A contract
+        saying "out of spec for 1 km or more" describes a stretch of flying
+        that one recovered sounding does not end. ``0`` measures runs raw; the
+        raw figure is reported either way.
 
-    Returns ``(dataset, StepReport)``. The dataset is returned rather than
-    mutated silently, per ``building_plans/02``.
-
-    **On terrain models.** ``building_plans/03`` lists a terrain model among this
-    check's inputs. It is not taken here, and that is deliberate: producing a
-    correct height-above-ground column from a DTM is filter_05's job in the
-    processing chain, and duplicating it here would put the same physical
-    statement in two places with two chances to disagree — precisely the defect
-    R9 exists to prevent. This check reads the column; filter_05 is responsible
-    for it being right.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``. The dataset is returned rather than mutated silently, per ``building_plans/02``.  **On terrain models.** ``building_plans/03`` lists a terrain model among this check's inputs. It is not taken here, and that is deliberate: producing a correct height-above-ground column from a DTM is filter_05's job in the processing chain, and duplicating it here would put the same physical statement in two places with two chances to disagree — precisely the defect R9 exists to prevent. This check reads the column; filter_05 is responsible for it being right.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

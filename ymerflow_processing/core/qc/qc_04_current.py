@@ -199,35 +199,51 @@ def transmitter_stability(
 ):
     """Classify transmitter output stability, and agreement with nominal.
 
-    :param good_fraction: Departure from the moment's own mean current, as a
-        fraction of it, within which a sounding meets spec — e.g. ``0.01`` for
-        1%. No default: what counts as steady is an operational judgement.
-    :param marginal_fraction: Departure beyond which a sounding is Out of Spec.
-    :param nominal_good_fraction: Departure of the *mean* current from the
-        system description's declared nominal within which the description is
-        considered to describe this instrument. Both directions. **Left unset,
-        the offset is measured and no verdict is produced** — what counts as too
-        far from nominal is an operational judgement, not something to guess.
-    :param nominal_marginal_fraction: Beyond which the disagreement is Out of
-        Spec. Required if ``nominal_good_fraction`` is given.
-    :param jump_fraction: Sounding-to-sounding change, as a fraction of the
-        previous value, counted as a sudden step.
-    :param columns: ``{channel key or moment name: column}``, when the current
-        columns cannot be discovered. Discovered from the moment names otherwise.
-    :param output_column: Where the combined verdict is written — the worst of
-        stability and nominal agreement, across every moment.
-    :param nominal_column: Where the nominal-agreement verdict alone is written.
-        ``None`` to skip.
-    :param per_moment_prefix: Prefix for the per-moment stability verdicts,
-        suffixed with the channel key so the name stays inside the ten
-        characters a shapefile field allows. ``None`` to skip them.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param flight_column: Which column identifies the flight, used to keep jump
-        detection from flagging each flight's first sample. Discovered if unset.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
+    Parameters
+    ----------
+    good_fraction : float
+        Departure from the moment's own mean current, as a fraction of it,
+        within which a sounding meets spec — e.g. ``0.01`` for 1%. No default:
+        what counts as steady is an operational judgement.
+    marginal_fraction : float
+        Departure beyond which a sounding is Out of Spec.
+    nominal_good_fraction : float | None
+        Departure of the *mean* current from the system description's declared
+        nominal within which the description is considered to describe this
+        instrument. Both directions. **Left unset, the offset is measured and
+        no verdict is produced** — what counts as too far from nominal is an
+        operational judgement, not something to guess.
+    nominal_marginal_fraction : float | None
+        Beyond which the disagreement is Out of Spec. Required if
+        ``nominal_good_fraction`` is given.
+    jump_fraction : float
+        Sounding-to-sounding change, as a fraction of the previous value,
+        counted as a sudden step.
+    columns : dict | None
+        ``{channel key or moment name: column}``, when the current columns
+        cannot be discovered. Discovered from the moment names otherwise.
+    output_column : str
+        Where the combined verdict is written — the worst of stability and
+        nominal agreement, across every moment.
+    nominal_column : str | None
+        Where the nominal-agreement verdict alone is written. ``None`` to skip.
+    per_moment_prefix : str | None
+        Prefix for the per-moment stability verdicts, suffixed with the channel
+        key so the name stays inside the ten characters a shapefile field
+        allows. ``None`` to skip them.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    flight_column : str | None
+        Which column identifies the flight, used to keep jump detection from
+        flagging each flight's first sample. Discovered if unset.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

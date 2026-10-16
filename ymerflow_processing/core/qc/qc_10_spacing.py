@@ -105,23 +105,35 @@ def sounding_spacing(
 ):
     """Classify local sounding density against the contracted minimum.
 
-    :param good_max: Spacing at or below which the line meets spec, in CRS
-        units. A contract term, so no default.
-    :param marginal_max: Spacing above which the line is Out of Spec. Between
-        the two is Marginal.
-    :param output_column: Where the per-sounding verdict is written.
-    :param spacing_column: Where the along-line spacing is written, in CRS
-        units. Reported alongside the verdict because spacing is the number a
-        geophysicist pictures, even though density is what is classified.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param units_per_km: CRS units in a kilometre — 1000 for a metric CRS.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
-        A contract saying "out of spec for 1 km or more" describes a stretch of
-        flying that one recovered sounding does not end. ``0`` measures runs
-        raw; the raw figure is reported either way.
+    Parameters
+    ----------
+    good_max : float
+        Spacing at or below which the line meets spec, in CRS units. A contract
+        term, so no default.
+    marginal_max : float
+        Spacing above which the line is Out of Spec. Between the two is
+        Marginal.
+    output_column : str
+        Where the per-sounding verdict is written.
+    spacing_column : str
+        Where the along-line spacing is written, in CRS units. Reported
+        alongside the verdict because spacing is the number a geophysicist
+        pictures, even though density is what is classified.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    units_per_km : float
+        CRS units in a kilometre — 1000 for a metric CRS.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured. A contract
+        saying "out of spec for 1 km or more" describes a stretch of flying
+        that one recovered sounding does not end. ``0`` measures runs raw; the
+        raw figure is reported either way.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

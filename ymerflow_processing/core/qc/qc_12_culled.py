@@ -77,18 +77,28 @@ def culled_fraction(
 ):
     """Measure how much of each sounding culling disabled.
 
-    :param good_max: Culled fraction at or below which a sounding is
-        unremarkable. **Left unset, no verdict is produced** and only the
-        measurement is written.
-    :param marginal_max: Fraction above which the sounding is Out of Spec.
-        Required if ``good_max`` is given.
-    :param output_column: Where the per-sounding verdict is written.
-    :param fraction_column: Where the numeric fraction is written.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when contiguous runs are measured.
+    Parameters
+    ----------
+    good_max : float | None
+        Culled fraction at or below which a sounding is unremarkable. **Left
+        unset, no verdict is produced** and only the measurement is written.
+    marginal_max : float | None
+        Fraction above which the sounding is Out of Spec. Required if
+        ``good_max`` is given.
+    output_column : str
+        Where the per-sounding verdict is written.
+    fraction_column : str
+        Where the numeric fraction is written.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when contiguous runs are measured.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

@@ -74,19 +74,30 @@ def data_misfit(
 ):
     """Classify how well a previous inversion explained each sounding.
 
-    :param good_max: Root-mean-square misfit, **in standard deviations**, at or
-        below which a sounding is unremarkable. **Left unset, no verdict is
-        produced** and the distribution is reported alone.
-    :param marginal_max: Misfit above which the sounding is Out of Spec.
-        Required if ``good_max`` is given.
-    :param column: Which column holds the per-sounding misfit. Written by
+    Parameters
+    ----------
+    good_max : float | None
+        Root-mean-square misfit, **in standard deviations**, at or below which
+        a sounding is unremarkable. **Left unset, no verdict is produced** and
+        the distribution is reported alone.
+    marginal_max : float | None
+        Misfit above which the sounding is Out of Spec. Required if
+        ``good_max`` is given.
+    column : str
+        Which column holds the per-sounding misfit. Written by
         ``compute_misfit``, or by an inversion under the same name.
-    :param output_column: Where the per-sounding verdict is written.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when contiguous runs are measured.
+    output_column : str
+        Where the per-sounding verdict is written.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when contiguous runs are measured.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

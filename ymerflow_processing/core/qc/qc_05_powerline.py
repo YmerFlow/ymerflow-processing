@@ -175,28 +175,39 @@ def powerline_noise(
 ):
     """Measure how far the powerline monitor rose above its local background.
 
-    :param good_max: Excess above the local baseline, in robust sigmas, at or
-        below which a sounding is unremarkable. **Left unset, no verdict is
-        produced at all** and only the measurement is written — which is the
-        usual way to read this check.
-    :param marginal_max: Excess above which the sounding is Out of Spec.
-        Required if ``good_max`` is given.
-    :param window: How many soundings the rolling baseline spans. Must be
-        comfortably wider than the feature being detected, or a broad anomaly
-        becomes its own baseline; the default is about a kilometre at typical
-        spacing.
-    :param column: Which ``flightlines`` column holds the monitor. Discovered
-        if unset.
-    :param output_column: Where the per-sounding verdict is written.
-    :param excess_column: Where the numeric excess is written. Kept because the
-        verdict says a sounding was noisy without saying how noisy, and because
-        a later culling step may want to threshold it differently.
-    :param line_column: Which column identifies the line — the grain the
-        baseline is derived over. Discovered if unset.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
+    Parameters
+    ----------
+    good_max : float | None
+        Excess above the local baseline, in robust sigmas, at or below which a
+        sounding is unremarkable. **Left unset, no verdict is produced at all**
+        and only the measurement is written — which is the usual way to read
+        this check.
+    marginal_max : float | None
+        Excess above which the sounding is Out of Spec. Required if
+        ``good_max`` is given.
+    window : int
+        How many soundings the rolling baseline spans. Must be comfortably
+        wider than the feature being detected, or a broad anomaly becomes its
+        own baseline; the default is about a kilometre at typical spacing.
+    column : str | None
+        Which ``flightlines`` column holds the monitor. Discovered if unset.
+    output_column : str
+        Where the per-sounding verdict is written.
+    excess_column : str
+        Where the numeric excess is written. Kept because the verdict says a
+        sounding was noisy without saying how noisy, and because a later
+        culling step may want to threshold it differently.
+    line_column : str | None
+        Which column identifies the line — the grain the baseline is derived
+        over. Discovered if unset.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
