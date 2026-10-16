@@ -3,10 +3,14 @@
 Issue #9's reference half, and most of #15's agent index.
 
 **This is extraction, not authorship.** Every registered step has a docstring,
-nearly all carry ``:param:`` entries, and every signature is annotated — so the
+nearly all describe their parameters, and every signature is annotated — so the
 reference already exists, scattered across thirty-odd modules. A hand-written
 copy would duplicate eighty to a hundred lines of reasoning per module and start
 drifting the same afternoon.
+
+NumPy-style ``Parameters`` sections are the standard. The Sphinx field lists
+this library was first written in are still read, so the conversion can proceed
+one module at a time; that branch goes once the last one is converted.
 
 Generated from the entry-point registry specifically, not from a list of
 modules: the registry is **open**, so a step contributed by any installed package
@@ -110,9 +114,14 @@ def _signature(function) -> str:
     return ", ".join(rendered)
 
 
-def _parameters(function) -> list[tuple[str, str, str]]:
-    """``(name, default, description)`` for each parameter after the first."""
-    doc = inspect.getdoc(function) or ""
+def _is_underline(line: str) -> bool:
+    """A NumPy section underline: dashes, and nothing else."""
+    stripped = line.strip()
+    return bool(stripped) and set(stripped) == {"-"}
+
+
+def _sphinx_parameters(doc: str) -> dict[str, str]:
+    """Descriptions from ``:param name: text`` field lists."""
     described: dict[str, str] = {}
     current = None
     for line in doc.splitlines():
@@ -130,6 +139,50 @@ def _parameters(function) -> list[tuple[str, str, str]]:
             described[current] += " " + stripped
         elif stripped.startswith(":"):
             current = None
+    return described
+
+
+def _numpy_parameters(doc: str) -> dict[str, str]:
+    """Descriptions from a NumPy-style ``Parameters`` section.
+
+    An entry is ``name : type`` at the section's own indent, with its
+    description indented beneath. The section ends at the next underlined
+    heading — ``Returns``, ``Raises``, ``Notes`` — or at the end of the
+    docstring. The type is ignored: it is already in the signature, and
+    printing it twice is how the two drift apart.
+    """
+    lines = doc.splitlines()
+    described: dict[str, str] = {}
+    current = None
+    inside = False
+
+    for index, line in enumerate(lines):
+        following = lines[index + 1] if index + 1 < len(lines) else ""
+        if line.strip() and _is_underline(following):
+            inside = line.strip() == "Parameters"
+            current = None
+            continue
+        if _is_underline(line) or not inside or not line.strip():
+            continue
+        if line[:1] not in " \t":
+            current = line.split(":", 1)[0].strip()
+            described[current] = ""
+        elif current is not None:
+            described[current] = f"{described[current]} {line.strip()}".strip()
+    return described
+
+
+def _parameters(function) -> list[tuple[str, str, str]]:
+    """``(name, default, description)`` for each parameter after the first.
+
+    Both docstring styles are read. NumPy is the standard; the Sphinx field
+    lists this library was first written in are still accepted, so that the
+    conversion can proceed one module at a time without the generated
+    reference changing underneath it.
+    """
+    doc = inspect.getdoc(function) or ""
+    described = _sphinx_parameters(doc)
+    described.update({k: v for k, v in _numpy_parameters(doc).items() if v})
 
     rows = []
     for parameter in list(inspect.signature(function).parameters.values())[1:]:
@@ -143,13 +196,18 @@ def _parameters(function) -> list[tuple[str, str, str]]:
 def _summary(function) -> str:
     """The docstring's first paragraph — what the step does, in prose."""
     doc = inspect.getdoc(function) or ""
+    lines = doc.splitlines()
     out = []
-    for line in doc.splitlines():
+    for index, line in enumerate(lines):
         if not line.strip():
             if out:
                 break
             continue
         if line.strip().startswith(":"):
+            break
+        # A heading, even with no blank line before it, ends the summary —
+        # otherwise "Parameters" is read as the last word of the prose.
+        if index + 1 < len(lines) and _is_underline(lines[index + 1]):
             break
         out.append(line.strip())
     return " ".join(out)
