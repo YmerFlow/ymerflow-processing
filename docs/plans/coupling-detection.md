@@ -93,7 +93,17 @@ Physics, geometry and the window: **Appendix C**.
 
 ## What the detector cannot do
 
-Four limits. The first two are deliberate, the last two are the design risk.
+Four limits. The first two are deliberate, the last two bound where it applies.
+
+**These are applicability conditions, not defects.** Every processing filter in
+this library is selective — `cull_by_uncertainty` ships **no default** for
+`max_uncertainty` because "what is tolerable depends on the inversion",
+`qc_05_powerline` writes a verdict only where thresholds were supplied, and
+`thresholds.py` refuses to classify a metric with no threshold rather than
+guess one. A chain is composed per survey; nothing runs everywhere. So "not
+the right tool on that survey" is an ordinary thing to say about a step here,
+and the place to say it is the docstring, so whoever builds a chain knows
+before they add it.
 
 **1. Oscillatory coupling is out of scope.** A late-time sign reversal means
 coupling, IP, *or* noise, and IP is geology — common geology, not exotic. The
@@ -160,15 +170,19 @@ and three things follow:
    right for hydrogeology, where missing a quiet crossing costs more than
    culling a conductor. In mineral exploration the costs invert, so
    corroboration becomes close to mandatory. That is the `corroborate` mode —
-   a setting, not a constant.
-2. **Neither criterion may run unsupervised on mineral data.** Belongs in the
-   docstring, not only here.
-3. **The second pass is not optional there.** A tool that can discard the target
-   needs a human reading what it discarded.
+   a setting chosen per survey, like every other threshold here.
+2. **Say in the docstring where this step suits and where it does not**, so a
+   chain's author decides before adding it rather than after reading a model.
+3. **The second pass earns its keep most where targets are expected.** A step
+   that can discard one wants a human reading what it discarded.
 
-This does not sink the approach. Most surveys in hand are hydrogeological or
-sedimentary, where a bedded clay layer will not imitate a vertical sheet. But
-the detector has to be told which setting it is in; it cannot work that out.
+None of which sinks the approach — it scopes it, which is the normal condition
+of a filter here. Most surveys in hand are hydrogeological or sedimentary,
+where a bedded clay layer will not imitate a vertical sheet. Where conductive
+targets *are* expected, the honest options are to require corroboration or to
+leave the step out of the chain. The detector cannot work out which setting it
+is in, so the chain's author tells it — exactly as they already choose
+`max_uncertainty` and every other threshold in this library.
 
 ### And two priors the detector must not carry
 
