@@ -117,11 +117,18 @@ def _open(diff):
 def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
     """Apply a hand-authored in-use diff at the soundings it names.
 
-    :param diff: The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
-    :param checkpoint: A name for the state this diff is a difference from.
-        Recorded on the run so the pairing survives; nothing is written here.
+    Parameters
+    ----------
+    diff
+        The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
+    checkpoint : str | None
+        A name for the state this diff is a difference from. Recorded on the
+        run so the pairing survives; nothing is written here.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

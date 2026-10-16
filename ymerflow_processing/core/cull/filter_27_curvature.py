@@ -56,13 +56,23 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
                       spread_earlier: int = 0, disable_tail: bool = False):
     """Disable data whose local curvature is implausible.
 
-    :param max_curvature: Curvature above this is culled (filter_27).
-    :param min_curvature: Curvature below this is culled (filter_28).
-    :param start_gate: Where evaluation begins, 0-based.
-    :param spread_earlier: Also disable this many gates before each hit.
-    :param disable_tail: Also disable everything after the earliest hit.
+    Parameters
+    ----------
+    max_curvature : float | None
+        Curvature above this is culled (filter_27).
+    min_curvature : float | None
+        Curvature below this is culled (filter_28).
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

@@ -118,9 +118,13 @@ def parse_gates(nominated, width: int) -> list[int]:
 def nominate_gates(dataset, enable_gates=None, disable_gates=None):
     """Set named gates in the mask, either direction, per channel.
 
-    :param enable_gates: Gates to turn back on, per channel key or moment name
-        (``{"ch1": "0-5"}``), or one nomination for every channel.
-    :param disable_gates: Gates to turn off, in the same forms.
+    Parameters
+    ----------
+    enable_gates
+        Gates to turn back on, per channel key or moment name (``{"ch1":
+        "0-5"}``), or one nomination for every channel.
+    disable_gates
+        Gates to turn off, in the same forms.
 
     Two parameters rather than one plus a direction flag. R7's argument against
     booleans applies: ``enable: false`` reads as "do not enable" rather than

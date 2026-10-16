@@ -130,13 +130,20 @@ def honor_system_description(dataset):
 def disable_initial_gates(dataset, gates: dict | int | None = None):
     """Disable each channel's declared initial gates in the in-use mask.
 
-    :param gates: Override the system description, per channel key or moment
-        name (``{"ch1": 6}``), or one count for every channel. Left unset — the
-        normal case — each channel's own declaration is used. An override is for
-        a delivery whose description is known to be wrong, and it is recorded in
-        the report alongside what was declared, so the two never get confused.
+    Parameters
+    ----------
+    gates : dict | int | None
+        Override the system description, per channel key or moment name
+        (``{"ch1": 6}``), or one count for every channel. Left unset — the
+        normal case — each channel's own declaration is used. An override is
+        for a delivery whose description is known to be wrong, and it is
+        recorded in the report alongside what was declared, so the two never
+        get confused.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

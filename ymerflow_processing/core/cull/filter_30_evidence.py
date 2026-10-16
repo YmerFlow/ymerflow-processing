@@ -152,26 +152,37 @@ def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
                               disable_tail: bool = False):
     """Disable data that evidence from outside the transient says is suspect.
 
-    :param criterion: ``proximity`` — near a mapped feature (filter_30);
-        ``misfit`` — poorly fit by a previous inversion; or ``both`` — near a
-        feature **and** poorly fit, which is filter_31 and is more selective
-        than either.
-    :param infrastructure: Vector geometry, for ``proximity`` and ``both``.
-    :param distance_first: Exclusion distance at the first gate, in the survey's
-        CRS units. Per channel key or moment name, or one value for all.
-    :param distance_last: The same at the last gate. Constant if unset.
-    :param result: A previous inversion's or forward model's output, for
-        ``misfit`` and ``both``. **Only needed when the dataset has no misfit
-        column yet** — this reads the column first and computes one from the
-        result only if there is none, writing it so nothing recomputes it.
-        Running ``compute_misfit`` beforehand makes this an ordinary filter
+    Parameters
+    ----------
+    criterion : str
+        ``proximity`` — near a mapped feature (filter_30); ``misfit`` — poorly
+        fit by a previous inversion; or ``both`` — near a feature **and**
+        poorly fit, which is filter_31 and is more selective than either.
+    infrastructure
+        Vector geometry, for ``proximity`` and ``both``.
+    distance_first
+        Exclusion distance at the first gate, in the survey's CRS units. Per
+        channel key or moment name, or one value for all.
+    distance_last
+        The same at the last gate. Constant if unset.
+    result
+        A previous inversion's or forward model's output, for ``misfit`` and
+        ``both``. **Only needed when the dataset has no misfit column yet** —
+        this reads the column first and computes one from the result only if
+        there is none, writing it so nothing recomputes it. Running
+        ``compute_misfit`` beforehand makes this an ordinary filter
         thresholding a column, which is what ``01`` asks for.
-    :param max_misfit: Largest acceptable gatewise misfit, **in standard
-        deviations**. Data missed by more than this is suspect.
-    :param crs: The survey's CRS, if the dataset does not carry one.
-    :param start_gate: Where evaluation begins, 0-based.
-    :param spread_earlier: Also disable this many gates before each hit.
-    :param disable_tail: Also disable everything after the earliest hit.
+    max_misfit : float | None
+        Largest acceptable gatewise misfit, **in standard deviations**. Data
+        missed by more than this is suspect.
+    crs
+        The survey's CRS, if the dataset does not carry one.
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit.
 
     Each criterion carries only its own parameters, so nothing in the signature
     is dead depending on a flag (R7).
