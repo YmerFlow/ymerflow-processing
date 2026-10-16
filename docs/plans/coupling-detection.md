@@ -730,115 +730,187 @@ gets a climb, and terrain produces climbs of its own — so it belongs as an
 advisory input that raises confidence rather than as a mode of its own. If it
 later earns one, the enum above extends without changing shape.
 
-## Designing the profile criterion — the unbuilt half
+## Designing the profile criterion
 
-**This plan is strong on why and weak on how, and this is where.** The
-reconstruction criterion is specified completely, because Asif specified it.
-The profile criterion — the part that addresses the actual gap, the part with
-nothing to copy, the contribution that is ours — is at present a description of
-a pattern rather than a method. `criterion: profile` names something that has
-not been designed.
+The reconstruction criterion is specified completely, because Asif specified
+it. The profile criterion — the part that addresses the actual gap, with
+nothing to copy — was until now a description of a pattern rather than a
+method. This section is the method, scoped deliberately small.
 
-Five questions have to be answered before it can be written, and three of them
-are failure modes rather than details.
+**Build the shed first.** Z component only, no three-component data, no
+template matching, no simulation required to start. The extensions have their
+own section at the end and stay there until the shed stands up.
 
-### 1. What is the detector, concretely?
+### What sampling allows, which is less than the physics suggests
 
-The pattern is: symmetric, double-peaked, a central trough, locally confined,
-wider at late time than early, and sweeping across the gates in a fixed order
-as the system passes. Candidate shapes for a test, none yet chosen:
+The design has to start here, because it rules out the obvious approach.
 
-- **Matched filter** against a template double-peak, per gate, with the width a
-  free parameter. Cheap, but the template's width is exactly the thing that
-  varies per crossing.
-- **Polzer's decomposition, used for detection** — fit *smooth background +
-  symmetric departure* along the line and test the departure, which is what
-  Appendix A proposes and which needs no template.
-- **Symmetry score** about a candidate centre, combined with a trough test.
-- **A test in the time–distance plane** rather than per gate, which is the only
-  one that can use the sweep ordering.
+Take Kang's distribution line: null at 0, peaks at **±30 m**, falling to 3% by
+**±174 m**. At a 30 m sounding interval that is ~12 samples across the whole
+affected zone but only **about three across the double-peak core** — and if the
+sampling happens to be offset by half an interval, neither the null nor either
+peak is ever sampled, only four points partway up and down the flanks.
 
-They are not exclusive. What matters is that one gets chosen and written down
-with its parameters, because everything in staging step 2 is downstream.
+So:
 
-### 2. A line sub-parallel to the flight direction defeats all of them
+> **Symmetry survives sampling. Structure does not.**
 
-**The most serious hole in the plan.** Every formulation above compares a
-sounding to its along-line neighbours. If the power line runs *along* the
-flight line rather than across it, there is no uncoupled background to be
+Any detector that matches a *double-peak shape* will fail at ordinary sounding
+spacing on ordinary lines. The detector therefore looks for **a locally
+confined, symmetric departure from the along-line background** — a claim that
+holds whether the core is resolved, half-resolved or not resolved at all, and
+whether the line is distribution or transmission.
+
+This also disposes of the worry that a sounding will rarely sit exactly on the
+null. It never needs to.
+
+### 1. Locating the crossing: the axis of symmetry, not the null
+
+**Do not search for the trough.** Its position is quantised by the sounding
+interval at best, and it may fall between samples entirely.
+
+Instead, estimate the **axis of symmetry**: cross-correlate the profile segment
+against its own reverse, and the lag that maximises the correlation is twice
+the offset of the symmetry axis from the segment centre. This uses the
+**flanks**, which are well sampled, to locate a centre that may never be
+sampled, and it gives sub-sample precision — on the order of ±5–10 m for a
+clear anomaly, against a collinearity test that operates over kilometres.
+
+Three properties make this the right primitive:
+
+- **It is altitude-invariant.** The symmetry axis sits over the line at any
+  flight height. Height changes the *width* of the pattern, not its centre —
+  so varying altitude between lines, which is certain, does not move the thing
+  being measured. The widths are not compared across lines; only the positions.
+- **It is angle-invariant.** A straight flight path crossing a straight power
+  line is symmetric about the crossing at *any* angle. Only the apparent width
+  stretches, by `1 / sin θ`.
+- **It yields its own uncertainty**, from the sharpness of the correlation
+  peak, which the collinearity fit below can weight by.
+
+Each candidate therefore carries: a **position** (map coordinates, sub-sample),
+a **measured width**, an **amplitude**, and a **position uncertainty**.
+
+### 2. Width is measured, never predicted
+
+Three independent reasons now converge on this, and it is worth stating once:
+
+- **contact resistance** is unknowable and governs the realised extent
+  (Appendix C);
+- **line class** is often unknown, and loop area spans an order of magnitude;
+- **crossing angle** is unknown, and stretches apparent width by `1 / sin θ`.
+
+So the derived extent from Appendix C is used only to **bound the search
+window**, never as a threshold or a template. The measured width is an output.
+
+### 3. Collinearity, across every line regardless of bearing
+
+Candidates from all lines go into one map-coordinate set, and the test is for
+**collinear subsets with small residual scatter**. This is a Hough transform or
+RANSAC — each candidate votes for the straight features through it, and peaks
+in the accumulator are trends.
+
+**No distinction between flight lines and tie lines.** The test works on
+`(x, y)` points and has no reason to know a line's role or bearing. Tie lines
+are not assumed perpendicular, are not required, and a survey without them
+loses nothing structural — lines at differing bearings simply give better
+geometry for the fit.
+
+**The test is on residual scatter, not on collinearity existing.** A
+transmission line is straight to within metres over 10 km; geology bends,
+splays and varies along strike. That difference is a number with a threshold,
+which is what makes this a discriminator rather than an observation. Its
+honest limit: it catches transmission lines well and **road-following
+distribution poorly**, because roads curve.
+
+**Missing lines are expected and harmless.** Hough and RANSAC both tolerate
+gaps by construction, so a line flown high that failed to trigger simply does
+not vote. And because `height_above_ground` (qc_01) is already computed, a
+non-detection on a high line is *explicable* rather than evidence against the
+trend.
+
+#### Which is what lets the per-line detector be permissive
+
+**The most useful consequence in this section.** If collinearity does the
+discriminating, the per-line pass does not have to be precise. Run it with a
+low threshold, over-produce candidates, and let the trend test reject what does
+not line up.
+
+That matters because designing a precise per-line detector is the hard part,
+and this removes the requirement. It also inverts the usual tuning problem: the
+per-line stage is tuned for **recall**, the trend stage for **precision**.
+
+#### What it gives back
+
+- a **bearing** for each trend, from which the crossing angle `θ` follows per
+  line, and from which the measured width converts to a perpendicular extent;
+- **candidate discovery with no infrastructure layer**, which was an open
+  question with no proposal behind it;
+- **orientation independence**, which is the only partial answer to the
+  parallel-line problem below.
+
+#### Its one structural cost
+
+The trend test is **survey-level**, not line-level, unlike every other filter
+in the library. It needs every line present in one dataset. If a survey is ever
+processed line-by-line, this criterion silently cannot work — and "silently" is
+the dangerous part, so it must detect that it has only one line and say so.
+
+### 4. The failure mode that stays open: lines parallel to the flight direction
+
+The per-line detector compares a sounding to its along-line neighbours. If the
+power line runs *along* the flight line, there is no uncoupled background to be
 anomalous against: the whole line is elevated, nothing stands out, and the
-detector reports clean data with no indication that it failed.
+detector reports clean with no sign that it failed.
 
-This is not an edge case. Lines follow roads and valleys, and survey grids are
-often laid out relative to the same terrain, so a flight direction
-sub-parallel to local infrastructure is ordinary. It is `qc_05`'s "farmland
-into town" problem with no return to baseline.
+Not an edge case — lines follow roads and valleys, and survey grids are often
+laid out against the same terrain. It is `qc_05`'s "farmland into town" problem
+with no return to baseline.
 
-Partial answers, none sufficient alone: the **tie lines** cross at right angles
-and sample the same ground independently; an **infrastructure layer** gives the
-bearing directly; **cross-line collinearity** (below) is orientation-free; and
-the detector could at minimum **refuse to claim a clean verdict** where a mapped
-feature runs within some angle of the flight direction, rather than silently
-seeing nothing.
+Partial answers, none sufficient alone:
 
-### 3. Crossing angle changes the apparent width
+- **Lines of a different bearing** in the same survey still cross it, and the
+  trend test consumes them equally (§3). This is the main mitigation, and it is
+  why not distinguishing tie lines matters.
+- **An infrastructure layer** gives the bearing directly.
+- **At minimum, refuse to claim a clean verdict.** Where a mapped feature or a
+  recovered trend runs within some angle of the flight direction, the detector
+  should report that it cannot judge rather than report nothing found. A hole
+  that announces itself is survivable; a confident pass is not.
 
-Appendix C reasons entirely in **perpendicular** distance from the line. The
-detector only ever sees **along-line** distance. The two differ by `1 / sin θ`,
-so a crossing at 30° presents a pattern twice as wide as the physics predicts
-and one at 15° nearly four times.
+### Later, once the shed stands
 
-Any window derived from loop geometry therefore has to be converted before it
-can be compared to anything measured, and the conversion needs the feature's
-bearing — available from an infrastructure layer, and not otherwise. Without
-one, the width has to be measured per crossing and the angle left unknown,
-which is another argument for measuring rather than deriving.
+Neither of these is part of the first build.
 
-### 4. Cross-line collinearity is unexploited, and may be the strongest test
+**The horizontal component.** Deliveries carry one — the real SkyTEM delivery
+ships `HM_X_G01` — and the library already keeps it as an *unclaimed* array
+rather than a channel. The trap to know about: **do not declare it in the GEX**
+to make it available. `DualMomentTEMXYZSystem` hardcodes `rx_orientation='z'`
+and would read a declared X channel as Z, which is a confident wrong model
+rather than a refusal, and there is a test asserting exactly that. The right
+route is to read it through `unclaimed_arrays`, which keeps it away from the
+inversion. It must also stay optional and degrade loudly, because
+single-component receivers exist.
 
-A power line is **ruler-straight over kilometres** and crosses flight line
-after flight line at positions that fall on a straight trend. Geology is linear
-too, but it bends, splays, changes strength along strike and rarely stays
-perfectly straight for 10 km.
+What it might buy is **a sharper position estimate**. Reasoning from the
+geometry rather than from a source: the response goes as (Tx→loop) ×
+(loop→Rx), both antisymmetric about the crossing, whose product is symmetric
+and positive — which is why the observed Z anomaly is a symmetric positive
+double peak rather than a sign reversal. If that is right then the central null
+is partly an *excitation* null, **no receiver orientation fills it**, and an
+earlier draft of this plan was wrong to say X would. X should instead be
+antisymmetric with a sharp **zero crossing** at the line, and zero crossings
+localise better than broad troughs. It also predicts that concentric systems
+(VTEM) and offset systems (SkyTEM) differ, because their two nulls coincide in
+one case and separate in the other.
 
-Nothing in the plan uses this, although the discriminator table lists
-straightness as "somewhat" useful. A criterion that collects per-line
-candidates across the whole survey and tests them for collinearity would:
+**That paragraph is derived, not read, and must be checked before anything
+rests on it** — the same SimPEG run already queued for the dipping-plate test
+can settle it.
 
-- **discriminate** against the dipping-conductor false positive, which is the
-  problem the plan otherwise has no geophysical answer to;
-- **find candidates without an infrastructure layer**, because collinearity
-  across many lines is a strong prior and currently an open question with no
-  proposal behind it;
-- **be orientation-free**, which helps with (2);
-- **recover the bearing**, which is what (3) needs.
-
-It answers four of this section's problems at once, which is reason enough to
-treat it as a third criterion — `criterion: trend` — rather than as a remark.
-Its cost is that it is a **survey-level** test, not a line-level one, so it does
-not fit the one-line-at-a-time shape the other criteria have.
-
-### 5. The horizontal component could close the central trough
-
-Deliveries carry a horizontal component — the real SkyTEM delivery ships
-`HM_X_G01` alongside `HM_Z_G01`, and the library already discovers it and
-leaves it unclaimed rather than feeding it to a Z-only inversion.
-
-Over a vertical conductor the geometry that nulls the vertical field **peaks
-the horizontal one**. So X is loud exactly where Z goes quiet, and the "island
-of apparently good data directly over the conductor" — which the plan currently
-accepts as a known weakness — would be visible in a channel we already receive
-and currently discard.
-
-It does **not** discriminate power line from dipping conductor; the geometry is
-the same for both, which is the whole point of "the double peak is not
-diagnostic". It fixes coverage, not ambiguity.
-
-### What this section is
-
-Not a design. A list of what the design has to answer, written down so the gap
-is visible instead of implied. (1) is the work; (2) is the risk; (4) is the
-most promising idea in it.
+**The sweep-across-gates ordering.** Still the only candidate discriminator
+that is geophysical rather than circumstantial, and still untested; see open
+questions.
 
 ## Cost, for a 2700 line-km survey at 30 m
 
@@ -880,11 +952,14 @@ not a per-survey one, and where a GPU forward model would pay for itself.
    and provenance. No new dependency. Testable against synthetic couplings now.
    Fitted on the delivered survey, it also absorbs the vendor's pre-processing
    instead of mistaking it for an anomaly — see "The black box is a systematic".
-2. **The profile criterion** — the double-peak-with-central-trough search. It
-   works on both systems and on delivered data and needs no uncertainties,
-   which is why it is staged before the auto-encoder. But it is also **the
-   riskiest stage, not the safest**: it is the only part with nothing to copy,
-   and it is not yet designed. See "Designing the profile criterion".
+2. **The profile criterion, Z only** — a locally confined symmetric departure
+   found per line, located by its axis of symmetry, then tested for
+   collinearity across every line in the survey. Works on both systems and on
+   delivered data, and needs no uncertainties, which is why it comes before the
+   auto-encoder. Designed in "Designing the profile criterion"; still the
+   riskiest stage, because it is the only part with nothing to copy.
+   Deliberately excludes the horizontal component and the sweep-across-gates
+   ordering — shed before skyscraper.
 3. **The auto-encoder reconstructor**, behind the interface from (1), once there
    is a trained artifact and a decision about shipping weights in a
    GPL-licensed repository. May never be worth it, given per-system retraining
