@@ -1228,6 +1228,38 @@ The profile criterion's own design questions are gathered in "Designing the prof
   estimates; VTEM sometimes carries a 10 Hz product and **never** error
   estimates. All of it is minimally processed by the vendor, not raw. So the
   modeled denominator is the default path. See "Two systems".
+- **What does the profile criterion take as input — one gate, a band, or a
+  summary across gates?** Unaddressed, and it decides a lot. The reconstruction
+  criterion works per sounding across all gates; the profile criterion could
+  run independently per gate, on a band chosen around the LM/HM crossover where
+  the effect peaks, or on a single summary curve. It sets the cost, how the
+  per-gate table gets populated, and whether the sweep-across-gates ordering is
+  usable at all. **Settle this first of the profile questions** — the rest
+  depend on it.
+
+- **The per-line detector's actual numbers.** The method is designed; the
+  parameters are not. How wide is "locally confined", in soundings? How is the
+  along-line background estimated — a rolling window as `qc_05_powerline` does
+  it, a polynomial as Polzer does, or something else? What threshold makes the
+  pass permissive without flooding the trend stage? These want sketching
+  against a real line rather than chosen in the abstract.
+
+- **How is the trend baseline length chosen?** §5 makes it a parameter so that
+  one algorithm covers straight transmission and curving guardrails, but says
+  nothing about what sets it. Candidates: a fixed map distance, a number of
+  adjacent lines, or a sweep that reports what it found at several scales. The
+  last is probably the most useful on a first pass and the most expensive.
+
+- **Two claims in this plan are derived rather than read, and must be checked
+  before anything rests on them.** Both are marked where they appear. The
+  horizontal component's behaviour over a vertical conductor — the argument
+  that the central null is partly an *excitation* null, so no receiver
+  orientation fills it — is geometry reasoned from first principles, and it
+  already corrected one earlier error in this document. And the metal
+  time-constant arithmetic in §5, τ ≈ μ₀σa²/π² giving seconds for metal against
+  milliseconds for sulphide, is the basis for the only real point-source
+  discriminator offered. The same SimPEG run settles the first.
+
 - **What do α and β_max become against a modeled sigma?** The remaining half of
   that question, and now the first thing to settle. A modeled sigma has
   different statistics from measured stack scatter, so 2.5 and 0.99 are not
