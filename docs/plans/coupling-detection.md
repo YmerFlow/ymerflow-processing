@@ -34,11 +34,29 @@ Neither can the published automation. Asif state the failure in our terms:
 > easily be interpreted as a geological change** … The automated approach cannot
 > distinguish this type of coupling from uncoupled data.
 
-Nor does inversion misfit. A smooth elevation is fitted *comfortably* by a 1D
-model, as a conductor that is not there, so **the dangerous case has low
-misfit** and anything keyed on misfit selects against it. That includes
-`cull_by_external_evidence`'s `misfit` criterion and `data_misfit` (qc_11): a
-quiet misfit map on pass one is not evidence the data was clean.
+Inversion misfit is a partial answer, and the limits are worth stating because
+it looks like it should already solve this. A smooth elevation *can* be fitted
+as a conductor that is not there, in which case it is invisible to anything
+keyed on misfit — so `cull_by_external_evidence`'s `misfit` criterion and
+`data_misfit` (qc_11) cannot be relied on, and **a quiet misfit map on pass one
+is not evidence the data was clean.**
+
+But field data says misfit responds more often than that argument implies.
+On Estancia line 1080 a sounding with a plausible, monotonic, smoothly elevated
+decay and a **quiet monitor** (PLM 0.59) still came in at **NRMS 8.78**. That
+run was **downsampled, not stacked** — every 10th fiducial, so each point is a
+single unaveraged sounding — which makes the smoothness itself informative: an
+unaveraged transient that stays monotonic while displaced from the synthetic is
+**coherent**, and coherent is what distinguishes coupling from noise. The
+likely reason is the lateral constraint: an isolated elevated sounding cannot
+move freely when its neighbours are not elevated, so the regularisation fights
+it and the residual surfaces as misfit. The case that escapes is therefore the
+**broad regional** elevation, where the whole neighbourhood moves together and
+the constraint has nothing to push against.
+
+So misfit is a useful corroborating signal and a poor sole criterion. The
+detector stays in the data domain, before inversion, because that is where the
+broad case is still visible.
 
 What is available instead is the profile:
 
@@ -306,7 +324,14 @@ corroborate: none    # none | plni | infrastructure | any | all
 `any` and `all` are different tools, which is why "PLNI and shapefile" needed
 splitting.
 
-**The PLNI is not one thing**, and which it is decides whether `plni` is sound:
+**Never assume the monitor, always use it where it is there.** The same rule as
+the infrastructure layer: no capability may depend on a PLNI channel, and any
+that exists should be consumed. Geotech's VTEM finals for Estancia carry one
+(as `PLM`), so it is not a SkyTEM-only convenience — but it is not guaranteed
+either, and a delivery without one must lose nothing but confidence.
+
+**The PLNI is also not one thing**, and which it is decides whether `plni` is
+sound:
 
 | | tuned coil | bandpass of a late gate |
 |---|---|---|
@@ -758,6 +783,44 @@ agreement with that judgement is a fair test even where the reason is unknown.
 
 Remaining caveats: the mask is aggregate rather than coupling-specific, the join
 loses resolution, and it is one line of one survey by one processor.
+
+### A second case: Estancia, and what it already shows
+
+`AGF_Projects/NMTech_FY2027_Working/Estancia/.../ymerflow_runs/test_A` is a
+first test inversion of **Geotech VTEM finals** on the platform — four lines,
+every 10th fiducial, **downsampled rather than stacked**, on platform defaults
+nobody had reviewed. Not a result, and the model is under-regularized. The
+*data* panels are useful anyway, and four things in them bear on this plan.
+
+**It carries a power-line monitor** (`PLM`), so the witness is not SkyTEM-only.
+
+**The hump sits where Appendix A predicts.** The worst high-monitor sounding
+(line 1070, PLM 3.70, NRMS 14.0) tracks the synthetic to ~300 µs, then departs
+and humps at **~1000–1500 µs** before falling. Appendix A derives a 0.4–1.4 ms
+peak from Kang's LM/HM overlap on *SkyTEM*; this is VTEM, a different system
+and survey, landing in the same window.
+
+**The pilot climb is observable.** On line 1070 at x ≈ 37,500 m the loop height
+reaches **125 m against ~35 m nominal**, coincident with the largest monitor
+peak. Kang's explanation for why field LM is quieter than modeled LM, seen in
+our own data.
+
+**And the smooth case is there, with a quiet monitor.** Line 1080, x = 3719 m:
+PLM **0.59** — background — and a decay that is monotonic, plausible and
+**consistently above the synthetic** from ~100 µs out. This is the signature the
+whole plan exists for, in one panel, with the monitor saying nothing.
+
+Two caveats on using it:
+
+- **The run is downsampled by ten**, so its effective spacing is an order of
+  magnitude coarser than the delivered rate. Anything calibrated on it is
+  calibrated in the wrong sampling regime — see "What sampling allows".
+- **It has no ground truth.** Unlike line 300901 there is no processor's `InUse`
+  mask here, so it illustrates and does not score.
+
+Those four decay panels — typical, hump-with-loud-monitor,
+severe-with-climb, smooth-with-quiet-monitor — are close to a labelled set of
+the cases the detector has to separate, and worth keeping as fixtures.
 
 ### Synthetic data, and its circularity
 
