@@ -192,21 +192,30 @@ def version_diff(items, reference=None, quantities=QUANTITIES,
                  position_tolerance: float = POSITION_TOLERANCE):
     """What changed between two processing versions of the same data.
 
-    :param items: The newer version — one dataset, or a one-item sequence.
-    :param reference: The older version. Required: which of two versions is the
-        newer one cannot be inferred, and getting it backwards reverses the sign
-        of every finding while reporting the same magnitudes.
-    :param quantities: Which of ``data``, ``uncertainty``, ``mask`` to diff.
-    :param relative: Below this fractional change a value counts as unmoved.
-        Tight by default — unlike an equivalence tolerance this is not a
-        judgement about acceptability, only about float noise.
-    :param absolute: Absolute companion to ``relative``, for values that pass
-        through zero.
-    :param position_tolerance: How close two soundings must be, in CRS units, to
-        be the same sounding when there is no timestamp.
+    Parameters
+    ----------
+    items
+        The newer version — one dataset, or a one-item sequence.
+    reference
+        The older version. Required: which of two versions is the newer one
+        cannot be inferred, and getting it backwards reverses the sign of every
+        finding while reporting the same magnitudes.
+    quantities
+        Which of ``data``, ``uncertainty``, ``mask`` to diff.
+    relative : float
+        Below this fractional change a value counts as unmoved. Tight by
+        default — unlike an equivalence tolerance this is not a judgement about
+        acceptability, only about float noise.
+    absolute : float
+        Absolute companion to ``relative``, for values that pass through zero.
+    position_tolerance : float
+        How close two soundings must be, in CRS units, to be the same sounding
+        when there is no timestamp.
 
-    Returns a :class:`StepReport`. **No pass or fail**: the two versions are
-    meant to differ, so a difference is the answer rather than the finding.
+    Returns
+    -------
+    tuple
+        a :class:`StepReport`. **No pass or fail**: the two versions are meant to differ, so a difference is the answer rather than the finding.
     """
     report = StepReport(step=STEP)
 

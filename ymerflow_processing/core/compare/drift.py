@@ -191,16 +191,24 @@ def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
                       max_ratio: float | None = None):
     """Trend the estimated noise floor across a sequence of deliveries.
 
-    :param items: Stored run reports, ordered.
-    :param reference: A run to measure everything against. Without one the
-        baseline is the series median, which is robust to the outlier being
-        looked for.
-    :param source_step: Which step's report carries the model.
-    :param max_ratio: Largest acceptable factor between a delivery's floor and
-        the baseline. **Unset, this measures and says nothing** — what counts as
-        too much drift depends on the instrument and the survey.
+    Parameters
+    ----------
+    items
+        Stored run reports, ordered.
+    reference
+        A run to measure everything against. Without one the baseline is the
+        series median, which is robust to the outlier being looked for.
+    source_step : str
+        Which step's report carries the model.
+    max_ratio : float | None
+        Largest acceptable factor between a delivery's floor and the baseline.
+        **Unset, this measures and says nothing** — what counts as too much
+        drift depends on the instrument and the survey.
 
-    Returns a :class:`StepReport`.
+    Returns
+    -------
+    tuple
+        a :class:`StepReport`.
     """
     report = StepReport(step=STEP)
     if not items:

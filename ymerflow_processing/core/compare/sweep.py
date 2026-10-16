@@ -227,22 +227,31 @@ def parameter_sweep(items, reference=None, response_column: str | None = None,
                     position_tolerance: float = POSITION_TOLERANCE):
     """Trace how the output responds to one varied parameter.
 
-    :param items: The runs, **ordered**. ``02`` makes ``items`` ordered and says
-        a check may rely on it; a response curve is read in order.
-    :param reference: The control every run is measured against. Without one the
-        first run is used, which is the conventional sweep — a series starting
-        from the current setting.
-    :param response_column: A per-sounding column to trace alongside the
-        divergence, such as a misfit or a noise estimate. Optional: divergence
-        from the control exists for every sweep, while a better response
-        measure exists only sometimes.
-    :param flat_fraction: A step below this fraction of the largest counts as
-        flat, when looking for where the response levels off.
-    :param position_tolerance: How close two soundings must be, in CRS units, to
-        be the same sounding when there is no timestamp.
+    Parameters
+    ----------
+    items
+        The runs, **ordered**. ``02`` makes ``items`` ordered and says a check
+        may rely on it; a response curve is read in order.
+    reference
+        The control every run is measured against. Without one the first run is
+        used, which is the conventional sweep — a series starting from the
+        current setting.
+    response_column : str | None
+        A per-sounding column to trace alongside the divergence, such as a
+        misfit or a noise estimate. Optional: divergence from the control
+        exists for every sweep, while a better response measure exists only
+        sometimes.
+    flat_fraction : float
+        A step below this fraction of the largest counts as flat, when looking
+        for where the response levels off.
+    position_tolerance : float
+        How close two soundings must be, in CRS units, to be the same sounding
+        when there is no timestamp.
 
-    Returns a :class:`StepReport`. **Nothing here is a recommendation** — the
-    trade a sweep explores is the user's to make.
+    Returns
+    -------
+    tuple
+        a :class:`StepReport`. **Nothing here is a recommendation** — the trade a sweep explores is the user's to make.
     """
     report = StepReport(step=STEP)
 

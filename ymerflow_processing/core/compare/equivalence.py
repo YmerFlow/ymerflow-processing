@@ -189,25 +189,38 @@ def implementation_equivalence(
 ):
     """Compare a candidate implementation against a baseline, per datum.
 
-    :param items: The candidate's output — one dataset, or a one-item sequence.
-        Per ``02``'s table, the candidate is ``items`` and the baseline is
+    Parameters
+    ----------
+    items
+        The candidate's output — one dataset, or a one-item sequence. Per
+        ``02``'s table, the candidate is ``items`` and the baseline is
         ``reference``.
-    :param reference: The baseline's output over the same input. Required.
-    :param relative: Fractional agreement required, against the baseline value.
-    :param absolute: Absolute agreement required, added to the relative part.
-        Needed where the baseline can be zero, since a fraction of zero is zero.
-    :param justification: Why that tolerance is the right one. Carried into the
-        report because a tolerance without a reason is a number someone tuned
-        until the comparison passed.
-    :param expected_differences: Declarations of where the two are *meant* to
-        differ. Each is ``{quantity, channel?, reason, direction?}``, where
-        ``direction`` is ``"smaller"``, ``"larger"`` or ``"any"``. A covered
-        difference is a pass; one whose direction is violated is not.
-    :param quantities: Which of ``data``, ``uncertainty``, ``mask`` to compare.
-    :param position_tolerance: How close two soundings must be, in CRS units, to
-        be the same sounding when there is no timestamp.
+    reference
+        The baseline's output over the same input. Required.
+    relative : float
+        Fractional agreement required, against the baseline value.
+    absolute : float
+        Absolute agreement required, added to the relative part. Needed where
+        the baseline can be zero, since a fraction of zero is zero.
+    justification : str | None
+        Why that tolerance is the right one. Carried into the report because a
+        tolerance without a reason is a number someone tuned until the
+        comparison passed.
+    expected_differences
+        Declarations of where the two are *meant* to differ. Each is
+        ``{quantity, channel?, reason, direction?}``, where ``direction`` is
+        ``"smaller"``, ``"larger"`` or ``"any"``. A covered difference is a
+        pass; one whose direction is violated is not.
+    quantities
+        Which of ``data``, ``uncertainty``, ``mask`` to compare.
+    position_tolerance : float
+        How close two soundings must be, in CRS units, to be the same sounding
+        when there is no timestamp.
 
-    Returns a :class:`StepReport`.
+    Returns
+    -------
+    tuple
+        a :class:`StepReport`.
     """
     report = StepReport(step=STEP)
 
