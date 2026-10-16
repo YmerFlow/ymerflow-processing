@@ -144,10 +144,13 @@ def gate_distances(first: float, last: float, times) -> np.ndarray:
     return float(first) + span * (float(last) - float(first))
 
 
-def cull_by_external_evidence(dataset, criterion: str, infrastructure=None,
-                              distance_first=None, distance_last=None,
-                              result=None, max_misfit: float | None = None,
-                              crs=None, start_gate: int = 0,
+def cull_by_external_evidence(dataset, criterion: str,
+                              infrastructure: str | GeoDataFrame | None = None,
+                              distance_first: float | dict[str, float] | None = None,
+                              distance_last: float | dict[str, float] | None = None,
+                              result: str | XYZ | Dataset | None = None,
+                              max_misfit: float | None = None,
+                              crs: str | None = None, start_gate: int = 0,
                               spread_earlier: int = 0,
                               disable_tail: bool = False):
     """Disable data that evidence from outside the transient says is suspect.

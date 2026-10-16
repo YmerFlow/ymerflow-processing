@@ -172,7 +172,7 @@ def ensure_misfit(dataset, channel, result=None):
     return computed
 
 
-def compute_misfit(dataset, result, rms_column: str = RMS_COLUMN):
+def compute_misfit(dataset, result: str | XYZ | Dataset, rms_column: str = RMS_COLUMN):
     """Write misfit between the data and a forward synthetic as columns.
 
     :param result: A previous inversion's or forward model's output — an XYZ, a

@@ -110,11 +110,35 @@ def _open(diff):
     """
     if hasattr(diff, "layer_data"):
         return diff
+    # The plot editor saves msgpack, which the XYZ text reader cannot open; and
+    # the text form would renumber its gate columns, which carry gate indices.
+    if str(diff).endswith(".msgpack"):
+        from libaarhusxyz.export import msgpack
+        return msgpack.load(str(diff))
     from libaarhusxyz.xyz import XYZ
     return XYZ(str(diff))
 
 
-def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
+def _full_width(frame, gates: int):
+    """An override frame spread over every gate, by the gate each column names.
+
+    The plot editor writes only the gates someone touched, each column labelled
+    with its gate index, so a two-gate edit is two columns. Returns the
+    ``(rows, gates)`` array, NaN where nothing was said, and the labels that
+    name no gate here.
+    """
+    full = np.full((len(frame), gates), np.nan)
+    outside = []
+    for label in frame.columns:
+        gate = int(label)
+        if 0 <= gate < gates:
+            full[:, gate] = np.asarray(frame[label], dtype=float)
+        else:
+            outside.append(label)
+    return full, outside
+
+
+def apply_manual_edits(dataset, diff: str | XYZ, checkpoint: str | None = None):
     """Apply a hand-authored in-use diff at the soundings it names.
 
     :param diff: The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
@@ -161,16 +185,18 @@ def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
         if channel is None:
             continue
 
-        overrides = np.asarray(array, dtype=float)
-        if overrides.shape[0] != where.size:
+        if len(array) != where.size:
             raise ValueError(
-                f"Edit array {key!r} has {overrides.shape[0]} rows against "
+                f"Edit array {key!r} has {len(array)} rows against "
                 f"{where.size} entries in {APPLY_INDEX}; they must agree."
             )
         gates = dataset.layer_data[channel.data_key].shape[1]
-        if overrides.shape[1] != gates:
+        overrides, outside = _full_width(array, gates)
+        if outside:
+            # A gate this channel does not have: authored against something
+            # else, so none of this channel's edit is trusted.
             unmatched.append(
-                f"{key} ({overrides.shape[1]} gates against {gates})")
+                f"{key} (gate(s) {', '.join(map(str, outside))} against {gates})")
             continue
 
         # NaN means "no override" and is the diff's sentinel, not the mask's.

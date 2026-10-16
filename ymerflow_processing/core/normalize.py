@@ -195,7 +195,7 @@ def convert_normalization(dataset, to: str = RX_TX_NORMALIZED,
     return dataset, report
 
 
-def apply_nominal_current(dataset, columns=None, stash: bool = True):
+def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, stash: bool = True):
     """Overwrite the per-sounding transmitter current with the declared nominal.
 
     :param columns: Which ``flightlines`` column holds each channel's current,
