@@ -98,16 +98,19 @@ def _signature(function) -> str:
     parameters = list(inspect.signature(function).parameters.values())[1:]
     rendered = []
     for parameter in parameters:
-        # Built piece by piece rather than from str(parameter), because
-        # `from __future__ import annotations` makes every annotation a string
-        # and renders it quoted — `good_max: 'float'`. Stripping quotes from the
-        # whole thing also strips them from string DEFAULTS, turning
-        # `output_column: str = 'qs_altim'` into something that reads as a name
-        # rather than a string. Only the annotation is unquoted.
+        # Built piece by piece rather than from str(parameter), which quotes
+        # string DEFAULTS away — `output_column: str = 'qs_altim'` reading as a
+        # name rather than a string. Only the annotation is rendered bare.
+        #
+        # An annotation arrives either as a real object or, under
+        # `from __future__ import annotations`, as the source text. Both are
+        # accepted: a string is already what we want to print, and
+        # `formatannotation` would wrap it in quotes.
         text = parameter.name
         if parameter.annotation is not inspect.Parameter.empty:
             annotation = parameter.annotation
-            text += f": {annotation if isinstance(annotation, str) else annotation}"
+            text += ": " + (annotation if isinstance(annotation, str)
+                            else inspect.formatannotation(annotation))
         if parameter.default is not inspect.Parameter.empty:
             text += f" = {parameter.default!r}"
         rendered.append(text)
