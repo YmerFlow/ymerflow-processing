@@ -289,25 +289,36 @@ def export_vector(
     actually made. That split is the point: the layers are the product and the
     file is one way of delivering them.
 
-    :param path: Where to write.
-    :param crs: **Output** CRS, e.g. ``"EPSG:32613"``. Required and never
-        guessed: it is a project decision, and a contractor's delivery CRS and a
-        client's output CRS are routinely different.
-    :param source_crs: What the dataset's coordinates are in. Taken from the
-        dataset if it knows; an error if neither says, since reprojecting from
-        an assumed CRS produces plausible, wrong positions.
-    :param columns: Which attributes to write. All of ``flightlines`` by default.
-    :param lines: Also write one feature per flightline. GeoPackage takes both
-        layers in one file; a shapefile holds one geometry type, so this writes
-        a second file alongside.
-    :param unclassified: What a verdict with no classification is written as.
-    :param format: Which format to write — ``gpkg``, ``shp`` or ``geojson``.
-        Taken from the extension if unset, which is what a standalone run
-        usually wants. Stated explicitly it wins, so a caller serving a chosen
-        format is not obliged to encode that choice in a filename.
+    Parameters
+    ----------
+    path
+        Where to write.
+    crs
+        **Output** CRS, e.g. ``"EPSG:32613"``. Required and never guessed: it
+        is a project decision, and a contractor's delivery CRS and a client's
+        output CRS are routinely different.
+    source_crs
+        What the dataset's coordinates are in. Taken from the dataset if it
+        knows; an error if neither says, since reprojecting from an assumed CRS
+        produces plausible, wrong positions.
+    columns
+        Which attributes to write. All of ``flightlines`` by default.
+    lines : bool
+        Also write one feature per flightline. GeoPackage takes both layers in
+        one file; a shapefile holds one geometry type, so this writes a second
+        file alongside.
+    unclassified : str
+        What a verdict with no classification is written as.
+    format : str | None
+        Which format to write — ``gpkg``, ``shp`` or ``geojson``. Taken from
+        the extension if unset, which is what a standalone run usually wants.
+        Stated explicitly it wins, so a caller serving a chosen format is not
+        obliged to encode that choice in a filename.
 
-    Returns ``(dataset, StepReport)``. The dataset is returned unchanged — this
-    reads and writes files.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``. The dataset is returned unchanged — this reads and writes files.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

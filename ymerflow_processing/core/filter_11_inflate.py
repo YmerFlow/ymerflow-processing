@@ -59,14 +59,20 @@ STEP = "inflate_uncertainty"
 def inflate_uncertainty(dataset, fraction, gates=None):
     """Add ``fraction`` to the uncertainty of the nominated gates.
 
-    :param fraction: How much to add, as a fraction — ``0.02`` is two percentage
-        points. Negative reduces. Per channel key or moment name
-        (``{"ch1": 0.02}``), or one value for every channel.
-    :param gates: Which gates, per channel or one nomination for all. A single
-        index, a list, or an inclusive ``"first-last"`` range. Every gate if
-        unset.
+    Parameters
+    ----------
+    fraction
+        How much to add, as a fraction — ``0.02`` is two percentage points.
+        Negative reduces. Per channel key or moment name (``{"ch1": 0.02}``),
+        or one value for every channel.
+    gates
+        Which gates, per channel or one nomination for all. A single index, a
+        list, or an inclusive ``"first-last"`` range. Every gate if unset.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

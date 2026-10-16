@@ -57,10 +57,16 @@ STASH_SUFFIX = "_raw"
 def assign_uncertainty(dataset, stash: bool = True):
     """Replace uncertainties with the dataset's recorded noise model.
 
-    :param stash: Keep the delivered uncertainties alongside, under the same key
-        with ``_raw`` appended.
+    Parameters
+    ----------
+    stash : bool
+        Keep the delivered uncertainties alongside, under the same key with
+        ``_raw`` appended.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

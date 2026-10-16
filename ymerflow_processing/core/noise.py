@@ -281,23 +281,29 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
                          late_gates: int | None = None):
     """Estimate the dataset's noise model, and record it for every consumer.
 
-    :param scope: ``per_line``, ``per_flight`` or ``per_dataset`` — the grain the
+    Parameters
+    ----------
+    scope : str
+        ``per_line``, ``per_flight`` or ``per_dataset`` — the grain the
         estimate is made over. Not "per survey": this library has no concept of
         one, ``Survey`` is already the data object's class, and a campaign may
         map to one dataset, part of one, or several.
-    :param noise_level_1ms: The absolute floor at 1 ms, before moment
-        normalization. Absent means estimate.
-    :param noise_exponent: The power-law slope. Absent means fit it; ``-0.5`` is
-        the usual value and a fitted number far from it usually means the gates
-        involved are not ambient noise.
-    :param relative_fraction: Systematic error as a fraction of signal. Absent
-        takes it from the system description's ``UniformDataSTD``. **Never
-        estimated** — it has no separable signature in the data, and estimating
-        it would invent a number with a measurement's authority.
-    :param late_gates: How many trailing gates to estimate from. Enough to fit a
-        slope, few enough to be noise-dominated; the last third by default. The
-        per-gate scatter is reported so the choice is checkable rather than
-        trusted.
+    noise_level_1ms : float | None
+        The absolute floor at 1 ms, before moment normalization. Absent means
+        estimate.
+    noise_exponent : float | None
+        The power-law slope. Absent means fit it; ``-0.5`` is the usual value
+        and a fitted number far from it usually means the gates involved are
+        not ambient noise.
+    relative_fraction : float | None
+        Systematic error as a fraction of signal. Absent takes it from the
+        system description's ``UniformDataSTD``. **Never estimated** — it has
+        no separable signature in the data, and estimating it would invent a
+        number with a measurement's authority.
+    late_gates : int | None
+        How many trailing gates to estimate from. Enough to fit a slope, few
+        enough to be noise-dominated; the last third by default. The per-gate
+        scatter is reported so the choice is checkable rather than trusted.
 
     A supplied value is used *and* the estimate is made anyway and reported
     beside it. Returns ``(dataset, StepReport)``.

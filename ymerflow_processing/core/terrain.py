@@ -155,21 +155,31 @@ def apply_terrain_model(dataset, terrain, crs=None, band: int = 1,
                         stash: bool = True):
     """Re-express altitude against a terrain model.
 
-    :param terrain: The terrain model — an open ``rasterio`` dataset or a path.
-        Its values are ground elevation in the same vertical units as the
-        delivery.
-    :param crs: The survey's horizontal CRS, needed only if it differs from the
+    Parameters
+    ----------
+    terrain
+        The terrain model — an open ``rasterio`` dataset or a path. Its values
+        are ground elevation in the same vertical units as the delivery.
+    crs
+        The survey's horizontal CRS, needed only if it differs from the
         raster's. Taken from the dataset when it carries one.
-    :param band: Which raster band holds elevation.
-    :param preserve: ``elevation`` — hold the instrument's elevation and
-        recompute altitude, which is the default and almost always right; or
-        ``altitude`` — trust the altimeter and move the instrument instead.
-    :param altitude_column: Which column holds altitude. Discovered if unset.
-    :param elevation_column: Which holds ground elevation. Discovered if unset.
-    :param stash: Keep the delivered values under ``tx_alt_raw`` and
-        ``topo_raw``.
+    band : int
+        Which raster band holds elevation.
+    preserve : str
+        ``elevation`` — hold the instrument's elevation and recompute altitude,
+        which is the default and almost always right; or ``altitude`` — trust
+        the altimeter and move the instrument instead.
+    altitude_column : str | None
+        Which column holds altitude. Discovered if unset.
+    elevation_column : str | None
+        Which holds ground elevation. Discovered if unset.
+    stash : bool
+        Keep the delivered values under ``tx_alt_raw`` and ``topo_raw``.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
