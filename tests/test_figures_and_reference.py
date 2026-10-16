@@ -5,8 +5,6 @@ having if that property is enforced rather than intended — so the interesting
 tests here are the two that fail when someone adds a filter and forgets.
 """
 
-from __future__ import annotations
-
 import pathlib
 
 import numpy as np
@@ -251,3 +249,90 @@ def test_the_agent_index_carries_what_a_signature_cannot():
     assert "before `assign_uncertainty`" in text
     # consumes is declared per check and matters for how a caller invokes it.
     assert "consumes: datasets" in text
+
+
+# ── Both docstring styles, so the conversion can go one module at a time ─────
+
+def _described(func):
+    return {name: text for name, _, text in reference._parameters(func)}
+
+
+def test_a_numpy_parameters_section_is_read():
+    def step(dataset, max_uncertainty: float = 0.2, start_gate: int = 0):
+        """Disable gates whose uncertainty is too large.
+
+        Parameters
+        ----------
+        max_uncertainty : float
+            Largest relative uncertainty to keep.
+        start_gate : int
+            Where evaluation begins, 0-based.
+        """
+
+    assert _described(step) == {
+        "max_uncertainty": "Largest relative uncertainty to keep.",
+        "start_gate": "Where evaluation begins, 0-based.",
+    }
+
+
+def test_a_numpy_description_may_run_over_several_lines():
+    def step(dataset, window: int = 7):
+        """Smooth along the line.
+
+        Parameters
+        ----------
+        window : int
+            Soundings smoothed over. Larger values
+            smear the very signature being looked for.
+        """
+
+    assert _described(step)["window"] == (
+        "Soundings smoothed over. Larger values smear the very signature "
+        "being looked for.")
+
+
+def test_a_numpy_parameters_section_stops_at_the_next_heading():
+    """The trap the Sphinx parser already had: a description running on into
+    whatever follows it, so every last parameter carried the return type."""
+    def step(dataset, criterion: str = "profile"):
+        """Cull coupled data.
+
+        Parameters
+        ----------
+        criterion : str
+            Which test to apply.
+
+        Returns
+        -------
+        tuple
+            ``(dataset, StepReport)``.
+        """
+
+    assert _described(step)["criterion"] == "Which test to apply."
+
+
+def test_the_sphinx_style_is_still_read():
+    """Accepted until the last module is converted; removing it earlier would
+    blank every description in the generated reference."""
+    def step(dataset, max_misfit: float = 2.0):
+        """Cull poorly fit gates.
+
+        :param max_misfit: Largest acceptable gatewise misfit.
+
+        Returns ``(dataset, StepReport)``.
+        """
+
+    assert _described(step)["max_misfit"] == (
+        "Largest acceptable gatewise misfit.")
+
+
+def test_a_heading_is_not_swallowed_into_the_summary():
+    def step(dataset, window: int = 7):
+        """Smooth along the line.
+        Parameters
+        ----------
+        window : int
+            Soundings smoothed over.
+        """
+
+    assert reference._summary(step) == "Smooth along the line."

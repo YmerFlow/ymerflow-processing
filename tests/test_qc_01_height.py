@@ -1,7 +1,5 @@
 """qc_01 — height above ground, end to end."""
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

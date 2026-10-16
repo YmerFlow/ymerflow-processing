@@ -33,8 +33,6 @@ listed regardless of which kind it was.
 the contract; this makes the information they need visible in one place.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 

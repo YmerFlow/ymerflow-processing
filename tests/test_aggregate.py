@@ -1,7 +1,5 @@
 """Per-line aggregation: both rules measured, neither applied."""
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

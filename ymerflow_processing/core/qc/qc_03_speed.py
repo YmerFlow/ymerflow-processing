@@ -48,8 +48,6 @@ R9 in ``building_plans/01`` for how the floor is treated once assigned.
 parameters with no defaults. one prior survey used a target of 85 km/h.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -144,29 +142,44 @@ def ground_speed(
 ):
     """Classify each sounding's ground speed against the contracted window.
 
-    :param good_min: Slowest speed meeting spec, in ``unit``. A contract term,
-        so no default.
-    :param good_max: Fastest speed meeting spec.
-    :param marginal_min: Below this is Out of Spec; between it and ``good_min``
-        is Marginal.
-    :param marginal_max: Above this is Out of Spec.
-    :param column: Which ``flightlines`` column holds ground speed. Discovered
-        if unset; derived from position and time if the survey records none.
-    :param time_column: Which column holds acquisition time, used only when
-        deriving. Discovered if unset.
-    :param output_column: Where the per-sounding verdict is written.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param unit: Unit the thresholds are expressed in, for report text.
-    :param scale: Multiplier from derived units — distance-units per second, so
-        m/s for a projected CRS in metres — to ``unit``. Only applied to derived
-        speed; a recorded column is assumed to be in ``unit`` already.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
-        A contract saying "out of spec for 1 km or more" describes a stretch of
-        flying that one recovered sounding does not end. ``0`` measures runs
-        raw; the raw figure is reported either way.
+    Parameters
+    ----------
+    good_min : float
+        Slowest speed meeting spec, in ``unit``. A contract term, so no
+        default.
+    good_max : float
+        Fastest speed meeting spec.
+    marginal_min : float
+        Below this is Out of Spec; between it and ``good_min`` is Marginal.
+    marginal_max : float
+        Above this is Out of Spec.
+    column : str | None
+        Which ``flightlines`` column holds ground speed. Discovered if unset;
+        derived from position and time if the survey records none.
+    time_column : str | None
+        Which column holds acquisition time, used only when deriving.
+        Discovered if unset.
+    output_column : str
+        Where the per-sounding verdict is written.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    unit : str
+        Unit the thresholds are expressed in, for report text.
+    scale : float
+        Multiplier from derived units — distance-units per second, so m/s for a
+        projected CRS in metres — to ``unit``. Only applied to derived speed; a
+        recorded column is assumed to be in ``unit`` already.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured. A contract
+        saying "out of spec for 1 km or more" describes a stretch of flying
+        that one recovered sounding does not end. ``0`` measures runs raw; the
+        raw figure is reported either way.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

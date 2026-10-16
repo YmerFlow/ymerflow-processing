@@ -65,8 +65,6 @@ from our own prior flight QC work, where a representative attitude spec was ±5�
 marginal.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -135,25 +133,40 @@ def system_attitude(
 ):
     """Classify each sounding's pitch and roll against the contracted limits.
 
-    :param good: Attitude within ±this, in ``unit``, meets spec. A contract term,
-        so it has no default.
-    :param marginal: Beyond ±this is Out of Spec. Between the two is Marginal.
-    :param pitch_column: Which ``flightlines`` column holds pitch. Discovered
-        from the survey if unset.
-    :param roll_column: Likewise for roll.
-    :param pitch_output: Where the per-sounding pitch verdict is written.
-    :param roll_output: Likewise for roll.
-    :param output_column: Where the combined verdict — the worse of the two —
-        is written, so a later culling step has one column to threshold on.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param unit: Unit of the attitude columns, used in report text only.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
-        A contract saying "out of spec for 1 km or more" describes a stretch of
-        flying that one recovered sounding does not end. ``0`` measures runs
-        raw; the raw figure is reported either way.
+    Parameters
+    ----------
+    good : float
+        Attitude within ±this, in ``unit``, meets spec. A contract term, so it
+        has no default.
+    marginal : float
+        Beyond ±this is Out of Spec. Between the two is Marginal.
+    pitch_column : str | None
+        Which ``flightlines`` column holds pitch. Discovered from the survey if
+        unset.
+    roll_column : str | None
+        Likewise for roll.
+    pitch_output : str
+        Where the per-sounding pitch verdict is written.
+    roll_output : str
+        Likewise for roll.
+    output_column : str
+        Where the combined verdict — the worse of the two — is written, so a
+        later culling step has one column to threshold on.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    unit : str
+        Unit of the attitude columns, used in report text only.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured. A contract
+        saying "out of spec for 1 km or more" describes a stretch of flying
+        that one recovered sounding does not end. ``0`` measures runs raw; the
+        raw figure is reported either way.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

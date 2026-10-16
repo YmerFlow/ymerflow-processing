@@ -4,8 +4,6 @@ Everything here writes to tmp_path and reads it back. No platform, no database,
 no network: if these pass, a cron job on a bare machine works.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

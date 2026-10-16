@@ -51,8 +51,6 @@ None of these are "the shape is wrong". They are "the shape is unmeasurable
 here", which is a different statement and must not become a cull.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

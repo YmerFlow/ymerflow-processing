@@ -6,8 +6,6 @@ sounding is which, which channel is which, which gate is which — since every
 comparison built on it is only as trustworthy as the pairing underneath.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 

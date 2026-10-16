@@ -45,8 +45,6 @@ about how that inversion is configured, and it is not answerable here.
 many layers the inversion solves for, which this library does not know.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -82,13 +80,19 @@ def usable(dataset, channel) -> np.ndarray:
 def cull_sparse_soundings(dataset, minimum_gates: int):
     """Disable soundings whose usable gate count has fallen below ``minimum``.
 
-    :param minimum_gates: Fewest usable gates a sounding may have and still be
-        kept, per channel. Inclusive — a sounding with exactly this many is
-        kept, since "at least N gates" is how the requirement is stated. **No
-        default:** how many gates constrain a model depends on how many layers
-        the inversion solves for.
+    Parameters
+    ----------
+    minimum_gates : int
+        Fewest usable gates a sounding may have and still be kept, per channel.
+        Inclusive — a sounding with exactly this many is kept, since "at least
+        N gates" is how the requirement is stated. **No default:** how many
+        gates constrain a model depends on how many layers the inversion solves
+        for.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

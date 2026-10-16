@@ -91,8 +91,6 @@ A window that spanned two lines would average a sounding with one flown minutes
 earlier and hundreds of metres away. Each line is convolved separately.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -195,21 +193,33 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
                        line_column: str | None = None, stash: bool = True):
     """Average each sounding with its along-line neighbours.
 
-    :param width_first: Window width in soundings at the first gate.
-    :param width_last: Width at the last gate. Equal to ``width_first`` if
-        unset, giving a constant window.
-    :param method: ``hann`` (default), ``gaussian`` or ``boxcar``. The last is a
-        flat kernel and is kept for reproducing a previous run, not because it
-        is a good choice.
-    :param min_valid_fraction: The **effective** sample size a window must reach,
-        as a fraction of its width, before an output is produced. Effective, not
-        counted — see the module docstring.
-    :param decimate_to: Keep only soundings this far apart along the line, in
-        CRS units. Drops soundings, changing the dataset's extent.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param stash: Keep the unaveraged values and uncertainties alongside.
+    Parameters
+    ----------
+    width_first : int
+        Window width in soundings at the first gate.
+    width_last : int | None
+        Width at the last gate. Equal to ``width_first`` if unset, giving a
+        constant window.
+    method : str
+        ``hann`` (default), ``gaussian`` or ``boxcar``. The last is a flat
+        kernel and is kept for reproducing a previous run, not because it is a
+        good choice.
+    min_valid_fraction : float
+        The **effective** sample size a window must reach, as a fraction of its
+        width, before an output is produced. Effective, not counted — see the
+        module docstring.
+    decimate_to : float | None
+        Keep only soundings this far apart along the line, in CRS units. Drops
+        soundings, changing the dataset's extent.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    stash : bool
+        Keep the unaveraged values and uncertainties alongside.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

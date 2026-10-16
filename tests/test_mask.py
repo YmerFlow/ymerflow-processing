@@ -5,8 +5,6 @@ the arrays keep their shape — a culled datum is marked, which is reversible an
 auditable.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

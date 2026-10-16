@@ -6,8 +6,6 @@ indices is safe to replay, and one applied to the wrong state must say so rather
 than edit the wrong soundings.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

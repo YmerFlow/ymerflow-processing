@@ -8,8 +8,6 @@ These two must not be confused, and most of what follows is pinning the line
 between them: the grade dilutes by construction, so it is never the gate.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 

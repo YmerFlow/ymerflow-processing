@@ -1,7 +1,5 @@
 """qc_04 — transmitter output stability, end to end."""
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

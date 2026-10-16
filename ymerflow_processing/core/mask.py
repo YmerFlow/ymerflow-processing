@@ -80,8 +80,6 @@ the provenance array. Applying the policy, ANDing the mask, recording who did it
 and counting what changed all happen once, here.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

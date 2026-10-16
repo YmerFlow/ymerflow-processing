@@ -33,8 +33,6 @@ declared wrong everywhere.
 sides may not share a column name for any of them.
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 #: The quantities compared, named semantically rather than by column.

@@ -47,8 +47,6 @@ Only values strictly below zero are flagged. An exact zero is not a sign change,
 and in practice means a dead channel or a fill value rather than a reversal.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -68,14 +66,22 @@ def cull_negatives(dataset, start_gate: int = 0, spread_earlier: int = 0,
                    disable_tail: bool = False):
     """Disable gates whose measured value is negative.
 
-    :param start_gate: Where evaluation begins, 0-based. Early gates sit in the
-        transmitter turn-off and legitimately change sign there.
-    :param spread_earlier: Also disable this many gates before each negative —
-        the contamination precedes its visible onset.
-    :param disable_tail: Also disable everything after the earliest negative in
-        that sounding, since a transient does not recover.
+    Parameters
+    ----------
+    start_gate : int
+        Where evaluation begins, 0-based. Early gates sit in the transmitter
+        turn-off and legitimately change sign there.
+    spread_earlier : int
+        Also disable this many gates before each negative — the contamination
+        precedes its visible onset.
+    disable_tail : bool
+        Also disable everything after the earliest negative in that sounding,
+        since a transient does not recover.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

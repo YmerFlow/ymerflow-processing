@@ -5,8 +5,6 @@ single-moment system and a three-moment system both work with no special casing,
 nothing assumes a count, and no default names a specific moment.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

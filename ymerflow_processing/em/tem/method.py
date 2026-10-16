@@ -30,8 +30,6 @@ Source for the gate-center convention: verified directly against SkyTEM 304M and
 arithmetic center of its second and third (open and close) to within rounding.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 

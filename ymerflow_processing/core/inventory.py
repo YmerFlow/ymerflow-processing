@@ -43,8 +43,6 @@ handed over, which makes it safe as an implicit step in any pipeline, including
 a QC-only one where R6 promises the data comes out byte-identical.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np

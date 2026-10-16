@@ -52,8 +52,6 @@ one flown level, and qc_02 would then report perfect attitude on data that was
 salvaged rather than well flown.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -121,16 +119,26 @@ def correct_tilt(dataset, pitch_column: str | None = None,
                  again: bool = False, stash: bool = True):
     """Rescale amplitudes to what a horizontal transmitter would have measured.
 
-    :param pitch_column: Which column holds pitch, along the flight direction.
-    :param roll_column: Which holds roll, across it.
-    :param max_correction: Largest factor to apply. Beyond this the first-order
-        treatment has stopped being defensible, so the sounding is left
-        uncorrected and reported rather than scaled by a number the physics does
-        not support. ``4.0`` corresponds to about 45° of total tilt.
-    :param again: Permit correcting a dataset that already carries a correction.
-    :param stash: Keep the delivered values alongside.
+    Parameters
+    ----------
+    pitch_column : str | None
+        Which column holds pitch, along the flight direction.
+    roll_column : str | None
+        Which holds roll, across it.
+    max_correction : float
+        Largest factor to apply. Beyond this the first-order treatment has
+        stopped being defensible, so the sounding is left uncorrected and
+        reported rather than scaled by a number the physics does not support.
+        ``4.0`` corresponds to about 45° of total tilt.
+    again : bool
+        Permit correcting a dataset that already carries a correction.
+    stash : bool
+        Keep the delivered values alongside.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step="correct_tilt")
     frame = dataset.flightlines
@@ -212,10 +220,16 @@ def zero_attitude(dataset, pitch_column: str | None = None,
     all can still run a pipeline that mentions tilt, and the correction it
     applies is exactly one.
 
-    :param stash: Keep the delivered attitude alongside. Where the columns did
-        not exist there is nothing to keep, and that is reported.
+    Parameters
+    ----------
+    stash : bool
+        Keep the delivered attitude alongside. Where the columns did not exist
+        there is nothing to keep, and that is reported.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step="zero_attitude")
     frame = dataset.flightlines

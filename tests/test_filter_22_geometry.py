@@ -6,8 +6,6 @@ contract limit and a physical one, because they are the same shape of number
 measuring different things.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

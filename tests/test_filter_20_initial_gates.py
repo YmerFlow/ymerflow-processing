@@ -5,8 +5,6 @@ just a count read from the system description. It exercises the whole mask path
 end to end, which is most of why it went first.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np
