@@ -356,57 +356,92 @@ timid threshold.
 
 ## Shape of the step
 
-### Flag or cull is two registrations, not a parameter
+### The step owns its own table, and the switch decides whether it is applied
 
-The switch is wanted, and the library already has it — but as its central
-split rather than as an `action` argument. `core/qc/__init__.py`:
+**Decided.** The detector writes **one table of its own**, the same shape as the
+mask, every run. All the work lands there. The parameter only decides whether
+that table is then applied to the in-use mask:
 
-> **QC writes attributes. Culling writes the mask.** … A check writes its Good /
-> Marginal / Out of Spec verdict as a column on `flightlines`, which changes
-> nothing about what the inversion sees. Culling writes the in-use mask, which
-> does. QC records a judgment; culling acts on one.
+```yaml
+- cull_by_coupling:
+    action: flag          # flag | cull
+```
 
-An `action: flag | cull` parameter would straddle that boundary, and the two
-behaviors already have different entry-point groups and different runners. So:
+| `action` | writes the coupling table | writes `inuse_{channel}` |
+|---|---|---|
+| `flag` | yes | no |
+| `cull` | yes | yes |
 
-| | group | writes | |
-|---|---|---|---|
-| `coupling_detected` | `ymerflow.processing.qc` | a **proposed mask**, plus a per-sounding confidence | the flag |
-| `cull_by_coupling` | `ymerflow.processing.filters` | the real mask and the provenance | the cull |
+**Why a separate table rather than two separate steps.** An earlier draft here
+proposed two registrations — a QC check that flags and a filter that culls —
+over a shared detection core. That was more machinery for the same result. With
+one table there is **one code path**: the detector always does the identical
+thing, and `cull` adds a final, trivial, auditable operation on top. Nothing can
+drift between a flagging run and a culling run, because there is nothing to
+drift.
 
-**Two registrations over one detection core.** The reconstruction and profile
-criteria, the confidence metric, the smoothing and the corroboration check are
-shared; only the last act differs. You choose by which step goes in the chain,
-and a chain may hold **both** — QC first, so the proposal is recorded whatever
-happens next, then the filter if this survey wants the cull. That is strictly
-better than a parameter, because the proposal survives into the output even on
-a culling run, which is what pass two needs to reverse anything.
+It also gives for free the property the two-step version had to arrange
+deliberately: **the table survives both modes**, so a culling run still carries
+the full record of what the detector thought, which is what pass two needs in
+order to reverse anything.
 
-#### The flag has to be per gate, which the verdict column cannot do
+**On the library's governing rule.** `core/qc/__init__.py` says "QC writes
+attributes. Culling writes the mask." This respects it: the table is an
+attribute, and only `action: cull` touches the mask. A filter that declines to
+filter is a little unusual, but it is honest and it is one step with one
+description, which is better than two steps that must be kept in step.
+
+#### What the table holds
+
+Same shape as `inuse_{channel}`, one per channel, under a **prefixed** key so it
+stays outside the anchored channel-discovery patterns — the lesson `why_`
+already encodes, and the reason it is a prefix and not a suffix.
+
+**Int8 rather than boolean**, mirroring the provenance encoding:
+
+```
+ 0  clean
++1  detected directly
+-1  swept up by the culling policy (spread_earlier, disable_tail)
+```
+
+Boolean would do, but the sign costs nothing and carries something a reviewer
+wants: whether a gate was *found* or merely *adjacent to* something found.
+`cull()` already draws exactly this distinction, giving direct culls `+code` and
+collateral `-code`, so the table and the provenance speak the same language.
+
+**It holds the post-policy answer** — what *would* be culled, not the raw
+predicate. The point of flagging is to show what the cull would do, so the
+policy has to have already run.
+
+**Applying it is one call**, because the mask API was built for this:
+
+```python
+cull(dataset, channel, bad=table != 0, step_code=NN, direct=table > 0)
+```
+
+`bad` is the policy's output, `direct` the predicate's own answer. Provenance,
+the subtractive guarantee, and the per-channel counts all come free.
+
+#### Boolean, not a stored residual — and the reason is a measurement
+
+A per-gate ε would let pass two re-threshold without re-running the detector,
+and the storage is trivial. It is still not worth it: a PCA reconstruction over
+90,000 soundings is **seconds** (Asif measured 0.3 ms per stack for a heavier
+network), so re-running with a different threshold is cheap enough that caching
+the continuous field solves a problem nobody has. The per-sounding confidence
+column stays, because it drives the rollups in `aggregate.py` and is what
+somebody scans to find *which* crossings to look at — it is the index; the table
+is the payload.
+
+#### Why not a per-sounding verdict column
 
 Every QC check so far judges **auxiliary data** — altimeter, tilt, speed,
-current — single channels that describe a whole sounding, so a verdict column
-on `flightlines` fits exactly. **Coupling is not like that.** It affects a band
-of gates, the band moves with distance from the line, and the whole
-time-window finding (Appendix C) says *which* gates is the information. One
-value per sounding throws that away.
-
-So the QC side writes a **proposed mask** into `layer_data` — same shape and
-same encoding as `inuse_{channel}`, under a **prefixed** key so it stays
-outside the anchored channel-discovery patterns, which is the lesson `why_`
-already encodes. Five things fall out of reusing the mask's own shape:
-
-1. **It is per gate**, which is what the phenomenon is.
-2. `culled_fraction` arithmetic works by pointing at a different array.
-3. The figure code in `figures.py` already draws culling; it needs no new shape.
-4. Promoting a flag run to a cull run is a copy.
-5. **It is the same object the frontend's edit format already carries** — see
-   below, which is the part worth building around.
-
-The per-sounding confidence column stays, but with a different job: it is the
-**index**, not the payload. It drives the per-line and per-flight rollups in
-`aggregate.py`, and it is what somebody scans to find which crossings to look
-at. The proposed mask is what they then look at.
+current — single channels that describe a whole sounding, so a verdict column on
+`flightlines` fits exactly. **Coupling is not like that.** It affects a band of
+gates, the band moves with distance from the line, and the whole time-window
+finding (Appendix C) says *which* gates is the information. One value per
+sounding throws that away, which is why the table is per gate.
 
 #### The per-gate view is the easy one to draw, not the hard one
 
@@ -422,9 +457,12 @@ State is computed per sounding **per gate**, from the committed mask overlaid
 with a pending in-memory edit. So the plot already distinguishes *what the
 pipeline did* from *what a human proposed*, at gate resolution, today.
 
-A flag is a third category of the same kind — proposed by the algorithm rather
-than by a person — so it is one more state in a shader that already branches on
-four, fed by an array shaped exactly like one it already reads.
+The coupling table is a third category of the same kind — proposed by the
+algorithm rather than by a person — so it is **one more state in a shader that
+already branches on four**, fed by an array shaped exactly like one it already
+reads. Two, if the direct/collateral sign is drawn differently, which is worth
+doing: "found here" and "removed because the tail rule said so" are different
+things to agree or disagree with.
 
 By contrast, **nothing in the frontend reads `qs_` columns at all** — a search
 returns nothing, for any QC check. So the per-sounding verdict route, which
@@ -435,8 +473,9 @@ is mostly there. That is the opposite of the intuition and it decides the design
 
 The frontend's edit format is `layer_data["InUse_{channel}"]` with **NaN meaning
 no override**, addressed by `flightlines.apply_idx`, marked by
-`model_info.diff_dummy`. **A proposed mask is that object**, with 0 where the
-detector proposes culling and NaN everywhere else.
+`model_info.diff_dummy`. **The coupling table converts to that object** in a few
+lines — 0 where it is non-zero, NaN elsewhere, `apply_idx` from the rows that
+have any entry.
 
 So a flagging run can emit a diff that the existing editor loads and renders,
 a person brushes to adjust, and `apply_manual_edits` (filter_33) applies —
@@ -676,13 +715,13 @@ not a per-survey one, and where a GPU forward model would pay for itself.
 
 ## Staging
 
-0. **The QC check.** `coupling_detected` — the detection core, the per-sounding
-   confidence, and a **proposed mask** per gate; the real mask untouched. The
-   smaller half of the work, useful on its own as a QA/QC product, and it keeps
-   the culling step honest by existing separately. Emitting the proposal in the
-   existing diff format makes it reviewable in the editor that already exists;
-   the front-end work is a path to load a pipeline-emitted diff, plus one more
-   state in `ChannelPlot`'s overlay.
+0. **The table and the switch.** The coupling table, written every run, and
+   `action: flag | cull` deciding whether it reaches the mask. Worth doing
+   first and almost free once the detector exists, because it makes every later
+   stage reviewable rather than merely runnable. Converting the table to the
+   existing diff format makes it editable in the editor that already exists; the
+   front-end work is a path to load a pipeline-emitted diff, plus one or two
+   more states in `ChannelPlot`'s overlay.
 1. **The framework, with a linear reconstructor.** Residual in sigmas, the
    confidence metric and column, along-line smoothing, the fuzzy decision, mask
    and provenance. No new dependency. Testable against synthetic couplings now.
