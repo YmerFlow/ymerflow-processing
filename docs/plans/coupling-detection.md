@@ -817,25 +817,49 @@ method. This section is the method, scoped deliberately small.
 template matching, no simulation required to start. The extensions have their
 own section at the end and stay there until the shed stands up.
 
-### What sampling allows, which is less than the physics suggests
+### What sampling allows, which depends entirely on which product you run on
 
-The design has to start here, because it rules out the obvious approach.
+The design has to start here, and the first thing to get right is that **the
+sounding interval is not one number**. Measured on the demo SkyTEM line 300901:
 
-Take Kang's distribution line: null at 0, peaks at **±30 m**, falling to 3% by
-**±174 m**. At a 30 m sounding interval that is ~12 samples across the whole
-affected zone but only **about three across the double-peak core** — and if the
-sampling happens to be offset by half an interval, neither the null nor either
-peak is ever sampled, only four points partway up and down the flanks.
+| product | rate | soundings | median spacing |
+|---|---|---|---|
+| as delivered | **10 Hz** (dt = 0.100 s exactly) | 8995 | **2.23 m** |
+| Aarhus Workbench inversion input | **1 Hz** (478 of 530 intervals exactly 1.000 s) | 531 | ~36 m |
 
-So:
+**A clean 10 : 1 stack** — Workbench works in seconds — and the two ends of it
+imply different detectors. (The surviving-sounding ratio is 16.9 : 1 rather
+than 10 : 1 because 40% of the line was also removed outright; see "The
+calibration set already exists".)
 
-> **Symmetry survives sampling. Structure does not.**
+Take Kang's distribution line — null at 0, peaks at ±30 m, falling to 3% by
+±174 m:
 
-Any detector that matches a *double-peak shape* will fail at ordinary sounding
-spacing on ordinary lines. The detector therefore looks for **a locally
-confined, symmetric departure from the along-line background** — a claim that
-holds whether the core is resolved, half-resolved or not resolved at all, and
-whether the line is distribution or transmission.
+- **At 1 Hz** (~36 m) that is ~10 samples across the affected zone but only
+  **two or three across the double-peak core**, and an offset of half an
+  interval means neither the null nor either peak is ever sampled.
+- **At 10 Hz** (2.23 m) the same core is sampled by **about 27 points**. The
+  structure is richly resolved, not marginal.
+
+Two conclusions, and the second is the one that governs:
+
+**Run the detector on the delivered product, before any averaging.** That is
+already the ordering rule — before `average_along_line`, for the same reason
+`cull_negatives` is — and the decimation ratio puts a number on what the rule
+is protecting: nearly seventeen to one.
+
+**But build on symmetry anyway**, because the delivered rate is not guaranteed.
+VTEM may ship a 10 Hz product or none, and a client who only ever receives the
+inversion input receives 1 Hz — the same survey at a tenth the resolution.
+
+> **Symmetry survives sampling at any rate. Structure only survives on the
+> high-rate product.**
+
+So the detector looks for **a locally confined, symmetric departure from the
+along-line background** — a claim that holds whether the core is resolved,
+half-resolved or not resolved at all, and whether the line is distribution or
+transmission. Shape matching stays available as an *enhancement where the rate
+allows it*, never as the basis.
 
 This also disposes of the worry that a sounding will rarely sit exactly on the
 null. It never needs to.
@@ -1173,6 +1197,90 @@ working implementation from Asif's *result*:
 **So: Asif's capability is stage 1, and stage 1 is close.** The implementation
 is days; the calibration is gated on data rather than effort; and the thing
 that takes real time is the half of the problem that paper leaves open.
+
+## The calibration set already exists
+
+`deps/ymerflow-demo-data` carries a SkyTEM 304 survey — line 300901 and a block
+— in two forms, and together they are the calibration set this plan assumed was
+missing.
+
+| file | carries |
+|---|---|
+| `as_delivered/skytem_as_delivered_line_300901.xyz` | `LM_Z_G01`, `HM_Z_G01`, **`HM_X_G01`**, **`PLNI`**, `Height`, `AngleX/Y`, `Curr_LM/HM`, `DEM`, `GdSpeed`, magnetics. 8995 soundings, **10 Hz**, 2.23 m. **No uncertainties.** |
+| `agf_inversion/inversion_input_data_line_300901.xyz` | Aarhus Workbench export, 2019: `Gate_Ch01_01…28` (LM) and `Gate_Ch02_01…37` (HM), `STD_Ch0*`, **`InUse_Ch0*`**, `resdata`, `restotal`, `alt`, `tilt`. 531 soundings, **1 Hz**. |
+| `agf_inversion/inversion_forward_response_line_300901.xyz` | the forward response, so misfit is computable directly |
+
+### The ground truth has two levels, and the coarser one may be the stronger
+
+Workbench works in seconds, so its output is 1 Hz against the delivery's 10 Hz
+— a clean 10 : 1 stack. But only **531 soundings survive of the 882 seconds the
+line spans**: there are 52 gaps, totalling ~351 soundings, the largest 29 s
+(about a kilometre of line). **Forty percent of the line was removed outright.**
+
+So the processor's judgement is recorded twice:
+
+- **whole soundings deleted** — 52 episodes, 40% of the line, a decisive
+  judgement wherever it happens;
+- **individual gates masked** via `InUse_Ch0*` on the 531 that survived.
+
+The gap structure alone is worth plotting before anything else is built: 52
+episodes of up to a kilometre is what a map of culture looks like, and it can
+be compared against `PLNI` in the delivered file with no detector at all.
+
+**`InUse_Ch0*` is a processor's own per-gate culling decision on this line.**
+That is the hand-marked ground truth the open questions were waiting on, and it
+has been sitting in the repository.
+
+It also confirms two things the plan had to assume: the delivered product
+carries **no uncertainties** while the Workbench product carries `STD_Ch0*`
+(so the modeled-denominator path is the real one), and the gate counts agree
+across the two forms — 28 LM and 37 HM — so the gate axes align without
+interpolation.
+
+### The join is spatial, not by Fid
+
+Fids differ between the two products and cannot be matched. The join is on
+position — `E_UTM14N_m` / `N_UTM14N_m` against `UTMX` / `UTMY`, after
+confirming they share a datum — and it is **many-to-one**, roughly seventeen
+delivered soundings to each Workbench sounding. So the comparison aggregates
+our per-sounding verdicts up to the Workbench positions rather than
+interpolating the mask down.
+
+### What it tests, which is more than coupling
+
+The `InUse` mask records *that* a gate was culled, not *why*. A processor
+removes turn-off gates, data below the noise floor, negatives, altitude
+excursions and couplings alike, so comparing the coupling step alone against it
+would score badly for the wrong reason.
+
+**And it must account for both levels.** A sounding absent from the Workbench
+file was culled entirely; scoring only the 531 that survived would ignore the
+larger half of what the processor decided.
+
+**The right experiment is the whole chain, run twice:**
+
+1. the standard chain on the as-delivered data → mask **A**
+2. the same chain **plus** `cull_by_coupling` → mask **B**
+3. both compared against Workbench's `InUse`
+
+Agreement of A is a baseline for the filters that already exist. **B − A is
+this step's contribution**, measured against a real processor's judgement, and
+it separates the two failure directions cleanly: gates Workbench kept that we
+culled are over-culling; gates it culled that we kept are under-culling.
+
+**And it makes Asif's number partly reproducible after all.** This plan says
+their 96% agreement with an expert cannot be reproduced here. With the
+Workbench mask it can be *measured* — against a different expert, a different
+survey and a decimated join, so not the same number, but the same
+measurement. That also supplies a concrete answer to the open question of what
+"working" means.
+
+The caveats that remain: the mask is aggregate rather than coupling-specific,
+the join loses resolution, and it is one line of one survey by one processor.
+Ben's answer to the first is the right one — **the data was culled because
+something was wrong with it**, whatever the reason recorded or not, so
+agreement with that judgement is a fair test of the methods here even where the
+reason is unknown.
 
 ## Staging
 
