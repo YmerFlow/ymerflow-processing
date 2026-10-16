@@ -833,8 +833,11 @@ trend.
 
 **The most useful consequence in this section.** If collinearity does the
 discriminating, the per-line pass does not have to be precise. Run it with a
-low threshold, over-produce candidates, and let the trend test reject what does
-not line up.
+low threshold, over-produce candidates, and let the trend test sort them.
+
+**Sort, not reject** — see §5. A candidate that fails the collinearity test is
+not thereby noise: an isolated cultural source is non-collinear by nature, and
+rejecting everything that does not line up would discard that whole class.
 
 That matters because designing a precise per-line detector is the hard part,
 and this removes the requirement. It also inverts the usual tuning problem: the
@@ -877,6 +880,110 @@ Partial answers, none sufficient alone:
   recovered trend runs within some angle of the flight direction, the detector
   should report that it cannot judge rather than report nothing found. A hole
   that announces itself is survivable; a confident pass is not.
+
+### 5. It is not always a power line
+
+The design above is power-line-shaped, and most cultural sources are not power
+lines. Sorting them by *what the detector can do* rather than by what they are
+gives four regimes:
+
+| regime | examples | profile | collinearity | reconstruction |
+|---|---|---|---|---|
+| **resolved, straight** | transmission, **railway** | yes | yes | yes |
+| **resolved, curving** | **guardrail**, **debris fencing**, distribution following a road, farm fencing | yes | no | yes |
+| **areal / unresolved** | **vineyards and trellised orchards**, towns, landfills, industrial sites | **no background** | no | fires everywhere |
+| **point** | wreckage, well casings, tanks, silos, pivots | **too few samples** | **rejects it** | **the right tool** |
+
+**Railways are the best case in the plan** — straighter than power lines,
+continuous welded steel, bonded for signalling, grounded at intervals. If
+collinearity works anywhere it works there.
+
+#### The trend test needs a baseline length, not the whole survey
+
+A guardrail is straight over 200 m even where it wanders over 2 km. So the
+collinearity fit should run over a **configurable baseline** — a few adjacent
+lines at a time — with the scatter tolerance scaled to it:
+
+- long baseline, tight scatter → transmission lines and railways;
+- short baseline, loose scatter → guardrails, farm fencing, distribution
+  following a road.
+
+Same algorithm, one parameter. This replaces what was previously recorded as a
+flat limitation ("catches transmission well, road-following distribution
+poorly") with a knob.
+
+#### Areal sources: detect the edges, then fill
+
+Vineyard trellis rows sit at 2–3 m and the soundings at ~30 m, so the rows are
+far past Nyquist and are never resolved. What is seen is a **plateau over the
+block with a step at its boundary** — and the same is true of a town, a
+landfill or an industrial site.
+
+That suggests the areal treatment is not pattern detection at all but
+**edge-detect-then-fill**: find the entry and exit steps along each line, and
+mark everything between them. It is a simpler algorithm than the symmetric
+search, and it partially rescues the parallel-line failure in §4, because a
+*region* has edges even when a line inside it has no usable background.
+
+#### Point sources, and the limit of the whole approach
+
+A compact conductor at 40 m flight height has a footprint of perhaps 50–100 m,
+which at 30 m spacing is **two to four soundings** — far too few for the
+symmetry estimator. The profile machinery does not apply to point sources at
+all. The reconstruction criterion does, and does it well, because a confined
+conductor produces a transient no 1D earth response resembles. This is the
+clearest justification for carrying both criteria.
+
+**But it is also where the plan's central problem is sharpest.** An isolated
+cultural conductor and an isolated mineral target are *the same measurement* —
+compact, conductive, failing to reconstruct against a 1D basis describes metal
+wreckage and a massive sulphide body equally well. For power lines there was at
+least collinearity and an infrastructure layer. For a pile of scrap in a field
+there is neither, and **there is probably no geophysical answer**. Saying so is
+better than implying one.
+
+Three weak discriminators exist and are worth testing, none decisive:
+
+- **Time constant.** For a compact body τ ≈ μ₀σa²/π². Metal at σ ≈ 10⁷ S/m
+  gives τ of order *seconds* — effectively non-decaying across the whole gate
+  window — while a sulphide body at σ ≈ 10 S/m and 50 m scale gives a few
+  milliseconds, squarely in range. **An anomaly that does not decay at all over
+  the measurement window is metal, not geology.** The strongest of the three,
+  and arithmetic that should be checked rather than trusted.
+- **Shallowness.** Wreckage sits at surface and hits the early gates hardest;
+  targets are usually deeper.
+- **Spatial coincidence** on adjacent lines — not collinearity, but the same
+  body at the same map position. Only available where line spacing is fine
+  relative to the footprint, which at 100–500 m spacing it usually is not.
+
+#### Which forces one correction to §3
+
+The trend stage was described as filtering: permissive per line, precise across
+lines. **RANSAC discards non-collinear candidates by construction**, so as
+written it would systematically throw away every point source — the entire
+fourth regime, invisible by design.
+
+So the trend stage must **classify rather than filter**:
+
+| | verdict |
+|---|---|
+| collinear over its baseline | confident; infrastructure; safe to `cull` |
+| isolated | uncertain; `flag` for review regardless of the step's mode |
+
+That maps onto `action` and onto the int8 table already, and it matches the
+real asymmetry in what we know: a 10 km straight trend is a power line, and one
+compact anomaly is an open question.
+
+#### A case the parameters do not cover
+
+**Debris-fall fencing on a steep slope** is close to the worst case found so
+far, and is recorded as unsolved rather than parameterised. It is rockfall
+*mesh* — a two-dimensional conductive sheet, not a wire — draped on a hillside,
+so it presents as an **inclined conductive sheet**, which is precisely the
+dipping-conductor mimic the plan already cannot discriminate. It follows
+contours, so it curves. And it lives where terrain is steepest, which is where
+flight height varies most and the 1/r⁶ amplitude swing is largest. The hardest
+cultural sources sit in the hardest terrain.
 
 ### Later, once the shed stands
 
