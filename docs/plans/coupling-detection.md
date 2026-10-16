@@ -540,28 +540,32 @@ rather than preferred, and both belong in that list:
 So: `estimate_noise_model` → `assign_uncertainty` → `cull_by_coupling` →
 `average_along_line`, with `apply_manual_edits` last as always.
 
-#### Why this is not just `cull_by_external_evidence`
+#### It must work without a shapefile. Decided
 
-Worth stating, because with an infrastructure layer the two overlap heavily.
-`filter_30` already culls by proximity to mapped features, already widens the
-exclusion with gate time in `log t`, already does it per moment. If a survey has
-a complete, accurate infrastructure layer and nothing else is wanted, **filter_30
-is already the answer** and this step adds little.
+**The detector is built to need no infrastructure layer.** A layer may be
+supplied and will raise confidence where it exists, but nothing in the design
+may require one, and no capability may be available only with one.
 
-What this step adds is for the cases filter_30 cannot cover:
+The reason is coverage. Layers are patchy, stale, and absent far more often
+than not — Kang had to find lines in satellite imagery that were in no
+database, and still warned that others were hidden by trees. A tool that works
+only where the map is good works in the minority of cases, and would be useless
+on exactly the surveys where nobody has mapped anything.
 
-- **the extent is measured, not configured.** filter_30 takes a distance; the
-  realised extent varies per crossing with grounding, line class and flight
-  height, and runs well under the predicted value. Measuring it is the
-  improvement.
-- **no layer, or an incomplete one.** The common case. Kang had to find lines in
-  satellite imagery that were in no database.
-- **coupling from things that are not mapped at all** — fences, pipelines,
-  buried cable, rail.
+This resolves what was an open question. **`cull_by_external_evidence` is
+already the shapefile path**: filter_30 culls by proximity to mapped features,
+widening the exclusion with gate time in `log t`, per moment. It exists and it
+works. So this step is not a competitor to it and must not be folded into it —
+it is the path for **when there is no layer**, which is the common case and the
+one nothing currently covers.
 
-An honest alternative is to **extend filter_30 with a measured-extent mode**
-rather than build a second step, and to leave the unmapped case to this one.
-That would be less code and clearer provenance. Not decided; see open questions.
+Where both are available they compose: filter_30 culls what the map knows,
+this finds what the map missed, and the provenance keeps them distinguishable.
+
+Two consequences recorded elsewhere follow from this decision rather than
+standing on their own: the crossing angle is recovered from the **trend**
+rather than read from a layer, and candidate discovery is by **collinearity**
+rather than by proximity to mapped features.
 
 **The reconstructor is swappable behind one interface.** `reconstruct(transient)
 -> transient` is all the criterion needs; the confidence metric, the smoothing
@@ -646,8 +650,12 @@ a precondition rather than a bonus. So corroboration is a mode, not a boolean:
 
 ```yaml
 corroborate: none        # none | plni | infrastructure | any | all
-infrastructure: ...      # vector geometry, as filter_30 takes it
+infrastructure: null     # optional vector geometry, as filter_30 takes it
 ```
+
+**`none` is the default and the design target.** The modes requiring a layer
+are available where one exists; nothing depends on them — see "It must work
+without a shapefile".
 
 | mode | cull when the pattern is found and… | |
 |---|---|---|
@@ -1045,6 +1053,59 @@ The recurring cost is **one network per system per moment**: SkyTEM LM and HM
 are two; HeliTEM, VTEM and Xcite would each need their own. A release-time cost,
 not a per-survey one, and where a GPU forward model would pay for itself.
 
+## How far is this from Asif's result?
+
+Shorter than the length of this document suggests, because the document is
+mostly about everything *beyond* Asif — the profile criterion, collinearity,
+the geometry regimes — none of which that paper attempts.
+
+**Asif's method itself maps almost one-to-one onto parts already built:**
+
+| what the method needs | what exists |
+|---|---|
+| per-gate uncertainty, as ε's denominator | `estimate_noise_model` → `assign_uncertainty` |
+| mask gates past the first above Δ_max | `cull_by_uncertainty(max_uncertainty, …)` — the same parameter, same meaning |
+| culling policy — widen earlier, disable tail | `spread_earlier`, `disable_tail`, on every culling filter |
+| subtractive culling with per-datum provenance | `mask.cull(…, step_code, direct=…)` |
+| what was culled, reported | `culled_fraction` (qc_12) |
+| a before/after figure | `figures.CULLING` |
+
+**What is genuinely new is small:** a reconstruction basis, and the arithmetic
+that turns a residual into a decision. The second is fully specified in the
+paper — ε, `C(α)`, smoothing over `2W`, the fuzzy band — and is perhaps fifty
+lines. The first is PCA/SVD over the gate dimension, which needs no training,
+no torch and no model artifact; the family of 1D responses is smooth and
+probably low-dimensional in `log`–`log`, so a handful of components may capture
+it, and Andersen's own lineage used SVD.
+
+**Where the time actually goes is integration, not algorithm.** The coupling
+table is a new array family, and this library is strict about those: it needs
+a prefixed naming pattern that cannot collide with anchored channel discovery,
+it must not surface in `unclaimed_arrays`, `inventory.take()` and
+`unclaimed_arrays` must agree about it (there is a test asserting exactly
+that), it must survive export, and it needs a declared figure shape and a
+regenerated reference or the suite fails. Several days of careful work, mostly
+spent meeting the library's standards rather than on the detector.
+
+**The distance that is not code is the real one.** Three things separate a
+working implementation from Asif's *result*:
+
+1. **Their 96% is not reproducible here.** It was agreement with their expert,
+   on their surveys, with measured stack scatter. Ours would be a different
+   number against a different judgement.
+2. **Their thresholds do not transfer.** α = 2.5 and β_max = 0.99 are tied to
+   measured uncertainties; against a modeled sigma they must be recalibrated,
+   per vendor and system. That needs a real delivery and a line somebody has
+   marked up by hand.
+3. **Their method does not address the gap this plan is about.** Reaching Asif
+   gets the reconstruction criterion, which by their own account cannot
+   distinguish smooth inductive coupling from a geological change. Stage 2 is
+   the part with no precedent.
+
+**So: Asif's capability is stage 1, and stage 1 is close.** The implementation
+is days; the calibration is gated on data rather than effort; and the thing
+that takes real time is the half of the problem that paper leaves open.
+
 ## Staging
 
 0. **The table and the switch.** The coupling table, written every run, and
@@ -1161,11 +1222,6 @@ The profile criterion's own design questions are gathered in "Designing the prof
   that should be planned for rather than left as the thing SimPEG appears to
   replace.
 
-- **Should this extend `cull_by_external_evidence` instead of being a new
-  step?** With a good infrastructure layer the two overlap almost completely —
-  see "Why this is not just `cull_by_external_evidence`". Adding a
-  measured-extent mode to filter_30 would be less code and clearer provenance,
-  leaving this step for the unmapped case. Decide before writing either.
 
 ---
 
