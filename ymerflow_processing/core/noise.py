@@ -374,13 +374,19 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
                                  ("relative_fraction", relative_fraction))
         if value is not None)
 
+    # A supplied floor is stated raw, as the parameter documents. An estimated
+    # one is measured from the values as they are, so it is in whatever
+    # normalization the dataset carries — labelling it RAW regardless would
+    # have `floor()` scale it by the dipole moment for moment-normalized data,
+    # a floor three to four orders of magnitude off with nothing to signal it.
     model = NoiseModel(
         level_1ms=noise_level_1ms if noise_level_1ms is not None else measured_level,
         exponent=(noise_exponent if noise_exponent is not None
                   else measured_slope),
         relative_fraction=(relative_fraction if relative_fraction is not None
                            else declared),
-        normalization=RAW,
+        normalization=(RAW if noise_level_1ms is not None
+                       else dataset.normalization),
         scope=scope,
         supplied=supplied,
         measured={"level_1ms": measured_level, "exponent": measured_slope},
