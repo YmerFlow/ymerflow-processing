@@ -64,6 +64,9 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written. Must carry a noise
+        model — see ``estimate_noise_model``.
     margin : float
         How many times the floor a datum must exceed to be kept. ``1.0`` culls
         at the floor itself; ``2.0`` demands twice it. This is a multiplier on

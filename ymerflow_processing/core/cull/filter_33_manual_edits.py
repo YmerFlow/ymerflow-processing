@@ -135,7 +135,9 @@ def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
 
     Parameters
     ----------
-    diff
+    dataset : Dataset
+        The dataset to edit; its in-use masks are written in both directions.
+    diff : XYZ | str | Path
         The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
     checkpoint : str | None
         A name for the state this diff is a difference from. Recorded on the

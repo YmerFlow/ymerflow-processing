@@ -116,6 +116,8 @@ def cull_by_geometry(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; every channel's in-use mask is written.
     max_pitch : float | None
         Beyond ±this, in the attitude column's units, the sounding is disabled.
         Defaults to ``system_attitude``'s out-of-spec boundary if that check

@@ -66,6 +66,18 @@ def usable(dataset, channel) -> np.ndarray:
     In use, with a finite value and a finite uncertainty — the three conditions
     the forward code applies together. Counting the mask alone would overstate
     what survives.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset read.
+    channel : Channel
+        The channel whose data, uncertainty and mask are combined.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean, soundings by gates; ``True`` where all three hold.
     """
     live = in_use(dataset, channel)
     values = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
@@ -82,6 +94,8 @@ def cull_sparse_soundings(dataset, minimum_gates: int):
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     minimum_gates : int
         Fewest usable gates a sounding may have and still be kept, per channel.
         Inclusive — a sounding with exactly this many is kept, since "at least

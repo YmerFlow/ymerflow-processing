@@ -67,6 +67,8 @@ def cull_by_decay_rate(dataset, shallowest: float | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     shallowest : float | None
         Slopes above this — closer to flat — are culled (filter_25). Signed and
         negative for a decay.
