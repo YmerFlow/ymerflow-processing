@@ -28,6 +28,14 @@ def quiet(n, level=50.0, spread=3.0, seed=5):
     return np.random.default_rng(seed).normal(level, spread, n)
 
 
+def test_the_monitor_is_found_under_geotech_s_spelling_too():
+    """A VTEM delivery calls it `PLM`. Without that spelling the check reported
+    the survey as recording no monitor at all."""
+    dataset = monitor(quiet(6))
+    dataset.flightlines.rename(columns={"PLNI": "PLM"}, inplace=True)
+    assert find_powerline_column(dataset.flightlines) == "PLM"
+
+
 # ── Reference by default ─────────────────────────────────────────────────────
 
 def test_without_thresholds_it_measures_and_says_nothing():

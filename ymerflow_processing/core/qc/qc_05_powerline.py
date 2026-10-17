@@ -103,7 +103,7 @@ STEP = "powerline_noise"
 #: Spellings a powerline monitor turns up under. PLNI is what SkyTEM exports
 #: call it; the general block of a system description also names the gate and
 #: frequency it is derived from.
-POWERLINE_COLUMNS = ("plni", "powerline", "powerline_monitor", "pline",
+POWERLINE_COLUMNS = ("plni", "plm", "powerline", "powerline_monitor", "pline",
                      "pl_monitor", "powerlinemonitor")
 
 #: Scales the median absolute deviation so a threshold reads in units

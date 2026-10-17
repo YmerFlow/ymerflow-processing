@@ -59,7 +59,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..pipeline import StepReport
+from ..pipeline import MISSING, StepReport
 from . import aggregate
 from .thresholds import (
     ASCENDING, GOOD, MARGINAL, OUT_OF_SPEC, classify, describe, is_tier,
@@ -147,6 +147,7 @@ def sounding_spacing(
             "No position columns; density cannot be measured and the check is "
             "skipped."
         )
+        report.ungraded = MISSING
         return dataset, report
 
     line_column = line_column or xyz.line_id_column

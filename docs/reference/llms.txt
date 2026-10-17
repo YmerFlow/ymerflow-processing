@@ -91,7 +91,7 @@ cull_by_external_evidence(criterion: str, infrastructure = None, distance_first 
 Disable data that evidence from outside the transient says is suspect.
 
 ### cull_by_geometry
-cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str = 'tilt_x', roll_column: str = 'tilt_y', altitude_column: str | None = None)
+cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
 Disable soundings flown outside the geometry the forward model assumes.
 
 ### cull_by_uncertainty

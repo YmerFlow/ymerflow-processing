@@ -239,7 +239,7 @@ cull_by_external_evidence(criterion: str, infrastructure = None, distance_first 
 Disable soundings flown outside the geometry the forward model assumes.
 
 ```python
-cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str = 'tilt_x', roll_column: str = 'tilt_y', altitude_column: str | None = None)
+cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
 ```
 
 | parameter | default | |
@@ -248,8 +248,8 @@ cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, 
 | `max_roll` | `None` | The same, across the flight direction. |
 | `max_altitude` | `None` | Above this the sounding is disabled. Defaults to ``height_above_ground``'s out-of-spec boundary if recorded. |
 | `min_altitude` | `None` | Below this the sounding is disabled — a reading too low to be real usually means the altimeter, not the aircraft. **No default:** qc_01 is one-sided and has no minimum to borrow. |
-| `pitch_column` | `'tilt_x'` | Which ``flightlines`` column holds pitch. |
-| `roll_column` | `'tilt_y'` | Which holds roll. |
+| `pitch_column` | `None` | Which ``flightlines`` column holds pitch. Discovered if unset, under the same spellings ``system_attitude`` looks for. |
+| `roll_column` | `None` | Which holds roll. Discovered likewise. |
 | `altitude_column` | `None` | Which holds height above ground. Discovered if unset. |
 
 ## `cull_by_uncertainty`
