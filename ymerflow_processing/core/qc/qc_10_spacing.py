@@ -78,8 +78,19 @@ UNITS_PER_KM = 1000.0
 def along_line_spacing(easting, northing, lines) -> np.ndarray:
     """Distance from the previous sounding on the same line, in CRS units.
 
-    ``NaN`` for the first sounding of each line: nothing preceded it, and the
-    step back to the previous line is the turn rather than a survey leg.
+    Parameters
+    ----------
+    easting, northing : array_like
+        Positions, in CRS units.
+    lines : array_like
+        Line identity per sounding.
+
+    Returns
+    -------
+    numpy.ndarray
+        One distance per sounding; ``NaN`` for the first sounding of each
+        line — nothing preceded it, and the step back to the previous line is
+        the turn rather than a survey leg.
     """
     easting = np.asarray(easting, dtype=float)
     northing = np.asarray(northing, dtype=float)
@@ -105,6 +116,9 @@ def sounding_spacing(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; the spacing and a verdict column are written, no
+        measurement is changed.
     good_max : float
         Spacing at or below which the line meets spec, in CRS units. A contract
         term, so no default.

@@ -112,7 +112,18 @@ MAD_TO_SIGMA = 1.4826
 
 
 def find_powerline_column(frame) -> str | None:
-    """The powerline monitor column, or ``None`` if the survey records none."""
+    """The powerline monitor column, or ``None`` if the survey records none.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame
+        The ``flightlines`` to search.
+
+    Returns
+    -------
+    str | None
+        The column as spelled in the frame.
+    """
     lookup = {str(c).strip().lower(): c for c in frame.columns}
     for spelling in POWERLINE_COLUMNS:
         if spelling in lookup:
@@ -131,9 +142,22 @@ def local_excess(values, groups, window: int = 101):
     against what came before *and* after it, which matters at the leading edge
     of a crossing.
 
-    Returns ``NaN`` where there is no local spread to measure against — a
-    perfectly flat stretch gives a MAD of zero, and dividing by it would call
-    every departure infinite rather than admitting the scale is unknown.
+    Parameters
+    ----------
+    values : array_like
+        The monitor reading, one per sounding.
+    groups : array_like
+        Line identity per sounding.
+    window : int
+        The rolling window, in soundings.
+
+    Returns
+    -------
+    numpy.ndarray
+        One excess per sounding; ``NaN`` where there is no local spread to
+        measure against — a perfectly flat stretch gives a MAD of zero, and
+        dividing by it would call every departure infinite rather than
+        admitting the scale is unknown.
     """
     values = pd.Series(np.asarray(values, dtype=float))
     groups = pd.Series(np.asarray(groups)).astype(str)
@@ -175,6 +199,9 @@ def powerline_noise(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; the excess and a verdict column are written, no
+        measurement is changed.
     good_max : float | None
         Excess above the local baseline, in robust sigmas, at or below which a
         sounding is unremarkable. **Left unset, no verdict is produced at all**

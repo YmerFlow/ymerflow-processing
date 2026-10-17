@@ -46,6 +46,16 @@ def longest_run(flags) -> int:
     Soundings are taken in the order they sit in ``flightlines``, which is
     acquisition order — so a run here is a contiguous stretch of flying, which is
     what makes it the useful complement to a plain fraction.
+
+    Parameters
+    ----------
+    flags : array_like
+        Boolean, one per sounding.
+
+    Returns
+    -------
+    int
+        The longest run, in soundings; ``0`` when nothing is flagged.
     """
     flags = np.asarray(flags, dtype=bool)
     if not flags.any():
@@ -102,6 +112,20 @@ def close_gaps(flags, easting, northing, tolerance: float):
 
     Leading and trailing unflagged stretches are never filled — there is no run
     on the far side of them to join.
+
+    Parameters
+    ----------
+    flags : array_like
+        Boolean, one per sounding, in acquisition order.
+    easting, northing : array_like
+        Sounding positions, in CRS units.
+    tolerance : float
+        The longest gap, on the ground, that is bridged.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``flags`` with the interior gaps closed.
     """
     flags = np.asarray(flags, dtype=bool)
     if tolerance <= 0 or not flags.any():
@@ -231,6 +255,23 @@ def per_line(verdicts, lines, easting=None, northing=None,
     Spec, the fraction that is not Good — Marginal counted whole, since counting
     it fractionally needs a weight the contract has not supplied — and the
     longest contiguous Out of Spec run in soundings and on the ground.
+
+    Parameters
+    ----------
+    verdicts : array_like
+        Verdict codes, one per sounding; ``NaN`` where unclassified.
+    lines : array_like
+        Line identity per sounding.
+    easting, northing : array_like | None
+        Positions, for the run's length on the ground. Unset, only the run in
+        soundings is measured.
+    gap_tolerance : float
+        Interior gaps shorter than this, on the ground, do not end a run.
+
+    Returns
+    -------
+    dict[str, dict]
+        Per line identity, the measures above.
     """
     return _rollup(verdicts, lines, easting, northing,
                    gap_tolerance=gap_tolerance)
@@ -243,10 +284,26 @@ def per_flight(verdicts, flights, lines=None, easting=None,
     The grain cross-flight drift is a series over, and the one a delivery
     containing several flights has to be broken down into.
 
-    ``lines`` should be supplied where it is known. It does not group anything —
-    it bounds the contiguous-run measurement, so a run cannot span the turn
-    between two lines. Without it the flight is treated as one continuous
-    sequence, which overstates the worst stretch.
+    Parameters
+    ----------
+    verdicts : array_like
+        Verdict codes, one per sounding; ``NaN`` where unclassified.
+    flights : array_like
+        Flight identity per sounding.
+    lines : array_like | None
+        Line identity per sounding. Supply it where known: it does not group
+        anything — it bounds the contiguous-run measurement, so a run cannot
+        span the turn between two lines. Without it the flight is treated as
+        one continuous sequence, which overstates the worst stretch.
+    easting, northing : array_like | None
+        Positions, for the run's length on the ground.
+    gap_tolerance : float
+        Interior gaps shorter than this, on the ground, do not end a run.
+
+    Returns
+    -------
+    dict[str, dict]
+        Per flight identity, the same measures as :func:`per_line`.
     """
     return _rollup(verdicts, flights, easting, northing, segments=lines,
                    gap_tolerance=gap_tolerance)
@@ -276,10 +333,6 @@ def grain_measures(verdicts, groups, segments=None, easting=None, northing=None,
     per sounding: repeating the group's figure on each of its soundings is what
     lets a map be colored by it.
 
-    ``segments`` bounds the contiguous run, and should be the line identity at
-    every grain coarser than a line — a run is a stretch of continuous flying,
-    so it must not span the turn between two lines.
-
     **Deliberately not a verdict.** An earlier form wrote the worst verdict found
     anywhere on the line, which made one bad sounding in five hundred read
     exactly like a line flown out of spec throughout — the crudest possible rule,
@@ -287,10 +340,28 @@ def grain_measures(verdicts, groups, segments=None, easting=None, northing=None,
     read as a pass or fail. These are measurements; turning them into a verdict
     needs thresholds, and those come from the contract.
 
-    Returns a mapping of measure name to an array the length of ``verdicts``:
-    one entry per tier in :data:`MEASURE_TIER`, plus ``run`` and ``n``. A mapping
-    rather than a tuple because the set of measures is now long enough that
-    positional unpacking would silently reorder if a tier were ever added.
+    Parameters
+    ----------
+    verdicts : array_like
+        Verdict codes, one per sounding; ``NaN`` where unclassified.
+    groups : array_like
+        The grain — line, flight or a constant — per sounding.
+    segments : array_like | None
+        Bounds the contiguous run, and should be the line identity at every
+        grain coarser than a line — a run is a stretch of continuous flying,
+        so it must not span the turn between two lines.
+    easting, northing : array_like | None
+        Positions, for the run's length on the ground.
+    gap_tolerance : float
+        Interior gaps shorter than this, on the ground, do not end a run.
+
+    Returns
+    -------
+    dict[str, numpy.ndarray]
+        Measure name to an array the length of ``verdicts``: one entry per
+        tier in :data:`MEASURE_TIER`, plus ``run`` and ``n``. A mapping rather
+        than a tuple because the set of measures is now long enough that
+        positional unpacking would silently reorder if a tier were ever added.
     """
     summary = _rollup(verdicts, groups, easting, northing, segments=segments,
                       gap_tolerance=gap_tolerance)
@@ -331,7 +402,23 @@ def apply_rule(fraction, run, max_fraction=None, max_run=None):
     acceptable; grading it Marginal as well would need a second pair of
     thresholds nobody has stated.
 
-    Returns ``None`` when neither threshold is given — no rule, no verdict.
+    Parameters
+    ----------
+    fraction : array_like
+        Fraction Out of Spec, per group. ``NaN`` — nothing could be judged —
+        counts as no breach.
+    run : array_like
+        Longest Out of Spec run, per group, in the contract's unit.
+    max_fraction : float | None
+        The fraction above which the group fails.
+    max_run : float | None
+        The run above which it fails.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        Verdict codes per group, Good or Out of Spec; ``None`` when neither
+        threshold is given — no rule, no verdict.
     """
     if max_fraction is None and max_run is None:
         return None

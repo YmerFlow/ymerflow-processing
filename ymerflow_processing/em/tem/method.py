@@ -137,6 +137,14 @@ class Moment(Channel):
     transmitter's dipole moment, which sets the amplitude the earth was driven
     with and so the scale of the response. Derived as turns x area x nominal
     current; see :func:`_dipole_moment`.
+
+    Parameters
+    ----------
+    key, index, data_key, name, std_key, inuse_key, axis, component : as for Channel
+        See :class:`Channel`; ``axis`` holds the gate centre times.
+    dipole_moment : float | None
+        Turns x area x nominal current, in A·m², where the system description
+        gives them.
     """
 
     dipole_moment: float | None = None    # A m^2, = N * I * A
@@ -262,8 +270,17 @@ class TEMMethod:
     def channels(self, dataset) -> list[Moment]:
         """Every moment present, ordered by channel index.
 
-        Returns ``[]`` when nothing in ``layer_data`` is named like time-domain
-        data, which is how this adapter says "not my data".
+        Parameters
+        ----------
+        dataset : Dataset
+            The data to look at; its system description resolves names and
+            supplies gate times.
+
+        Returns
+        -------
+        list[Moment]
+            Empty when nothing in ``layer_data`` is named like time-domain
+            data, which is how this adapter says "not my data".
         """
         layer_data = dataset.layer_data
         if not layer_data:

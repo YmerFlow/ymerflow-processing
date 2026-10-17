@@ -258,7 +258,27 @@ def summarize_run(
         Worst instrument-health verdict, kept apart so a failing altimeter does
         not read as a badly flown line.
 
-    Returns a summary of what it wrote, for the run report.
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``flightlines`` receive the rollup columns.
+    step_reports : sequence of StepReport
+        The checks that ran, each declaring its verdict column and finding.
+    rollup : dict | None
+        The pipeline document's ``rollup`` block, if it has one.
+    verdict_column : str
+        Where the worst flight-quality verdict goes.
+    score_column : str
+        Where its numeric score goes.
+    reasons_column : str
+        Where the names of the checks that flagged each sounding go.
+    sensor_column : str
+        Where the worst instrument-health verdict goes.
+
+    Returns
+    -------
+    dict
+        A summary of what it wrote, for the run report.
     """
     frame = dataset.flightlines
     if frame is None or len(frame) == 0:

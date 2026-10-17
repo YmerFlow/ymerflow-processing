@@ -135,6 +135,9 @@ def system_attitude(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; verdict columns are written, no measurement is
+        changed.
     good : float
         Attitude within ±this, in ``unit``, meets spec. A contract term, so it
         has no default.

@@ -428,6 +428,13 @@ for _command in (run, compare, list_steps, validate, list_pipelines,
 
 
 def main() -> int:
+    """The console entry point: run the CLI and translate its outcome to an exit code.
+
+    Returns
+    -------
+    int
+        One of the ``EXIT_*`` codes.
+    """
     try:
         return cli(standalone_mode=False) or EXIT_GOOD
     except click.ClickException as exc:

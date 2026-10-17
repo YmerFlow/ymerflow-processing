@@ -63,6 +63,21 @@ def sounding_keys(dataset, position_tolerance):
     re-export, renaming and reordering. Position is a near-identity, good to
     whatever tolerance the two sides round coordinates to. Order is neither, so
     it is used only as a last resort and always said out loud.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose soundings are keyed.
+    position_tolerance : float
+        The rounding applied to positions before they are compared, in CRS
+        units.
+
+    Returns
+    -------
+    tuple[list | None, str | None]
+        ``(keys, kind)`` — one hashable key per sounding and which identity it
+        is, ``"timestamp"`` or ``"position"``; ``(None, None)`` when the
+        dataset offers neither, which leaves the caller with order.
     """
     frame = dataset.flightlines
     xyz = dataset.survey.xyz
@@ -87,7 +102,23 @@ def sounding_keys(dataset, position_tolerance):
 
 
 def align_soundings(candidate, baseline, position_tolerance, report):
-    """Row indices into each side that refer to the same soundings."""
+    """Row indices into each side that refer to the same soundings.
+
+    Parameters
+    ----------
+    candidate, baseline : Dataset
+        The two sides.
+    position_tolerance : float
+        Passed to :func:`sounding_keys`.
+    report : StepReport
+        Where the identity used, and anything unmatched, is noted.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, str]
+        ``(rows_c, rows_b, how)`` — row indices of the same length pairing
+        candidate rows with baseline rows, and which identity paired them.
+    """
     keys_c, how = sounding_keys(candidate, position_tolerance)
     keys_b, how_b = sounding_keys(baseline, position_tolerance)
 
@@ -167,6 +198,19 @@ def align_channels(candidate, baseline, report):
 
     A channel *is* its gate times. Two implementations may call the second
     moment ``ch2``, ``HM`` or nothing at all, and the times settle it.
+
+    Parameters
+    ----------
+    candidate, baseline : Dataset
+        The two sides.
+    report : StepReport
+        Where channels with no counterpart are noted.
+
+    Returns
+    -------
+    list[tuple]
+        ``(candidate channel, baseline channel)`` per matched pair; see
+        :func:`gate_overlap` for the gates they share.
     """
     remaining = list(baseline.channels)
     pairs, unmatched = [], []
@@ -204,6 +248,18 @@ def align_channels(candidate, baseline, report):
 
 
 def axis_of(channel):
+    """The channel's axis values as a flat float array, or ``None`` if it has none.
+
+    Parameters
+    ----------
+    channel : Channel
+        The channel asked about.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        Gate times for a TEM channel; ``None`` for an empty or absent axis.
+    """
     values = getattr(channel.axis, "values", None)
     if values is None:
         return None
@@ -212,7 +268,21 @@ def axis_of(channel):
 
 
 def gate_overlap(times_c, times_b, rtol=GATE_RTOL):
-    """Column indices into each side naming the same gates."""
+    """Column indices into each side naming the same gates.
+
+    Parameters
+    ----------
+    times_c, times_b : array_like | None
+        Gate times on the candidate and baseline side.
+    rtol : float
+        How close two times must be, relatively, to be the same gate.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray] | None
+        ``(cols_c, cols_b)``, or ``None`` when either side has no times or no
+        gate matches.
+    """
     if times_c is None or times_b is None:
         return None
     cols_c, cols_b = [], []
@@ -233,11 +303,43 @@ def gate_overlap(times_c, times_b, rtol=GATE_RTOL):
 
 
 def key_for(channel, quantity):
+    """The ``layer_data`` key holding one of a channel's quantities.
+
+    Parameters
+    ----------
+    channel : Channel
+        The channel.
+    quantity : str
+        ``data``, ``uncertainty`` or ``mask``.
+
+    Returns
+    -------
+    str | None
+        The key, or ``None`` where the channel has no such array.
+    """
     return {DATA: channel.data_key, UNCERTAINTY: channel.std_key,
             MASK: channel.inuse_key}[quantity]
 
 
 def block(dataset, channel, quantity, rows, cols):
+    """One quantity of one channel, cut down to the aligned soundings and gates.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the array lives.
+    channel : Channel
+        The channel.
+    quantity : str
+        ``data``, ``uncertainty`` or ``mask``.
+    rows, cols : array_like
+        The aligned sounding and gate indices into this side.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        The block as floats, or ``None`` when the array is absent.
+    """
     key = key_for(channel, quantity)
     if not key or key not in dataset.layer_data:
         return None

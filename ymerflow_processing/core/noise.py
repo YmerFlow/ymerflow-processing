@@ -234,7 +234,13 @@ class NoiseModel:
         return np.sqrt(relative ** 2 + from_floor ** 2)
 
     def to_dict(self) -> dict:
-        """The model as plain data, for a report or the dataset's metadata."""
+        """The model as plain data, for a report or the dataset's metadata.
+
+        Returns
+        -------
+        dict
+            Every field, with ``supplied`` as a list.
+        """
         return {"level_1ms": self.level_1ms, "exponent": self.exponent,
                 "relative_fraction": self.relative_fraction,
                 "normalization": self.normalization, "scope": self.scope,

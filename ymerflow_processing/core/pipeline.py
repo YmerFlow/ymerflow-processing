@@ -212,7 +212,14 @@ class StepReport:
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        """The report as plain data, grouped for a reader, ready for JSON."""
+        """The report as plain data, grouped for a reader, ready for JSON.
+
+        Returns
+        -------
+        dict
+            The step, its parameters, the sounding and point counts grouped
+            under ``soundings`` and ``points``, and the rest as they are.
+        """
         return {
             "step": self.step,
             "params": self.params,
@@ -285,7 +292,14 @@ class RunReport:
     rollup: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        """The run as plain data, every step included, ready for JSON."""
+        """The run as plain data, every step included, ready for JSON.
+
+        Returns
+        -------
+        dict
+            The identity fields, the pipeline, each step's ``to_dict()``, and
+            the rollup.
+        """
         return {
             "identity": self.identity,
             "identity_source": self.identity_source,

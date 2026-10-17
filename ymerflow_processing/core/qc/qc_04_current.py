@@ -117,6 +117,18 @@ def find_current_columns(frame, channels) -> dict[str, str]:
 
     Matched case-insensitively, since a round trip through the xyz format
     lowercases column names.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame
+        The ``flightlines`` to search.
+    channels : sequence of Channel
+        The moments to find a column for.
+
+    Returns
+    -------
+    dict[str, str]
+        Channel key to column name, for the moments that have one.
     """
     lookup = {str(c).strip().lower(): c for c in frame.columns}
     found: dict[str, str] = {}
@@ -152,6 +164,22 @@ def detect_jumps(values, groups, fraction: float = 0.01) -> np.ndarray:
     **The first sample of each group is never flagged.** Current legitimately
     steps there as the transmitter comes up, and treating that as a fault would
     flag every flight exactly once.
+
+    Parameters
+    ----------
+    values : array_like
+        The current, one per sounding.
+    groups : array_like
+        Flight (or line) identity per sounding; a step is only measured
+        within a group.
+    fraction : float
+        The relative change from one sounding to the next that counts as a
+        jump.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean, one per sounding.
     """
     values = np.asarray(values, dtype=float)
     groups = np.asarray(groups)
@@ -199,6 +227,9 @@ def transmitter_stability(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; verdict columns are written, no measurement is
+        changed.
     good_fraction : float
         Departure from the moment's own mean current, as a fraction of it,
         within which a sounding meets spec — e.g. ``0.01`` for 1%. No default:
@@ -225,6 +256,9 @@ def transmitter_stability(
         nominal agreement, across every moment.
     nominal_column : str | None
         Where the nominal-agreement verdict alone is written. ``None`` to skip.
+    nominal_offset_prefix : str | None
+        Prefix for one column per moment holding its offset from the declared
+        nominal current, as a fraction — ``nom_ch1``. ``None`` writes none.
     per_moment_prefix : str | None
         Prefix for the per-moment stability verdicts, suffixed with the channel
         key so the name stays inside the ten characters a shapefile field

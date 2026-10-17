@@ -191,9 +191,9 @@ def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
 
     Parameters
     ----------
-    items
+    items : sequence of dict
         Stored run reports, ordered.
-    reference
+    reference : dict | None
         A run to measure everything against. Without one the baseline is the
         series median, which is robust to the outlier being looked for.
     source_step : str
