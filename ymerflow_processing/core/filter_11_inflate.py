@@ -59,11 +59,13 @@ def inflate_uncertainty(dataset, fraction, gates=None):
 
     Parameters
     ----------
-    fraction
+    dataset : Dataset
+        The dataset whose uncertainty arrays are increased.
+    fraction : float | dict
         How much to add, as a fraction — ``0.02`` is two percentage points.
         Negative reduces. Per channel key or moment name (``{"ch1": 0.02}``),
         or one value for every channel.
-    gates
+    gates : int | str | list | dict | None
         Which gates, per channel or one nomination for all. A single index, a
         list, or an inclusive ``"first-last"`` range. Every gate if unset.
 

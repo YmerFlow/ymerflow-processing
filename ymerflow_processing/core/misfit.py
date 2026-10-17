@@ -76,7 +76,19 @@ RMS_COLUMN = "resdata"
 
 
 def misfit_key(channel) -> str:
-    """Where a channel's gatewise misfit lives, by the inversion's own naming."""
+    """Where a channel's gatewise misfit lives, by the inversion's own naming.
+
+    Parameters
+    ----------
+    channel : Channel
+        The channel asked about.
+
+    Returns
+    -------
+    str
+        The ``layer_data`` key — ``dbdt_err_ch1gt`` for a ``dbdt_`` convention,
+        ``err_`` prefixed to the data key otherwise.
+    """
     data = channel.data_key
     # Inserted after the prefix as the delivery spells it. A case-sensitive
     # replace would find nothing in `DBDT_Ch01` and return the data key, and
@@ -95,6 +107,20 @@ def find_misfit(source, channel, shape=None):
     which is the only route for a convention that names its channels rather
     than numbering them — ``err_LM_Z_G01`` captures no index for the numbered
     patterns to match on.
+
+    Parameters
+    ----------
+    source : XYZ | Dataset
+        Anything with a ``layer_data`` mapping.
+    channel : Channel
+        The channel asked about.
+    shape : tuple | None
+        The shape the residual must have to be accepted; any if unset.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        The residual as floats, or ``None`` if the source carries none.
     """
     layer_data = getattr(source, "layer_data", None) or {}
     wanted = misfit_key(channel).lower()
@@ -126,10 +152,27 @@ def _as_xyz(result):
 def gatewise_misfit(dataset, result, channel) -> np.ndarray | None:
     """Measured minus forward synthetic for one channel, in sigmas.
 
-    ``None`` when the result carries neither a residual nor a prediction for
-    this channel. Raises when it carries predictions but the dataset has no
-    uncertainty to normalize the difference by, since a raw difference cannot be
-    thresholded across a transient spanning orders of magnitude.
+    Parameters
+    ----------
+    dataset : Dataset
+        The measurements and their uncertainties.
+    result : XYZ | Dataset | str | Path
+        A previous inversion's or forward model's output, or a path to one.
+    channel : Channel
+        The channel compared.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        Soundings by gates, or ``None`` when the result carries neither a
+        residual nor a prediction for this channel.
+
+    Raises
+    ------
+    ValueError
+        When the result carries predictions but the dataset has no uncertainty
+        to normalize the difference by, since a raw difference cannot be
+        thresholded across a transient spanning orders of magnitude.
     """
     xyz = _as_xyz(result)
     shape = dataset.layer_data[channel.data_key].shape
@@ -168,8 +211,20 @@ def ensure_misfit(dataset, channel, result=None):
     result was given, it is computed here and **written**, which means the next
     consumer finds it rather than computing it again.
 
-    ``None`` when there is no column and no result, which is the caller's cue to
-    say what it needs rather than to guess.
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the column lives, or is written.
+    channel : Channel
+        The channel asked about.
+    result : XYZ | Dataset | str | Path | None
+        What to compute the misfit from if the column is absent.
+
+    Returns
+    -------
+    numpy.ndarray | None
+        The gatewise misfit, or ``None`` when there is no column and no
+        result — the caller's cue to say what it needs rather than to guess.
     """
     shape = dataset.layer_data[channel.data_key].shape
     existing = find_misfit(dataset.survey.xyz, channel, shape)
@@ -192,7 +247,9 @@ def compute_misfit(dataset, result, rms_column: str = RMS_COLUMN):
 
     Parameters
     ----------
-    result
+    dataset : Dataset
+        The measurements; the misfit columns are written to it.
+    result : XYZ | Dataset | str | Path
         A previous inversion's or forward model's output — an XYZ, a Dataset,
         or a path to one.
     rms_column : str

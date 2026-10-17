@@ -125,17 +125,48 @@ def is_provenance(key: str) -> bool:
 
     One predicate rather than a prefix test at each call site, because there are
     two such detectors and they had already drifted apart.
+
+    Parameters
+    ----------
+    key : str
+        A ``layer_data`` key.
+
+    Returns
+    -------
+    bool
+        ``True`` for a provenance array.
     """
     return key.lower().startswith(PROVENANCE_PREFIX)
 
 
 def provenance_key(inuse_key: str) -> str:
-    """Where the provenance for ``inuse_key`` lives."""
+    """Where the provenance for ``inuse_key`` lives.
+
+    Parameters
+    ----------
+    inuse_key : str
+        A channel's in-use mask key.
+
+    Returns
+    -------
+    str
+        The ``layer_data`` key of its provenance array.
+    """
     return f"{PROVENANCE_PREFIX}{inuse_key}"
 
 
 def mark_step(dataset, code: int, step: str) -> None:
-    """Record which step a provenance code stands for."""
+    """Record which step a provenance code stands for.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the legend is kept, in ``model_info``.
+    code : int
+        The step's provenance code.
+    step : str
+        The step's name.
+    """
     known = step_codes(dataset)
     if known.get(code) not in (None, step):
         raise ValueError(
@@ -149,7 +180,18 @@ def mark_step(dataset, code: int, step: str) -> None:
 
 
 def step_codes(dataset) -> dict[int, str]:
-    """Provenance code to step name, as recorded on the dataset."""
+    """Provenance code to step name, as recorded on the dataset.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose legend is read.
+
+    Returns
+    -------
+    dict[int, str]
+        Code to step name; empty if no step has recorded one.
+    """
     raw = dataset.survey.xyz.model_info.get(STEP_REGISTRY) or ""
     if not isinstance(raw, str):
         raw = " ".join(map(str, raw))
@@ -174,6 +216,18 @@ def resolve(dataset, channel) -> str:
     and does not — it returns the stub it searched with, which is not a key for
     the ``dbdt_inuse_ch1gt`` convention (YmerFlow/libaarhusxyz#5). Channel
     discovery keeps the key it actually matched.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the mask lives, or is created.
+    channel : Channel
+        Whose mask.
+
+    Returns
+    -------
+    str
+        The ``layer_data`` key of the mask.
     """
     key = channel.inuse_key or _inuse_key_for(channel)
     if key in dataset.layer_data:
@@ -192,6 +246,18 @@ def ensure(dataset, channel) -> pd.DataFrame:
 
     Created on demand rather than at load, so a pipeline that only measures
     leaves the data exactly as it found it — which is what R6 promises.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the mask lives, or is created.
+    channel : Channel
+        Whose mask.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The mask, soundings by gates; ``1`` in use, ``0`` culled.
     """
     return dataset.layer_data[resolve(dataset, channel)]
 
@@ -221,6 +287,18 @@ def provenance(dataset, channel) -> pd.DataFrame:
 
     Sign is safe to overload here in a way it would not be in the mask itself.
     Nothing downstream branches on this array — it is ours, and diagnostic.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the array lives, or is created.
+    channel : Channel
+        Whose provenance.
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``int8`` codes, the same shape as the mask; ``0`` where untouched.
     """
     mask = ensure(dataset, channel)
     key = provenance_key(resolve(dataset, channel))
@@ -237,6 +315,18 @@ def in_use(dataset, channel) -> np.ndarray:
     What a predicate reads when its answer depends on which neighbours survive —
     slope and curvature both do, since they are computed between gates and a
     culled gate is not a gate to compute across.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the mask lives, or is created.
+    channel : Channel
+        Whose mask.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean, soundings by gates.
     """
     return ensure(dataset, channel).to_numpy() != CULLED
 
@@ -245,27 +335,36 @@ def apply_policy(bad, start_gate: int = 0, spread_earlier: int = 0,
                  disable_tail: bool = False) -> np.ndarray:
     """Widen a predicate's answer according to the shared culling policy.
 
-    ``bad`` is ``(soundings, gates)`` and ``True`` where the predicate objected.
-    Returns the same shape, ``True`` for everything that should end up culled.
-
     Applied per sounding along the gate axis, and per channel by the caller —
     never across channels, since each channel has its own transient.
 
-    ``start_gate``
+    Parameters
+    ----------
+    bad : numpy.ndarray
+        ``(soundings, gates)``, ``True`` where the predicate objected.
+    start_gate : int
         Where the predicate is meaningful. Curvature is undefined at the first
         gate; early gates are contaminated by transmitter turn-off. Objections
         before it are discarded.
-    ``spread_earlier``
+    spread_earlier : int
         How many gates before a hit to take with it. **The physical claim is
         that contamination precedes its visible onset** — the gate where a
         transient turns negative is where the effect becomes large enough to
         flip the sign, not where it started.
-    ``disable_tail``
+    disable_tail : bool
         Everything after the earliest hit in that sounding goes, on the
         reasoning that a transient does not recover once it has gone bad. With
         this on, the whole policy collapses to a usable window per sounding
         rather than a scatter of holes.
 
+    Returns
+    -------
+    numpy.ndarray
+        The same shape as ``bad``, ``True`` for everything that should end up
+        culled.
+
+    Notes
+    -----
     ``spread_earlier`` deliberately reaches *below* ``start_gate``, clamped at
     gate 0. ``start_gate`` says where the predicate is valid, and the claim that
     an effect precedes its onset does not stop respecting physics at an
@@ -324,6 +423,22 @@ def enable(dataset, channel, good, step_code: int) -> dict:
     datum is off, and the same code against an **in-use** entry says it was
     deliberately restored. The two arrays are read together, so no third
     encoding is needed to tell "never culled" from "culled and put back".
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose mask and provenance are written.
+    channel : Channel
+        The channel edited.
+    good : numpy.ndarray
+        ``(soundings, gates)``, ``True`` where to turn data back on.
+    step_code : int
+        The restoring step's provenance code, 1..127.
+
+    Returns
+    -------
+    dict
+        What changed, including ``restored`` — the count turned back on.
     """
     key = resolve(dataset, channel)
     mask = dataset.layer_data[key]
@@ -375,9 +490,35 @@ def cull(dataset, channel, bad, step_code: int, direct=None) -> dict:
     culled it is not recorded — a bitfield would record all of them and answers
     a question nobody has asked.
 
-    Returns what changed, measured against the mask **as found**: a delivery may
-    arrive already culled by the contractor, and counting against the total
-    would claim credit for someone else's work.
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose mask and provenance are written.
+    channel : Channel
+        The channel culled.
+    bad : numpy.ndarray
+        ``(soundings, gates)``, ``True`` for everything to cull — the policy's
+        output.
+    step_code : int
+        This step's provenance code, 1..127.
+    direct : numpy.ndarray | None
+        The predicate's own hits, the same shape, before the policy widened
+        them. Everything in ``bad`` if unset.
+
+    Returns
+    -------
+    dict
+        What changed, measured against the mask **as found**: a delivery may
+        arrive already culled by the contractor, and counting against the
+        total would claim credit for someone else's work. Keys ``channel``,
+        ``in_use_before``, ``removed``, ``removed_direct``,
+        ``removed_collateral``, ``in_use_after`` and ``soundings_emptied``.
+
+    Raises
+    ------
+    ValueError
+        If ``bad`` or ``direct`` is not the mask's shape, or the step code is
+        outside 1..127.
     """
     key = resolve(dataset, channel)
     mask = dataset.layer_data[key]
@@ -435,7 +576,22 @@ def cull(dataset, channel, bad, step_code: int, direct=None) -> dict:
 
 
 def summarize(dataset) -> dict:
-    """The mask as it stands, per channel. What qc_12 reports on."""
+    """The mask as it stands, per channel. What qc_12 reports on.
+
+    Only channels whose mask is materialized appear: a channel never touched
+    by a culling step has no mask array and is not listed.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose masks are read; nothing is created.
+
+    Returns
+    -------
+    dict
+        Per channel: ``total``, ``in_use``, ``culled``, ``culled_fraction``
+        and ``soundings_empty`` — the soundings with nothing usable left.
+    """
     out = {}
     for channel in dataset.channels:
         key = channel.inuse_key

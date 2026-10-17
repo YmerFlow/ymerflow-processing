@@ -126,7 +126,7 @@ convert_normalization(to: str = 'rx_tx', stash: bool = True)
 
 ## `copy_array`
 
-filter_15 — copy a per-gate array, leaving the original.
+Copy a per-gate array, leaving the original (filter_15).
 
 ```python
 copy_array(source: str, destination: str)
@@ -134,12 +134,12 @@ copy_array(source: str, destination: str)
 
 | parameter | default | |
 |---|---|---|
-| `source` | `required` |  |
-| `destination` | `required` |  |
+| `source` | `required` | The array to copy. |
+| `destination` | `required` | The key to copy it under. |
 
 ## `copy_attribute`
 
-filter_14 — copy a per-sounding attribute, leaving the original.
+Copy a per-sounding attribute, leaving the original (filter_14).
 
 ```python
 copy_attribute(source: str, destination: str)
@@ -147,8 +147,8 @@ copy_attribute(source: str, destination: str)
 
 | parameter | default | |
 |---|---|---|
-| `source` | `required` |  |
-| `destination` | `required` |  |
+| `source` | `required` | The column to copy. |
+| `destination` | `required` | The name to copy it under. |
 
 ## `correct_tilt`
 
@@ -382,7 +382,7 @@ perturb_from_uncertainty(seed: int = 42, channels = None, again: bool = False, s
 
 ## `remove_array`
 
-filter_19 — remove a per-gate array.
+Remove a per-gate array (filter_19).
 
 ```python
 remove_array(name: str)
@@ -390,11 +390,11 @@ remove_array(name: str)
 
 | parameter | default | |
 |---|---|---|
-| `name` | `required` |  |
+| `name` | `required` | The array to remove. |
 
 ## `remove_attribute`
 
-filter_18 — remove a per-sounding attribute.
+Remove a per-sounding attribute (filter_18).
 
 ```python
 remove_attribute(name: str)
@@ -402,11 +402,11 @@ remove_attribute(name: str)
 
 | parameter | default | |
 |---|---|---|
-| `name` | `required` |  |
+| `name` | `required` | The column to remove. |
 
 ## `rename_array`
 
-filter_17 — rename a per-gate array.
+Rename a per-gate array (filter_17).
 
 ```python
 rename_array(source: str, destination: str)
@@ -414,12 +414,12 @@ rename_array(source: str, destination: str)
 
 | parameter | default | |
 |---|---|---|
-| `source` | `required` |  |
-| `destination` | `required` |  |
+| `source` | `required` | The array to rename. |
+| `destination` | `required` | Its new key. |
 
 ## `rename_attribute`
 
-filter_16 — rename a per-sounding attribute.
+Rename a per-sounding attribute (filter_16).
 
 ```python
 rename_attribute(source: str, destination: str)
@@ -427,8 +427,8 @@ rename_attribute(source: str, destination: str)
 
 | parameter | default | |
 |---|---|---|
-| `source` | `required` |  |
-| `destination` | `required` |  |
+| `source` | `required` | The column to rename. |
+| `destination` | `required` | Its new name. |
 
 ## `select_channels`
 
@@ -470,6 +470,6 @@ zero_attitude(pitch_column: str | None = None, roll_column: str | None = None, s
 
 | parameter | default | |
 |---|---|---|
-| `pitch_column` | `None` |  |
-| `roll_column` | `None` |  |
+| `pitch_column` | `None` | Which column holds pitch. Discovered if unset; created under the canonical spelling if absent. |
+| `roll_column` | `None` | Which holds roll. Likewise. |
 | `stash` | `True` | Keep the delivered attitude alongside. Where the columns did not exist there is nothing to keep, and that is reported. |

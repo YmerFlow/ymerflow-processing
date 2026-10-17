@@ -57,6 +57,9 @@ def assign_uncertainty(dataset, stash: bool = True):
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset whose uncertainty arrays are replaced. Must carry a noise
+        model — see ``estimate_noise_model``.
     stash : bool
         Keep the delivered uncertainties alongside, under the same key with
         ``_raw`` appended.

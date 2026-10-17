@@ -75,7 +75,18 @@ ORDER = (RAW, RX_NORMALIZED, RX_TX_NORMALIZED)
 
 
 def recorded_normalization(dataset) -> str | None:
-    """The convention a dataset declares in its own metadata, if any."""
+    """The convention a dataset declares in its own metadata, if any.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``model_info`` is read.
+
+    Returns
+    -------
+    str | None
+        One of ``NORMALIZATIONS``, or ``None`` when nothing is recorded.
+    """
     value = dataset.survey.xyz.model_info.get(REGISTRY)
     return str(value) if value in NORMALIZATIONS else None
 
@@ -109,17 +120,25 @@ def convert_normalization(dataset, to: str = RX_TX_NORMALIZED,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to convert; its data and uncertainty arrays are rescaled
+        and its declared normalization updated.
     to : str
         The convention to produce. Defaults to ``rx_tx``, which is what the
         forward code expects.
     stash : bool
         Keep the values as they were alongside.
 
-    **It takes no parameter saying what the data currently is.** That assertion
-    is the defect ``01`` names — a wrong one is undetectable and wrong by orders
-    of magnitude. The dataset declares its own convention and this updates it.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
 
-    Returns ``(dataset, StepReport)``.
+    Notes
+    -----
+    It takes no parameter saying what the data currently is. That assertion is
+    the defect ``01`` names — a wrong one is undetectable and wrong by orders
+    of magnitude. The dataset declares its own convention and this updates it.
     """
     report = StepReport(step="convert_normalization")
     frame = dataset.flightlines
@@ -202,17 +221,24 @@ def apply_nominal_current(dataset, columns=None, stash: bool = True):
 
     Parameters
     ----------
-    columns
+    dataset : Dataset
+        The dataset whose current columns are overwritten.
+    columns : dict | None
         Which ``flightlines`` column holds each channel's current, per channel
         key or moment name. Discovered if unset.
     stash : bool
         Keep the measured values alongside.
 
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Notes
+    -----
     Deliberately destructive; qc_04 is what tells you whether you should. It
     measures stability against the moment's own mean and agreement with this
     same declared nominal, and reports the offset without penalising it.
-
-    Returns ``(dataset, StepReport)``.
     """
     from .qc.qc_04_current import _nominal_current, find_current_columns
 

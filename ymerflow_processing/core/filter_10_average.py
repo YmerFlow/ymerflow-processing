@@ -120,6 +120,18 @@ def kernel(width: int, method: str = HANN) -> np.ndarray:
 
     A width of one is ``[1.0]`` for every method, which is what makes the no-op
     fall out rather than being special-cased.
+
+    Parameters
+    ----------
+    width : int
+        Window width in soundings; made odd so the window is centred.
+    method : str
+        ``hann``, ``gaussian`` or ``boxcar``.
+
+    Returns
+    -------
+    numpy.ndarray
+        The taper, ``width`` long (or one more), summing to one.
     """
     width = int(width)
     if width < 1:
@@ -147,7 +159,20 @@ def kernel(width: int, method: str = HANN) -> np.ndarray:
 
 
 def gate_widths(first: int, last: int, times) -> np.ndarray:
-    """Per-gate window widths, interpolated linearly in log time."""
+    """Per-gate window widths, interpolated linearly in log time.
+
+    Parameters
+    ----------
+    first, last : int
+        The width at the first and last gate.
+    times : array_like
+        Gate centre times; only their log spacing matters.
+
+    Returns
+    -------
+    numpy.ndarray
+        One integer width per gate.
+    """
     times = np.asarray(times, dtype=float)
     if times.size < 2:
         return np.full(max(times.size, 1), int(first))
@@ -197,6 +222,9 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to average; data and uncertainty arrays are replaced, and
+        with ``decimate_to`` soundings are dropped.
     width_first : int
         Window width in soundings at the first gate.
     width_last : int | None

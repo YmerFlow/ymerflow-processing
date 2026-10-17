@@ -116,6 +116,8 @@ def classify_lines(dataset, criterion: str, line_type: str,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to label; a line-type column is written to ``flightlines``.
     criterion : str
         ``height_threshold`` — label lines whose *mean* height exceeds
         ``threshold``, which is how high-altitude test lines are found; or
@@ -125,7 +127,7 @@ def classify_lines(dataset, criterion: str, line_type: str,
         whitespace.
     threshold : float | None
         Height above ground, for ``height_threshold``.
-    lines
+    lines : list | None
         Line identifiers, for ``explicit``.
     altitude_column : str | None
         Which column holds height. Discovered if unset.
@@ -134,10 +136,15 @@ def classify_lines(dataset, criterion: str, line_type: str,
     default_line_type : str
         What unclassified lines are called.
 
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Notes
+    -----
     Nothing is removed — this only classifies, so a later ``select_lines`` can
     act on the label.
-
-    Returns ``(dataset, StepReport)``.
     """
     report = StepReport(step="classify_lines")
     if criterion not in CLASSIFY_CRITERIA:
@@ -220,25 +227,31 @@ def select_lines(dataset, criterion: str, line_types=None, lines=None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to reduce. Soundings are removed from ``flightlines`` and
+        from every ``layer_data`` array together, so the two cannot drift
+        apart.
     criterion : str
         ``line_type`` — keep lines carrying one of ``line_types``; or
         ``explicit_lines`` — keep the lines named in ``lines``.
-    line_types
+    line_types : list[str] | None
         Classifications to keep, for ``line_type``.
-    lines
+    lines : list | None
         Line identifiers to keep, for ``explicit_lines``.
     line_column : str | None
         Which column identifies the line. Discovered if unset.
 
-    This changes the dataset's extent: soundings are removed from
-    ``flightlines`` and from every ``layer_data`` array together, so the two
-    cannot drift apart.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
 
-    **Refuses to remove everything**, the same as ``select_channels``: a
-    selection matching no line is almost always a typo, and an empty dataset
-    fails much later and much less clearly.
-
-    Returns ``(dataset, StepReport)``.
+    Raises
+    ------
+    ValueError
+        If the selection would remove every line — the same refusal as
+        ``select_channels``. A selection matching no line is almost always a
+        typo, and an empty dataset fails much later and much less clearly.
     """
     report = StepReport(step="select_lines")
     if criterion not in SELECT_CRITERIA:

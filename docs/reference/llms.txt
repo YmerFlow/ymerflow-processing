@@ -64,11 +64,11 @@ Convert amplitudes into ``to``, from whatever the dataset declares.
 
 ### copy_array
 copy_array(source: str, destination: str)
-filter_15 — copy a per-gate array, leaving the original.
+Copy a per-gate array, leaving the original (filter_15).
 
 ### copy_attribute
 copy_attribute(source: str, destination: str)
-filter_14 — copy a per-sounding attribute, leaving the original.
+Copy a per-sounding attribute, leaving the original (filter_14).
 
 ### correct_tilt
 correct_tilt(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
@@ -132,19 +132,19 @@ Add noise drawn from each datum's assigned uncertainty.
 
 ### remove_array
 remove_array(name: str)
-filter_19 — remove a per-gate array.
+Remove a per-gate array (filter_19).
 
 ### remove_attribute
 remove_attribute(name: str)
-filter_18 — remove a per-sounding attribute.
+Remove a per-sounding attribute (filter_18).
 
 ### rename_array
 rename_array(source: str, destination: str)
-filter_17 — rename a per-gate array.
+Rename a per-gate array (filter_17).
 
 ### rename_attribute
 rename_attribute(source: str, destination: str)
-filter_16 — rename a per-sounding attribute.
+Rename a per-sounding attribute (filter_16).
 
 ### select_channels
 select_channels(criterion: str, keep, drop_system_blocks: bool = True, drop_unclaimed: bool = False)

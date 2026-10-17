@@ -113,9 +113,26 @@ REGISTRY = "noise_model"
 class NoiseModel:
     """The floor, its slope, and the relative fraction — with their provenance.
 
-    ``normalization`` is the convention ``level_1ms`` is stated in, and is not
-    decoration: a floor in raw units against moment-normalized data is wrong by
-    the dipole moment.
+    Parameters
+    ----------
+    level_1ms : float | None
+        The absolute noise floor at the reference time of 1 ms. ``None`` when
+        it has not been estimated or supplied.
+    exponent : float
+        The power-law slope of the floor in time; ``-0.5`` is typical.
+    relative_fraction : float | None
+        Systematic error as a fraction of signal.
+    normalization : str
+        The convention ``level_1ms`` is stated in. Not decoration: a floor in
+        raw units against moment-normalized data is wrong by the dipole moment.
+    scope : str
+        The grain the floor was estimated over — ``per_line``, ``per_flight``
+        or ``per_dataset``.
+    supplied : tuple
+        Which fields were supplied rather than estimated.
+    measured : dict
+        What estimation found, even where a supplied value is applied. An
+        override changes what is applied, never what is measured (R9).
     """
 
     level_1ms: float | None = None
@@ -135,6 +152,27 @@ class NoiseModel:
         Converted from the normalization the floor is stated in to the one the
         data carries. Moment normalization is the only conversion that changes
         the number, and it is the one that is silently catastrophic if skipped.
+
+        Parameters
+        ----------
+        times : array_like
+            Gate centre times, in seconds.
+        dipole_moment : float | None
+            The channel's transmitter moment, needed only when converting to
+            or from ``rx_tx``.
+        normalization : str | None
+            The convention to state the floor in. The model's own if unset.
+
+        Returns
+        -------
+        numpy.ndarray
+            One floor per time.
+
+        Raises
+        ------
+        ValueError
+            If the model has no floor, or a moment conversion is needed and no
+            dipole moment is known.
         """
         if self.level_1ms is None:
             raise ValueError(
@@ -169,6 +207,22 @@ class NoiseModel:
         stores uncertainty relative to the value — so as the signal decays
         toward the floor, the assigned uncertainty grows toward one and past it,
         which is how a gate dies honestly.
+
+        Parameters
+        ----------
+        values : array_like
+            The data, soundings by gates.
+        times : array_like
+            Gate centre times, one per gate.
+        dipole_moment : float | None
+            The channel's transmitter moment, for the floor's conversion.
+        normalization : str | None
+            The convention ``values`` are in. The model's own if unset.
+
+        Returns
+        -------
+        numpy.ndarray
+            Relative uncertainty, the same shape as ``values``.
         """
         values = np.asarray(values, dtype=float)
         floor = self.floor(times, dipole_moment, normalization)
@@ -180,6 +234,7 @@ class NoiseModel:
         return np.sqrt(relative ** 2 + from_floor ** 2)
 
     def to_dict(self) -> dict:
+        """The model as plain data, for a report or the dataset's metadata."""
         return {"level_1ms": self.level_1ms, "exponent": self.exponent,
                 "relative_fraction": self.relative_fraction,
                 "normalization": self.normalization, "scope": self.scope,
@@ -197,12 +252,31 @@ def _encode(model: NoiseModel) -> str:
 
 
 def store(dataset, model: NoiseModel) -> None:
-    """Record the model on the dataset, so every consumer reads the same one."""
+    """Record the model on the dataset, so every consumer reads the same one.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the model is recorded, in ``model_info``.
+    model : NoiseModel
+        The model to record.
+    """
     dataset.survey.xyz.model_info[REGISTRY] = _encode(model)
 
 
 def recorded(dataset) -> NoiseModel | None:
-    """The model this dataset carries, or ``None`` if none was estimated."""
+    """The model this dataset carries, or ``None`` if none was estimated.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``model_info`` is read.
+
+    Returns
+    -------
+    NoiseModel | None
+        The recorded model, or ``None``.
+    """
     raw = dataset.survey.xyz.model_info.get(REGISTRY)
     if not raw:
         return None
@@ -281,6 +355,9 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to estimate from; the model is recorded on it and no
+        measurement is changed.
     scope : str
         ``per_line``, ``per_flight`` or ``per_dataset`` — the grain the
         estimate is made over. Not "per survey": this library has no concept of
@@ -303,8 +380,15 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
         enough to be noise-dominated; the last third by default. The per-gate
         scatter is reported so the choice is checkable rather than trusted.
 
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Notes
+    -----
     A supplied value is used *and* the estimate is made anyway and reported
-    beside it. Returns ``(dataset, StepReport)``.
+    beside it.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
