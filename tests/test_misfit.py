@@ -196,6 +196,38 @@ def test_find_matches_on_a_captured_channel_index():
     assert find_misfit(result, dataset.channels[0]) is None
 
 
+class _Named:
+    """A channel from a convention that names its moments rather than numbering
+    them, as a SkyTEM delivery ships them."""
+    data_key = "LM_Z_G01"
+    index = 1
+
+
+def test_the_misfit_key_keeps_the_delivery_s_own_case():
+    """`DBDT_` spelled in capitals must still get `err_` inserted. A
+    case-sensitive replace found nothing, returned the data key, and the misfit
+    would have been written over the measurements."""
+    class Fake:
+        data_key = "DBDT_Ch1gt"
+
+    assert misfit_key(Fake()) == "DBDT_err_Ch1gt"
+    assert misfit_key(_Named()) == "err_LM_Z_G01"
+
+
+def test_find_reads_a_named_moment_under_its_own_key():
+    """`err_LM_Z_G01` captures no channel index, so the numbered patterns
+    cannot see it; the channel's own misfit key is tried first."""
+    from libaarhusxyz.xyz import XYZ
+    stated = np.full((N, 28), 1.5)
+    result = XYZ({"flightlines": pd.DataFrame({"x": np.arange(N)}),
+                  "layer_data": {"err_LM_Z_G01": pd.DataFrame(stated)},
+                  "model_info": {}, "file_meta": {}})
+
+    found = find_misfit(result, _Named(), shape=(N, 28))
+    assert found is not None and np.allclose(found, 1.5)
+    assert find_misfit(result, _Named(), shape=(N, 8)) is None
+
+
 # ── The loop, explicit as steps ──────────────────────────────────────────────
 
 def test_the_whole_chain_runs_from_one_pipeline(tmp_path):

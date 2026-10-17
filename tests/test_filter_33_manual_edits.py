@@ -54,6 +54,27 @@ def edit_set(soundings, overrides, channel=1, marker=True):
 
 # ── Applying an edit ─────────────────────────────────────────────────────────
 
+def test_an_edit_set_addresses_a_named_moment_by_its_own_mask_name():
+    """`LM_Z_G01_inuse` carries no channel number for the numbered patterns to
+    capture. The editor writes its diff under the mask's own name, so that name
+    is what the replay has to recognise."""
+    from test_named_moments import LM_GATES, delivery as named_delivery
+    dataset = named_delivery(keys=("LM_Z_G01", "HM_Z_G01"))
+    array = np.full((1, LM_GATES), np.nan)
+    array[0, 5] = 0
+    diff = XYZ({
+        "flightlines": pd.DataFrame({APPLY_INDEX: [2]}),
+        "layer_data": {"LM_Z_G01_inuse": pd.DataFrame(array)},
+        "model_info": {"diff_dummy": True}, "file_meta": {},
+    })
+
+    dataset, report = apply_manual_edits(dataset, diff)
+
+    low = next(c for c in dataset.channels if c.data_key == "LM_Z_G01")
+    assert dataset.layer_data[low.inuse_key].to_numpy()[2, 5] == CULLED
+    assert report.distributions["removed"] == 1
+
+
 def test_a_hand_disabled_gate_is_disabled():
     diff = edit_set([2], {(0, 4): 0})
     dataset, report = apply_manual_edits(delivery(), diff)

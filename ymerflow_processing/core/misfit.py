@@ -78,14 +78,31 @@ RMS_COLUMN = "resdata"
 def misfit_key(channel) -> str:
     """Where a channel's gatewise misfit lives, by the inversion's own naming."""
     data = channel.data_key
-    if "dbdt_" in data.lower():
-        return data.replace("dbdt_", "dbdt_err_", 1)
+    # Inserted after the prefix as the delivery spells it. A case-sensitive
+    # replace would find nothing in `DBDT_Ch01` and return the data key, and
+    # `compute_misfit` would then write the misfit over the measurements.
+    at = data.lower().find("dbdt_")
+    if at >= 0:
+        after = at + len("dbdt_")
+        return data[:after] + "err_" + data[after:]
     return f"err_{data}"
 
 
 def find_misfit(source, channel, shape=None):
-    """A stated gatewise residual for this channel, if the source carries one."""
+    """A stated gatewise residual for this channel, if the source carries one.
+
+    Looked up first under the key this library would write for the channel,
+    which is the only route for a convention that names its channels rather
+    than numbering them — ``err_LM_Z_G01`` captures no index for the numbered
+    patterns to match on.
+    """
     layer_data = getattr(source, "layer_data", None) or {}
+    wanted = misfit_key(channel).lower()
+    for key, array in layer_data.items():
+        if str(key).lower() == wanted:
+            values = np.asarray(array, dtype=float)
+            if shape is None or values.shape == shape:
+                return values
     for key, array in layer_data.items():
         for pattern in MISFIT_PATTERNS:
             found = re.match(pattern, str(key), flags=re.IGNORECASE)

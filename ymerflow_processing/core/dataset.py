@@ -418,10 +418,13 @@ def role_key(channel, role: str) -> str:
     data = channel.data_key
     lowered = data.lower()
     for prefix, roles in ROLE_SPELLINGS.items():
-        if lowered.startswith(prefix):
-            return roles[role] + data[len(prefix):]
-        if prefix in lowered:
-            return data.replace(prefix, roles[role], 1)
+        # Located on the lowered copy and spliced into the original, so a
+        # delivery spelling the prefix `DBDT_` gets the role substituted too.
+        # `str.replace` on the original is case-sensitive and, finding nothing,
+        # would hand back the data key itself as the key for the role.
+        at = lowered.find(prefix)
+        if at >= 0:
+            return data[:at] + roles[role] + data[at + len(prefix):]
     return f"{data}_{role}"
 
 

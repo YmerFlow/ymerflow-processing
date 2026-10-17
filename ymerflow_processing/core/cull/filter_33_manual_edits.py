@@ -73,6 +73,7 @@ import re
 
 import numpy as np
 
+from ..dataset import role_key
 from ..mask import CULLED, IN_USE, cull, enable, mark_step
 from ..pipeline import StepReport
 
@@ -86,16 +87,33 @@ STEP_CODE = 33
 #: The column carrying the diff's own addressing.
 APPLY_INDEX = "apply_idx"
 
-#: How a diff names the channel an override belongs to. Matched on a captured
-#: index rather than by substring, the same discipline channel discovery uses.
+#: How a diff names the channel an override belongs to, when the convention
+#: numbers its channels. Matched on a captured index rather than by substring,
+#: the same discipline channel discovery uses.
 DIFF_INUSE = (r"^inuse_ch(\d+)", r"^dbdt_inuse_ch(\d+)")
 
 
-def _channel_index(key: str) -> int | None:
+def _channel_for(key: str, channels):
+    """The channel whose in-use array a diff column names, or ``None``.
+
+    The channel's own in-use key is tried first — an editor writes its diff
+    under the mask's name, whatever that is — so a convention that names its
+    channels rather than numbering them (``LM_Z_G01_inuse``) is addressed too.
+    The numbered patterns remain for a diff authored against another spelling
+    of the same channel.
+    """
+    lowered = str(key).lower()
+    for channel in channels:
+        names = {role_key(channel, "inuse").lower()}
+        if channel.inuse_key:
+            names.add(channel.inuse_key.lower())
+        if lowered in names:
+            return channel
     for pattern in DIFF_INUSE:
-        match = re.match(pattern, str(key), flags=re.IGNORECASE)
+        match = re.match(pattern, lowered)
         if match:
-            return int(match.group(1))
+            index = int(match.group(1))
+            return next((c for c in channels if c.index == index), None)
     return None
 
 
@@ -157,12 +175,11 @@ def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
             f"different state — applying it would edit the wrong soundings."
         )
 
-    by_index = {c.index: c for c in dataset.channels}
+    channels = list(dataset.channels)
     per_channel, unmatched, touched = {}, [], False
 
     for key, array in edit.layer_data.items():
-        index = _channel_index(key)
-        channel = by_index.get(index) if index is not None else None
+        channel = _channel_for(key, channels)
         if channel is None:
             continue
 
