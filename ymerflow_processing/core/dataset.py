@@ -78,31 +78,6 @@ RX_TX_NORMALIZED = "rx_tx"        # V/(A m^4) — additionally by transmitter mo
 NORMALIZATIONS = (RAW, RX_NORMALIZED, RX_TX_NORMALIZED)
 
 
-@dataclass
-class NoiseModel:
-    """The noise model, held once and read by every consumer (R9).
-
-    Defined in one place so that assignment and culling cannot disagree about
-    it. ``floor_1ms`` and ``exponent`` may be estimated from the data;
-    ``relative_fraction`` never is — it is systematic and has no separable
-    signature to measure.
-    """
-
-    floor_1ms: float | None = None       # V/m^2, receiver-area normalized
-    exponent: float = -0.5
-    relative_fraction: float | None = None
-
-    #: How each value was arrived at — "estimated", "supplied", or "system".
-    provenance: dict[str, str] = field(default_factory=dict)
-
-    #: What estimation found, even where a supplied value is being applied.
-    #: An override changes what is applied, never what is measured (R9).
-    estimated: dict[str, float] = field(default_factory=dict)
-
-    def is_complete(self) -> bool:
-        return self.floor_1ms is not None and self.relative_fraction is not None
-
-
 # ── The second axis of an array family ───────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -454,8 +429,6 @@ def find_flight_column(frame) -> str | None:
     """The column identifying which flight each sounding belongs to, or ``None``."""
     return find_column(frame, FLIGHT_COLUMNS)
 
-    return None
-
 
 # ── Copying a survey ─────────────────────────────────────────────────────────
 
@@ -510,7 +483,6 @@ class Dataset:
         # always carries one.
         if crs is not None:
             self.crs = crs
-        self.noise_model = NoiseModel()
         #: Injectable for testing and for callers who know what they have.
         #: ``None`` means "ask the entry-point group".
         self._adapters: list[MethodAdapter] | None = None
@@ -787,7 +759,6 @@ class Dataset:
         # type(self) rather than Dataset: a subclass must not be silently
         # downgraded to the base class by copying.
         new = type(self)(_copy_survey(self.survey), self.normalization, self.crs)
-        new.noise_model = copy.deepcopy(self.noise_model)
         # history is not copied: it lives in model_info, which the survey copy
         # already brought along. Copying it here would work but would give the
         # field two homes, and the one that round-trips should be the only one.

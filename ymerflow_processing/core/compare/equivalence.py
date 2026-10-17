@@ -217,8 +217,8 @@ def implementation_equivalence(
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
     """
     report = StepReport(step=STEP)
 

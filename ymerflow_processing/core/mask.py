@@ -396,9 +396,18 @@ def cull(dataset, channel, bad, step_code: int, direct=None) -> dict:
             f"got {step_code}"
         )
 
+    if direct is not None:
+        direct = np.asarray(direct, dtype=bool)
+        if direct.shape != mask.shape:
+            raise ValueError(
+                f"The direct hits are {direct.shape} for channel {channel.key}, "
+                f"whose mask is {mask.shape}; they must be the same shape as "
+                f"the culled set they are a subset of."
+            )
+
     live = mask.to_numpy() != CULLED
     removing = bad & live                      # only what this step actually takes
-    direct = live & (np.asarray(direct, dtype=bool) if direct is not None else bad)
+    direct = live & (direct if direct is not None else bad)
 
     values = mask.to_numpy(copy=True)
     values[removing] = CULLED

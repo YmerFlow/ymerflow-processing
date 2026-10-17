@@ -248,10 +248,12 @@ def parameter_sweep(items, reference=None, response_column: str | None = None,
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
 
-    **Nothing here is a recommendation** — the trade a sweep explores is the
+    Notes
+    -----
+    Nothing here is a recommendation — the trade a sweep explores is the
     user's to make.
     """
     report = StepReport(step=STEP)

@@ -129,7 +129,8 @@ def run(pipeline, xyz, gex, out, label, group):
     """Run a processing or QC pipeline against a delivery.
 
     Exit codes: 0 in spec, 1 marginal, 2 out of spec, 3 never started,
-    4 a step raised.
+    4 a step raised, 5 a check could not grade (an input it needed was
+    absent) and nothing was out of spec.
     """
     try:
         pipeline = Pipeline.load(pipeline)
@@ -414,6 +415,7 @@ def validate(pipeline, group):
 @click.group()
 @click.option("-v", "--verbose", count=True, help="-v for info, -vv for debug")
 def cli(verbose):
+    """Run, grade and compare airborne geophysical deliveries from the shell."""
     logging.basicConfig(
         level={0: logging.WARNING, 1: logging.INFO}.get(verbose, logging.DEBUG),
         format="%(levelname)s %(name)s: %(message)s",

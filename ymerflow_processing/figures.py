@@ -354,7 +354,8 @@ def _thresholded(report, before, after, channel, sounding):
             if key and key in source.layer_data:
                 series = source.layer_data[key].to_numpy(dtype=float)[sounding]
                 return label, np.abs(series), float(limit)
-        return None
+        # Not stored under this parameter's key; the next thresholded
+        # parameter may be. Returning here skipped them all.
     return None
 
 

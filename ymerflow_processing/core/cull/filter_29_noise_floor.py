@@ -148,7 +148,7 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.soundings_affected = removed
+    report.points_affected = removed       # gates, not soundings
     report.distributions = {
         "model": model.to_dict(),
         "margin": float(margin),

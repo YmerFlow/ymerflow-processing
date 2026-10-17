@@ -67,6 +67,23 @@ def test_the_arrays_really_leave_layer_data():
     assert set(report.distributions["arrays_removed"]) == before - remaining
 
 
+def test_a_discarded_channel_s_provenance_leaves_with_it():
+    """Provenance is gate-shaped and belongs to no channel's array_keys, so it
+    was left behind — and the next run of this step reported it as an unclaimed
+    array that might be real data."""
+    from ymerflow_processing.core.mask import provenance_key
+    dataset = three_component()
+    x = next(c for c in dataset.channels if c.component == "x")
+    why = provenance_key(x.inuse_key)
+    dataset.layer_data[why] = pd.DataFrame(
+        np.zeros(dataset.layer_data[x.data_key].shape, dtype=np.int8))
+
+    dataset, report = select_channels(dataset, criterion="component", keep=["z"])
+
+    assert why not in dataset.layer_data
+    assert why in report.distributions["arrays_removed"]
+
+
 def test_kept_channels_are_untouched():
     import pandas as pd
     dataset = three_component()

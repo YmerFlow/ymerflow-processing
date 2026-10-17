@@ -52,7 +52,8 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 
 import logging
 
-from .mask import is_provenance
+from .dataset import role_key
+from .mask import is_provenance, provenance_key
 from .pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -205,7 +206,12 @@ def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = Tr
         return dataset, report
 
     for channel in discarded:
-        for key in channel.array_keys:
+        # The provenance array belongs to no channel's array_keys by design
+        # (mask.is_provenance), so it has to be named here or it is orphaned
+        # — gate-shaped, claimed by nothing, and flagged as unclaimed on the
+        # next run of this very step.
+        why = provenance_key(channel.inuse_key or role_key(channel, "inuse"))
+        for key in (*channel.array_keys, why):
             if key in dataset.layer_data:
                 del dataset.layer_data[key]
                 removed.append(key)

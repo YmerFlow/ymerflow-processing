@@ -163,14 +163,16 @@ def gate_widths(first: int, last: int, times) -> np.ndarray:
 
 
 def _convolve(values, weights, taper):
-    """Weighted sum and its two moments, along one line's sounding axis.
+    """Weighted sum and the sums its mean and variance need, along one line.
 
-    Returns ``(Σwx, Σw, Σw²)`` at every sounding, with the window centred and
-    edges handled by shortening rather than by wrapping or zero-padding the
-    data — a sounding at the start of a line has fewer neighbours, and that is
-    a fact about it rather than a reason to invent some.
+    Returns four arrays, one value per sounding: ``Σkwx``, ``Σkw``, ``Σk²w²``
+    (Kish's denominator, for the effective sample size) and ``Σk²w`` (the
+    variance numerator), where ``k`` is the taper and ``w`` the weights. The
+    window is centred and edges are handled by shortening rather than by
+    wrapping or zero-padding the data — a sounding at the start of a line has
+    fewer neighbours, and that is a fact about it rather than a reason to
+    invent some.
     """
-    pad = len(taper) // 2
     def full(series):
         return np.convolve(np.asarray(series, dtype=float), taper, mode="same")
 

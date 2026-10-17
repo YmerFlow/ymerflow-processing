@@ -65,6 +65,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .dataset import FLIGHT_COLUMNS
 from .pipeline import StepReport
 from .qc.thresholds import labels, verdict_columns
 
@@ -169,8 +170,7 @@ def _line_features(frame, line_column, geometry_of):
     constant = [c for c in frame.columns
                 if str(c).startswith(("ql_", "qf_", "qd_"))]
     keep = [line_column] + [c for c in frame.columns
-                            if str(c).lower() in ("flight", "flight_no",
-                                                  "flight_id")]
+                            if str(c).lower() in FLIGHT_COLUMNS]
     rows, geometries = [], []
     for line, block in frame.groupby(line_column, sort=True, observed=True):
         geometry = geometry_of(block)
@@ -394,7 +394,8 @@ def export_vector(
             )
         layers[name] = len(layer)
 
-    _warn_on_size(path, report)
+    if is_shapefile:
+        _warn_on_size(path, report)
 
     report.distributions = {
         "files": written,

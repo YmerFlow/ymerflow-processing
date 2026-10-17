@@ -141,7 +141,7 @@ def cull_by_decay_rate(dataset, shallowest: float | None = None,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.soundings_affected = removed
+    report.points_affected = removed       # gates, not soundings
     report.distributions = {
         "per_channel": per_channel,
         "removed": removed,

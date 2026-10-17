@@ -51,7 +51,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..mask import CULLED, PROVENANCE_PREFIX, provenance_key, step_codes
+from ..mask import CULLED, provenance_key, step_codes
 from ..pipeline import OPTIONAL, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (

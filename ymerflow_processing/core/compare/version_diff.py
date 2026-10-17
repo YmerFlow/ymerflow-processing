@@ -212,10 +212,12 @@ def version_diff(items, reference=None, quantities=QUANTITIES,
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
 
-    **No pass or fail**: the two versions are meant to differ, so a difference
+    Notes
+    -----
+    No pass or fail: the two versions are meant to differ, so a difference
     is the answer rather than the finding.
     """
     report = StepReport(step=STEP)

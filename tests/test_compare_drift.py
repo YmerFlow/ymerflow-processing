@@ -109,6 +109,19 @@ def test_flight_numbers_order_numerically_not_as_text():
     assert report.distributions["ordered_by"] == "flight number"
 
 
+def test_a_series_mixing_ordering_keys_is_labelled_by_the_weakest():
+    """One dated delivery among flight-numbered ones does not make the series
+    chronological. The label came from the first entry, which is the one with
+    the strongest key, so a mixed series read as ordered by time range."""
+    reports = [stored(1e-9, identity="dated", when=["2026-05-11"], flights=[3]),
+               stored(2e-9, identity="f1", flights=[1]),
+               stored(3e-9, identity="f2", flights=[2])]
+    report = noise_floor_drift(reports)
+
+    assert report.distributions["ordered_by"] == "flight number"
+    assert any("mixes" in n for n in report.notes)
+
+
 def test_a_date_like_flight_number_also_orders_correctly():
     """SkyTEM writes 26051201 — a date with an index. Numeric ordering handles
     it without knowing that is what it is."""
