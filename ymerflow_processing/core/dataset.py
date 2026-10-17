@@ -810,7 +810,8 @@ def _plain(value):
 
 # ── Loading ──────────────────────────────────────────────────────────────────
 
-def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -> Dataset:
+def load(xyz, gex, normalization: str | None = None,
+         crs: str | None = None) -> Dataset:
     """A dataset read from a survey file and a system description.
 
     Both are paths. That is deliberate and is what keeps the library usable on
@@ -818,6 +819,32 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
     nothing here resolves an asset identifier or reaches for a storage backend.
     Hand it two files and it works, with no platform and no credentials.
 
+    Parameters
+    ----------
+    xyz : str | Path
+        The survey file.
+    gex : str | Path
+        The system description.
+    normalization : str | None
+        The convention the data is in. Unset, the one the file declares is
+        used, and ``rx`` if it declares none. Given, it wins over the file —
+        a caller who names one is correcting the record.
+    crs : str | None
+        The coordinate reference system the positions are in, where known.
+
+    Returns
+    -------
+    Dataset
+        The two files as one object, with the system description's declared
+        initial gates already disabled.
+
+    Raises
+    ------
+    FileNotFoundError
+        If either path does not exist.
+
+    Notes
+    -----
     Missing files are reported here rather than surfacing from inside
     ``libaarhusxyz`` as something less obvious.
 
@@ -846,10 +873,13 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
     # that travels with it" — an assertion made once at load time does not
     # survive the file, so a written dataset records what it is and this reads
     # it back. An explicit argument still wins, since a caller who names one is
-    # correcting the record rather than guessing.
-    declared = survey.xyz.model_info.get("normalization")
-    if normalization == RX_NORMALIZED and declared in NORMALIZATIONS:
-        normalization = declared
+    # correcting the record rather than guessing — which is why the default is
+    # None and not RX_NORMALIZED: with the latter as a sentinel, a caller
+    # explicitly asking for rx on a file declaring rx_tx was overruled.
+    if normalization is None:
+        declared = survey.xyz.model_info.get("normalization")
+        normalization = (declared if declared in NORMALIZATIONS
+                         else RX_NORMALIZED)
 
     dataset = Dataset(survey, normalization, crs)
 
