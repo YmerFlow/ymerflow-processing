@@ -44,8 +44,6 @@ method", in *Groundwater Geophysics: A Tool for Hydrogeology*, Springer, 2009.
 parameters with no defaults.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -76,25 +74,38 @@ def altimeter_agreement(
 ):
     """Classify the disagreement between independent altimeters.
 
-    :param columns: The altimeter columns to compare — at least two. Required
-        and never guessed: which sensors a survey carries, and what they are
-        called, is a property of the aircraft rather than something to infer.
-    :param good_max: Spread at or below which the altimeters agree acceptably,
-        in ``unit``. A contract term, so no default.
-    :param marginal_max: Spread above which the disagreement is Out of Spec.
-    :param output_column: Where the per-sounding verdict is written.
-    :param spread_column: Where the numeric spread is written. Kept because the
-        verdict alone does not say *how far* apart they were, and because a
-        later step may want to threshold it differently.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param unit: Unit of the altimeter columns, for report text.
-    :param gap_tolerance: In-spec stretches shorter than this, in CRS units, do
-        not break an out-of-spec run when the contiguous-run length is measured.
-        A contract saying "out of spec for 1 km or more" describes a stretch of
-        flying that one recovered sounding does not end. ``0`` measures runs
-        raw; the raw figure is reported either way.
+    Parameters
+    ----------
+    columns
+        The altimeter columns to compare — at least two. Required and never
+        guessed: which sensors a survey carries, and what they are called, is a
+        property of the aircraft rather than something to infer.
+    good_max : float
+        Spread at or below which the altimeters agree acceptably, in ``unit``.
+        A contract term, so no default.
+    marginal_max : float
+        Spread above which the disagreement is Out of Spec.
+    output_column : str
+        Where the per-sounding verdict is written.
+    spread_column : str
+        Where the numeric spread is written. Kept because the verdict alone
+        does not say *how far* apart they were, and because a later step may
+        want to threshold it differently.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    unit : str
+        Unit of the altimeter columns, for report text.
+    gap_tolerance : float
+        In-spec stretches shorter than this, in CRS units, do not break an
+        out-of-spec run when the contiguous-run length is measured. A contract
+        saying "out of spec for 1 km or more" describes a stretch of flying
+        that one recovered sounding does not end. ``0`` measures runs raw; the
+        raw figure is reported either way.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

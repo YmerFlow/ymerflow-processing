@@ -5,8 +5,6 @@ efficiency, so a good deal of this pins that: run first it finds nothing, run
 last it sees what everything else left behind.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

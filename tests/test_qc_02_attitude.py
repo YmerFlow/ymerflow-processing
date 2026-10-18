@@ -1,7 +1,5 @@
 """qc_02 — system attitude, end to end."""
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

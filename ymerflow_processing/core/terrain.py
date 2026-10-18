@@ -79,11 +79,12 @@ default because a terrain model's cell *is* the ground surface it asserts, and
 interpolating between cells invents relief the model does not claim.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
+import rasterio
+from rasterio.io import DatasetReader
+from rasterio.warp import transform as warp_transform
 
 from .pipeline import StepReport
 
@@ -113,9 +114,6 @@ def sample_terrain(raster, easting, northing, source_crs=None, band: int = 1):
     typed form; a path is accepted because a standalone run has nothing to
     materialise it, which is the same layering :func:`core.dataset.load` follows.
     """
-    import rasterio
-    from rasterio.warp import transform as warp_transform
-
     opened = raster if hasattr(raster, "read") else rasterio.open(str(raster))
     try:
         x = np.asarray(easting, dtype=float)
@@ -156,21 +154,31 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
                         stash: bool = True):
     """Re-express altitude against a terrain model.
 
-    :param terrain: The terrain model — an open ``rasterio`` dataset or a path.
-        Its values are ground elevation in the same vertical units as the
-        delivery.
-    :param crs: The survey's horizontal CRS, needed only if it differs from the
+    Parameters
+    ----------
+    terrain
+        The terrain model — an open ``rasterio`` dataset or a path. Its values
+        are ground elevation in the same vertical units as the delivery.
+    crs
+        The survey's horizontal CRS, needed only if it differs from the
         raster's. Taken from the dataset when it carries one.
-    :param band: Which raster band holds elevation.
-    :param preserve: ``elevation`` — hold the instrument's elevation and
-        recompute altitude, which is the default and almost always right; or
-        ``altitude`` — trust the altimeter and move the instrument instead.
-    :param altitude_column: Which column holds altitude. Discovered if unset.
-    :param elevation_column: Which holds ground elevation. Discovered if unset.
-    :param stash: Keep the delivered values under ``tx_alt_raw`` and
-        ``topo_raw``.
+    band : int
+        Which raster band holds elevation.
+    preserve : str
+        ``elevation`` — hold the instrument's elevation and recompute altitude,
+        which is the default and almost always right; or ``altitude`` — trust
+        the altimeter and move the instrument instead.
+    altitude_column : str | None
+        Which column holds altitude. Discovered if unset.
+    elevation_column : str | None
+        Which holds ground elevation. Discovered if unset.
+    stash : bool
+        Keep the delivered values under ``tx_alt_raw`` and ``topo_raw``.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

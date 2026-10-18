@@ -8,8 +8,6 @@ Most of what follows is about the *ordering*, because a series trended in the
 wrong order produces a plausible slope and nothing gives it away.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

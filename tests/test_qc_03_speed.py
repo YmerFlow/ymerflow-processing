@@ -1,7 +1,5 @@
 """qc_03 — ground speed, end to end."""
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

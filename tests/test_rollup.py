@@ -5,8 +5,6 @@ ways. What this adds is the single place the vector export needs — a client
 opening it should not read across five columns to learn why a point is red.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

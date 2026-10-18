@@ -23,8 +23,6 @@ hundred scattered bad soundings and one continuous 3 km stretch are very
 different problems, and a fraction alone cannot tell them apart.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 

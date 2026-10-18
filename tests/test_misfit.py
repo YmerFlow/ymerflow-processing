@@ -5,8 +5,6 @@ thresholdable by an ordinary culling filter. The loop becomes explicit as steps
 rather than one filter reaching backwards.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

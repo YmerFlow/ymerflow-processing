@@ -6,8 +6,6 @@ move: an overwrite reported instead of printed, and a rename that quietly takes
 a channel out of the model announcing itself.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

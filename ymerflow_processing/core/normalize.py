@@ -56,8 +56,6 @@ Running this filter is the decision qc_04 informs, and the two read the same
 declared value.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -109,9 +107,13 @@ def convert_normalization(dataset, to: str = RX_TX_NORMALIZED,
                           stash: bool = True):
     """Convert amplitudes into ``to``, from whatever the dataset declares.
 
-    :param to: The convention to produce. Defaults to ``rx_tx``, which is what
-        the forward code expects.
-    :param stash: Keep the values as they were alongside.
+    Parameters
+    ----------
+    to : str
+        The convention to produce. Defaults to ``rx_tx``, which is what the
+        forward code expects.
+    stash : bool
+        Keep the values as they were alongside.
 
     **It takes no parameter saying what the data currently is.** That assertion
     is the defect ``01`` names — a wrong one is undetectable and wrong by orders
@@ -198,9 +200,13 @@ def convert_normalization(dataset, to: str = RX_TX_NORMALIZED,
 def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, stash: bool = True):
     """Overwrite the per-sounding transmitter current with the declared nominal.
 
-    :param columns: Which ``flightlines`` column holds each channel's current,
-        per channel key or moment name. Discovered if unset.
-    :param stash: Keep the measured values alongside.
+    Parameters
+    ----------
+    columns
+        Which ``flightlines`` column holds each channel's current, per channel
+        key or moment name. Discovered if unset.
+    stash : bool
+        Keep the measured values alongside.
 
     Deliberately destructive; qc_04 is what tells you whether you should. It
     measures stability against the moment's own mean and agreement with this

@@ -5,8 +5,6 @@ number anyone chose. Which makes it the right place to exercise the policy,
 since nothing else is varying.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

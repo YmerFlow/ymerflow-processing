@@ -6,8 +6,6 @@ again. Doing so silently produces a number in units of one over the response and
 culls almost nothing.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

@@ -20,8 +20,6 @@ Testing the invariant rather than the consumer, deliberately: it needs no
 inversion stack installed, and it is the same guarantee.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

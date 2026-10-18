@@ -1,7 +1,5 @@
 """qc_10 — sounding spacing, end to end."""
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

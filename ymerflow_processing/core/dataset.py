@@ -46,8 +46,6 @@ widths belong in ``em/tem/``. A generic engine can only taper along the array
 axis if it can read that axis without knowing it is time.
 """
 
-from __future__ import annotations
-
 import copy
 import json
 import importlib.metadata

@@ -6,8 +6,6 @@ plausible number rather than an error, which is why most of these assertions are
 about the arithmetic rather than the culling.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

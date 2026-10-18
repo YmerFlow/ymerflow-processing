@@ -19,8 +19,6 @@ a value the runner collects, the process record stores and the UI renders (R3).
 Diagnostics go to ``logging``; what a step *did* goes in the report.
 """
 
-from __future__ import annotations
-
 import importlib.metadata
 import importlib.resources
 import logging

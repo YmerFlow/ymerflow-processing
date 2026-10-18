@@ -52,14 +52,15 @@ sounding whose bad gates were removed before inverting should not carry their
 residual afterwards.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 
 import numpy as np
 import pandas as pd
 
+from libaarhusxyz.xyz import XYZ
+
+from .dataset import Dataset
 from .distribution import summarize
 from .mask import in_use
 from .pipeline import StepReport
@@ -104,7 +105,6 @@ def _as_xyz(result):
         return result
     if hasattr(result, "survey"):
         return result.survey.xyz
-    from libaarhusxyz.xyz import XYZ
     return XYZ(str(result))
 
 
@@ -175,11 +175,18 @@ def ensure_misfit(dataset, channel, result=None):
 def compute_misfit(dataset, result: str | XYZ | Dataset, rms_column: str = RMS_COLUMN):
     """Write misfit between the data and a forward synthetic as columns.
 
-    :param result: A previous inversion's or forward model's output — an XYZ, a
-        Dataset, or a path to one.
-    :param rms_column: Where the per-sounding root-mean-square misfit goes.
+    Parameters
+    ----------
+    result
+        A previous inversion's or forward model's output — an XYZ, a Dataset,
+        or a path to one.
+    rms_column : str
+        Where the per-sounding root-mean-square misfit goes.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

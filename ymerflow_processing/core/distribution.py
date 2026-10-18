@@ -13,8 +13,6 @@ report is stored in the process record and rendered by a web client, so it has
 to survive being serialized. numpy scalars do not.
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 #: Percentiles reported for every distribution. The extremes matter as much as

@@ -43,8 +43,6 @@ Both can be true, and neither implies the other.
 inversion and the survey, and a house number would silently cull a client's data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -65,15 +63,23 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
                         spread_earlier: int = 0, disable_tail: bool = False):
     """Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
 
-    :param max_uncertainty: Largest relative uncertainty to keep, as a fraction
-        — ``0.15`` is fifteen percent. Inclusive: a point exactly at the limit is
-        kept. **No default:** what is tolerable depends on the inversion.
-    :param start_gate: Where evaluation begins, 0-based.
-    :param spread_earlier: Also disable this many gates before each hit.
-    :param disable_tail: Also disable everything after the earliest hit in that
-        sounding.
+    Parameters
+    ----------
+    max_uncertainty : float
+        Largest relative uncertainty to keep, as a fraction — ``0.15`` is
+        fifteen percent. Inclusive: a point exactly at the limit is kept. **No
+        default:** what is tolerable depends on the inversion.
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit in that sounding.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

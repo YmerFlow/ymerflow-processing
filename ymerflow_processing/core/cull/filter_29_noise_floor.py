@@ -42,8 +42,6 @@ far above it a datum must sit to be believed, and that is a multiplier on the
 shared floor rather than a number that can drift away from it.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -64,17 +62,26 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
                            spread_earlier: int = 0, disable_tail: bool = False):
     """Disable gates at or below the dataset's noise floor.
 
-    :param margin: How many times the floor a datum must exceed to be kept.
-        ``1.0`` culls at the floor itself; ``2.0`` demands twice it. This is a
-        multiplier on the shared floor rather than a floor of its own, so it
-        cannot drift away from what filter_12 assigned uncertainty with.
-    :param start_gate: Where evaluation begins, 0-based.
-    :param spread_earlier: Also disable this many gates before each hit.
-    :param disable_tail: Also disable everything after the earliest hit in that
-        sounding. Well justified here — the floor is crossed once and the signal
-        keeps decaying, so later gates are further below it.
+    Parameters
+    ----------
+    margin : float
+        How many times the floor a datum must exceed to be kept. ``1.0`` culls
+        at the floor itself; ``2.0`` demands twice it. This is a multiplier on
+        the shared floor rather than a floor of its own, so it cannot drift
+        away from what filter_12 assigned uncertainty with.
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit in that sounding. Well
+        justified here — the floor is crossed once and the signal keeps
+        decaying, so later gates are further below it.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

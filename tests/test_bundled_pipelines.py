@@ -13,8 +13,6 @@ than merely parsed. Parsing proves the YAML is well formed; it does not prove a
 parameter still exists.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 import yaml

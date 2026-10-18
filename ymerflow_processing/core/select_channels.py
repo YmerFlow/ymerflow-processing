@@ -50,8 +50,6 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 3 and 6 are as readable as 1 and 2 (``YmerFlow/simpeg#3``).
 """
 
-from __future__ import annotations
-
 import logging
 
 from .mask import is_provenance
@@ -106,31 +104,41 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
                     drop_unclaimed: bool = False):
     """Keep only the channels whose ``criterion`` value is in ``keep``.
 
-    :param criterion: How channels are chosen — ``component`` (``x``/``y``/``z``,
-        from the receiver polarization), ``moment`` (the transmitter moment name,
-        such as ``LM``), or ``key`` (``ch1``, always available).
-    :param keep: Which values to keep. Matched case-insensitively, so ``Z`` and
-        ``z`` are the same request.
-    :param drop_system_blocks: Also remove the discarded channels' blocks from
-        the system description, so it does not go on declaring channels whose
-        data has gone. Set false to leave the system description alone.
-    :param drop_unclaimed: Also remove gate-shaped arrays that no channel claims
-        — see :func:`unclaimed_arrays`. Off by default: such an array is
-        undeclared rather than empty, and at least one of them is real coherent
-        signal that the incumbent toolchain merely discards, so deleting it
-        unasked would be worse than leaving it. It is always reported.
+    Parameters
+    ----------
+    criterion : str
+        How channels are chosen — ``component`` (``x``/``y``/``z``, from the
+        receiver polarization), ``moment`` (the transmitter moment name, such
+        as ``LM``), or ``key`` (``ch1``, always available).
+    keep
+        Which values to keep. Matched case-insensitively, so ``Z`` and ``z``
+        are the same request.
+    drop_system_blocks : bool
+        Also remove the discarded channels' blocks from the system description,
+        so it does not go on declaring channels whose data has gone. Set false
+        to leave the system description alone.
+    drop_unclaimed : bool
+        Also remove gate-shaped arrays that no channel claims — see
+        :func:`unclaimed_arrays`. Off by default: such an array is undeclared
+        rather than empty, and at least one of them is real coherent signal
+        that the incumbent toolchain merely discards, so deleting it unasked
+        would be worse than leaving it. It is always reported.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
 
     **Refuses to remove everything.** A criterion that matches no channel is
-    almost always a typo or a wrong assumption about the data, and a dataset with
-    no data in it fails much later and much less clearly. It raises here instead,
-    naming what was actually present.
+    almost always a typo or a wrong assumption about the data, and a dataset
+    with no data in it fails much later and much less clearly. It raises here
+    instead, naming what was actually present.
 
-    **It cannot promise the result contains only what you asked for.** Selection
-    works through the channel model, and an array no channel claims is outside
-    it — so a delivery carrying an undeclared component keeps it unless
-    ``drop_unclaimed`` says otherwise. That is reported rather than assumed away.
+    **It cannot promise the result contains only what you asked for.**
+    Selection works through the channel model, and an array no channel claims
+    is outside it — so a delivery carrying an undeclared component keeps it
+    unless ``drop_unclaimed`` says otherwise. That is reported rather than
+    assumed away.
     """
     report = StepReport(step=STEP)
 

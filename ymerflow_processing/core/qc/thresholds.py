@@ -32,8 +32,6 @@ sayable in a sentence. Since verdicts go to a client as a contract deliverable,
 the rule they are computed by needs to be one anybody can state.
 """
 
-from __future__ import annotations
-
 import warnings
 
 import numpy as np

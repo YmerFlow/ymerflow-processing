@@ -4,8 +4,6 @@ The QC half of ``01``'s resolution of filter_31: once misfit is a column it is
 gradeable, and this grades it without recomputing it.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

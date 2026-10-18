@@ -6,8 +6,6 @@ written to a whitespace-delimited format, and a subset that must move every
 array together or silently misalign the dataset.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

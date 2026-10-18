@@ -52,8 +52,6 @@ xyz — it simply is not available as a plot channel. Worth knowing rather than
 discovering.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -117,16 +115,25 @@ def classify_lines(dataset, criterion: str, line_type: str,
                    default_line_type: str = DEFAULT_LINE_TYPE):
     """Label flightlines, without removing anything.
 
-    :param criterion: ``height_threshold`` — label lines whose *mean* height
-        exceeds ``threshold``, which is how high-altitude test lines are found;
-        or ``explicit`` — label the lines named in ``lines``.
-    :param line_type: The label to apply. Free-form, but see the module
-        docstring: no whitespace.
-    :param threshold: Height above ground, for ``height_threshold``.
-    :param lines: Line identifiers, for ``explicit``.
-    :param altitude_column: Which column holds height. Discovered if unset.
-    :param line_column: Which column identifies the line. Discovered if unset.
-    :param default_line_type: What unclassified lines are called.
+    Parameters
+    ----------
+    criterion : str
+        ``height_threshold`` — label lines whose *mean* height exceeds
+        ``threshold``, which is how high-altitude test lines are found; or
+        ``explicit`` — label the lines named in ``lines``.
+    line_type : str
+        The label to apply. Free-form, but see the module docstring: no
+        whitespace.
+    threshold : float | None
+        Height above ground, for ``height_threshold``.
+    lines
+        Line identifiers, for ``explicit``.
+    altitude_column : str | None
+        Which column holds height. Discovered if unset.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
+    default_line_type : str
+        What unclassified lines are called.
 
     Nothing is removed — this only classifies, so a later ``select_lines`` can
     act on the label.
@@ -213,12 +220,17 @@ def select_lines(dataset, criterion: str, line_types: list[str] | None = None,
                  line_column: str | None = None):
     """Reduce the dataset to the flightlines wanted. **Drops soundings.**
 
-    :param criterion: ``line_type`` — keep lines carrying one of
-        ``line_types``; or ``explicit_lines`` — keep the lines named in
-        ``lines``.
-    :param line_types: Classifications to keep, for ``line_type``.
-    :param lines: Line identifiers to keep, for ``explicit_lines``.
-    :param line_column: Which column identifies the line. Discovered if unset.
+    Parameters
+    ----------
+    criterion : str
+        ``line_type`` — keep lines carrying one of ``line_types``; or
+        ``explicit_lines`` — keep the lines named in ``lines``.
+    line_types
+        Classifications to keep, for ``line_type``.
+    lines
+        Line identifiers to keep, for ``explicit_lines``.
+    line_column : str | None
+        Which column identifies the line. Discovered if unset.
 
     This changes the dataset's extent: soundings are removed from
     ``flightlines`` and from every ``layer_data`` array together, so the two

@@ -68,14 +68,12 @@ does ``& inuse`` and raises. Neither happens, because nothing here writes a NaN:
 the overrides are read out and the sentinel is discarded.
 """
 
-from __future__ import annotations
-
 import logging
 import re
 
 import numpy as np
 
-from libaarhusxyz.xyz import df_apply
+from libaarhusxyz.xyz import XYZ, df_apply
 
 from ..mask import CULLED, IN_USE, cull, enable, ensure, mark_step
 from ..pipeline import StepReport
@@ -117,7 +115,6 @@ def _open(diff):
     if str(diff).endswith(".msgpack"):
         from libaarhusxyz.export import msgpack
         return msgpack.load(str(diff))
-    from libaarhusxyz.xyz import XYZ
     return XYZ(str(diff))
 
 
@@ -143,11 +140,18 @@ def _gates_not_here(edit_columns, mask_columns) -> list:
 def apply_manual_edits(dataset, diff: str | XYZ, checkpoint: str | None = None):
     """Apply a hand-authored in-use diff at the soundings it names.
 
-    :param diff: The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
-    :param checkpoint: A name for the state this diff is a difference from.
-        Recorded on the run so the pairing survives; nothing is written here.
+    Parameters
+    ----------
+    diff
+        The edit set — a ``libaarhusxyz`` XYZ, or a path to one.
+    checkpoint : str | None
+        A name for the state this diff is a difference from. Recorded on the
+        run so the pairing survives; nothing is written here.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

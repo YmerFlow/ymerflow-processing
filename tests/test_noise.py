@@ -6,8 +6,6 @@ assertions that matter most here are not about the arithmetic — they are about
 there being exactly one model, and both consumers refusing to invent their own.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

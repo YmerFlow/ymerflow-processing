@@ -42,8 +42,6 @@ instrument and the ground, and a house number would silently cull a client's
 data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -67,15 +65,24 @@ def cull_by_decay_rate(dataset, shallowest: float | None = None,
                        spread_earlier: int = 0, disable_tail: bool = False):
     """Disable data whose local decay rate is implausible.
 
-    :param shallowest: Slopes above this — closer to flat — are culled
-        (filter_25). Signed and negative for a decay.
-    :param steepest: Slopes below this — falling faster — are culled
-        (filter_26).
-    :param start_gate: Where evaluation begins, 0-based.
-    :param spread_earlier: Also disable this many gates before each hit.
-    :param disable_tail: Also disable everything after the earliest hit.
+    Parameters
+    ----------
+    shallowest : float | None
+        Slopes above this — closer to flat — are culled (filter_25). Signed and
+        negative for a decay.
+    steepest : float | None
+        Slopes below this — falling faster — are culled (filter_26).
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

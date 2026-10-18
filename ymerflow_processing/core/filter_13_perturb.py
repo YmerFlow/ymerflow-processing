@@ -60,8 +60,6 @@ signal — receives a perturbation larger than the datum itself. That is correct
 and is what makes the synthetic look like real late-time data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -96,19 +94,26 @@ def perturb_from_uncertainty(dataset, seed: int = DEFAULT_SEED,
                              again: bool = False, stash: bool = True):
     """Add noise drawn from each datum's assigned uncertainty.
 
-    :param seed: The draw to make. Defaults to 42, which is a legible marker
-        for "not chosen" rather than a better number — no seed is. **Independent
-        realizations need different seeds**; the default gives every one of them
-        the same noise.
-    :param channels: Which channels to perturb, by key or moment name. All of
-        them if unset.
-    :param again: Permit perturbing a dataset that already carries noise.
-        Off by default, because doing it unknowingly is the silent error this
-        filter is written to prevent.
-    :param stash: Keep the noise-free values under the same key with ``_clean``
-        appended.
+    Parameters
+    ----------
+    seed : int
+        The draw to make. Defaults to 42, which is a legible marker for "not
+        chosen" rather than a better number — no seed is. **Independent
+        realizations need different seeds**; the default gives every one of
+        them the same noise.
+    channels
+        Which channels to perturb, by key or moment name. All of them if unset.
+    again : bool
+        Permit perturbing a dataset that already carries noise. Off by default,
+        because doing it unknowingly is the silent error this filter is written
+        to prevent.
+    stash : bool
+        Keep the noise-free values under the same key with ``_clean`` appended.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

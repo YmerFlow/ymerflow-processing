@@ -6,8 +6,6 @@ matches and does-not-match forces someone to widen a tolerance until the
 improvement disappears into it, and then the comparison means nothing.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

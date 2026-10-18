@@ -5,8 +5,6 @@ Nearly every assertion here is about keeping those two apart, because the whole
 filter is one subtraction and every way of getting it wrong is silent.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np

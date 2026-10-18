@@ -61,8 +61,6 @@ operational judgement about an instrument, and a house number here would silentl
 cull a client's data.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -115,20 +113,32 @@ def cull_by_geometry(
 ):
     """Disable soundings flown outside the geometry the forward model assumes.
 
-    :param max_pitch: Beyond ±this, in the attitude column's units, the sounding
-        is disabled. Defaults to ``system_attitude``'s out-of-spec boundary if
-        that check has run.
-    :param max_roll: The same, across the flight direction.
-    :param max_altitude: Above this the sounding is disabled. Defaults to
+    Parameters
+    ----------
+    max_pitch : float | None
+        Beyond ±this, in the attitude column's units, the sounding is disabled.
+        Defaults to ``system_attitude``'s out-of-spec boundary if that check
+        has run.
+    max_roll : float | None
+        The same, across the flight direction.
+    max_altitude : float | None
+        Above this the sounding is disabled. Defaults to
         ``height_above_ground``'s out-of-spec boundary if recorded.
-    :param min_altitude: Below this the sounding is disabled — a reading too low
-        to be real usually means the altimeter, not the aircraft. **No default:**
-        qc_01 is one-sided and has no minimum to borrow.
-    :param pitch_column: Which ``flightlines`` column holds pitch.
-    :param roll_column: Which holds roll.
-    :param altitude_column: Which holds height above ground. Discovered if unset.
+    min_altitude : float | None
+        Below this the sounding is disabled — a reading too low to be real
+        usually means the altimeter, not the aircraft. **No default:** qc_01 is
+        one-sided and has no minimum to borrow.
+    pitch_column : str
+        Which ``flightlines`` column holds pitch.
+    roll_column : str
+        Which holds roll.
+    altitude_column : str | None
+        Which holds height above ground. Discovered if unset.
 
-    Returns ``(dataset, StepReport)``.
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

@@ -19,8 +19,6 @@ structured record. A command-line program's job is to talk to a person. Anything
 diagnostic still goes to ``logging``, behind ``-v``.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from pathlib import Path

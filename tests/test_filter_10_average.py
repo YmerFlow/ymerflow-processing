@@ -6,8 +6,6 @@ Each has a test here named for it, because a rebuild that reintroduces them is
 not a rebuild.
 """
 
-from __future__ import annotations
-
 import json
 
 import numpy as np
