@@ -68,6 +68,11 @@ def bundled() -> dict[str, Path]:
 
     Read through ``importlib.resources`` rather than by walking ``__file__``, so
     it keeps working for an installed wheel and not only for a checkout.
+
+    Returns
+    -------
+    dict[str, Path]
+        Document name (the filename without ``.yaml``) to its path.
     """
     try:
         root = importlib.resources.files("ymerflow_processing") / BUNDLED_DIR
@@ -81,7 +86,13 @@ def bundled() -> dict[str, Path]:
 
 
 def describe_bundled() -> dict[str, str]:
-    """Bundled pipeline names to their one-line description."""
+    """Bundled pipeline names to their one-line description.
+
+    Returns
+    -------
+    dict[str, str]
+        Name to the document's ``description``, or an empty string.
+    """
     out = {}
     for name, path in sorted(bundled().items()):
         document = yaml.safe_load(path.read_text()) or {}
@@ -94,6 +105,17 @@ def load_steps(group: str) -> dict[str, Callable]:
 
     Any installed package can contribute steps, so nothing needs a central
     registry file.
+
+    Parameters
+    ----------
+    group : str
+        The entry-point group — ``FILTER_GROUP``, ``QC_GROUP`` or
+        ``COMPARE_GROUP``.
+
+    Returns
+    -------
+    dict[str, Callable]
+        Step name to the function registered under it.
     """
     return {ep.name: ep.load() for ep in importlib.metadata.entry_points(group=group)}
 
@@ -108,6 +130,29 @@ class StepReport:
     and — for anything with a threshold — the distribution of the quantity it
     thresholded on, before and after. That is what turns "disabled 4,182 gates"
     into something a user can judge.
+
+    Parameters
+    ----------
+    step : str
+        The step's registered name.
+    params : dict
+        The parameters it ran with.
+    soundings_total, soundings_affected : int | None
+        How many soundings there were, and how many this step touched.
+    points_total, points_affected : int | None
+        The same per gate-sample, for a step that works below the sounding.
+    verdict_column : str | None
+        Which column holds this step's per-sounding verdict, if it wrote one.
+    finding : str | None
+        What kind of problem the verdict describes — ``"flight"`` or
+        ``"instrument"``; see the attribute's note.
+    ungraded : str | None
+        Why no verdict was produced — ``"unjudged"``, ``"optional"`` or
+        ``"missing"``; ``None`` means one was.
+    distributions : dict
+        Distribution of whatever was thresholded on, before and after.
+    notes : list[str]
+        Anything worth surfacing that is not a failure.
     """
 
     step: str
@@ -167,6 +212,14 @@ class StepReport:
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        """The report as plain data, grouped for a reader, ready for JSON.
+
+        Returns
+        -------
+        dict
+            The step, its parameters, the sounding and point counts grouped
+            under ``soundings`` and ``points``, and the rest as they are.
+        """
         return {
             "step": self.step,
             "params": self.params,
@@ -201,6 +254,23 @@ class RunReport:
     routinely embed an export date, so an identity taken from a filename is not
     stable across re-exports — which would enter one delivery into a series
     twice. Keeping the ordering key separate from the label removes that.
+
+    Parameters
+    ----------
+    steps : list[StepReport]
+        One report per step, in the order run.
+    pipeline : dict | None
+        The document that was run.
+    identity : str | None
+        The human label — a delivery, not a flight.
+    identity_source : str | None
+        ``"label"`` if supplied, ``"filename"`` if defaulted.
+    flights : list | None
+        The flights present, read from the data.
+    time_range : list[str] | None
+        First and last timestamp, read from the data.
+    rollup : dict
+        What the cross-check rollup wrote, and which checks fed it.
     """
 
     steps: list[StepReport] = field(default_factory=list)
@@ -222,6 +292,14 @@ class RunReport:
     rollup: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        """The run as plain data, every step included, ready for JSON.
+
+        Returns
+        -------
+        dict
+            The identity fields, the pipeline, each step's ``to_dict()``, and
+            the rollup.
+        """
         return {
             "identity": self.identity,
             "identity_source": self.identity_source,
@@ -248,7 +326,14 @@ def _normalize_step(step) -> tuple[str, dict]:
 
 
 class Pipeline:
-    """A pipeline document."""
+    """A pipeline document.
+
+    Parameters
+    ----------
+    document : dict
+        The parsed YAML: ``steps``, and optionally ``kind`` and
+        ``description``.
+    """
 
     def __init__(self, document: dict):
         self.document = dict(document)
@@ -297,6 +382,16 @@ class Pipeline:
 
         A job reserves budget up front, so an unknown step found at step nine is
         a wasted reservation. Checked at submission instead.
+
+        Parameters
+        ----------
+        available : dict[str, Callable]
+            The steps the runner can resolve.
+
+        Raises
+        ------
+        KeyError
+            Naming the first step that is not available.
         """
         unknown = [name for name, _ in self.steps if name not in available]
         if unknown:
@@ -330,7 +425,25 @@ def resolve_group(pipeline: Pipeline, candidates: Sequence[str],
     blaming a step that is perfectly valid, when the real problem is the
     registry. Under all three paths above that cannot happen.
 
-    Returns ``(group name, the steps registered under it)``.
+    Parameters
+    ----------
+    pipeline : Pipeline
+        The document whose steps are resolved.
+    candidates : sequence of str
+        The groups to consider, by name.
+    group : str | None
+        The caller's explicit choice, if any.
+
+    Returns
+    -------
+    tuple[str, dict[str, Callable]]
+        ``(group name, the steps registered under it)``.
+
+    Raises
+    ------
+    PipelineKindError
+        If the stated or declared group does not resolve every step, or no
+        candidate does.
     """
     wanted = [name for name, _ in pipeline.steps]
 
@@ -431,11 +544,35 @@ class _Runner:
 
 
 class ProcessingRunner(_Runner):
-    """dataset -> dataset."""
+    """Dataset in, dataset out.
+
+    Parameters
+    ----------
+    pipeline : Pipeline
+        The document to run.
+    steps : dict[str, Callable] | None
+        The registry to resolve step names in; the ``filters`` entry-point
+        group if unset.
+    inventory : bool
+        Take the implicit inventory before the first step.
+    """
 
     group = FILTER_GROUP
 
     def run(self, dataset):
+        """Apply every step in order, recording each on the dataset.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            The delivery to process.
+
+        Returns
+        -------
+        tuple
+            ``(dataset, RunReport)`` — the processed dataset, and one
+            StepReport per step after the implicit inventory.
+        """
         report = RunReport(pipeline=self.pipeline.document)
         dataset = self._open(dataset, report)
         for index, (name, params) in enumerate(self.pipeline.steps, start=1):
@@ -448,16 +585,40 @@ class ProcessingRunner(_Runner):
 
 
 class QCRunner(_Runner):
-    """dataset -> dataset + report.
+    """Dataset in, dataset plus report out.
 
     A check writes its verdict as a column on ``flightlines`` and returns the
     aggregate statistics separately — the classification exports with the data,
     the statistics accumulate (R6).
+
+    Parameters
+    ----------
+    pipeline : Pipeline
+        The document to run.
+    steps : dict[str, Callable] | None
+        The registry to resolve step names in; the ``qc`` entry-point group if
+        unset.
+    inventory : bool
+        Take the implicit inventory before the first check.
     """
 
     group = QC_GROUP
 
     def run(self, dataset):
+        """Run every check in order, then roll their verdicts up.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            The delivery to grade. Its measurements are not changed; verdict
+            columns are added to ``flightlines``.
+
+        Returns
+        -------
+        tuple
+            ``(dataset, RunReport)`` — with one StepReport per check and the
+            cross-check rollup filled in.
+        """
         report = RunReport(pipeline=self.pipeline.document)
         dataset = self._open(dataset, report)
         for index, (name, params) in enumerate(self.pipeline.steps, start=1):
@@ -484,6 +645,17 @@ class ComparisonRunner(_Runner):
 
     ``reference`` names the thing everything is compared against, where the
     comparison is asymmetric.
+
+    Parameters
+    ----------
+    pipeline : Pipeline
+        The document to run.
+    steps : dict[str, Callable] | None
+        The registry to resolve step names in; the ``compare`` entry-point
+        group if unset.
+    inventory : bool
+        Accepted for symmetry with the other runners; a comparison takes no
+        inventory.
     """
 
     group = COMPARE_GROUP
@@ -500,6 +672,17 @@ class ComparisonRunner(_Runner):
         Declared as a ``CONSUMES`` attribute on the check's module, so the
         declaration lives beside the code that depends on it rather than in a
         registry someone has to remember to update.
+
+        Parameters
+        ----------
+        name : str
+            The step's registered name.
+
+        Returns
+        -------
+        str
+            ``"reports"`` or ``"datasets"``; ``"reports"`` when the module
+            declares nothing.
         """
         check = self.steps[name]
         module = sys.modules.get(getattr(check, "__module__", ""), None)
@@ -511,6 +694,16 @@ class ComparisonRunner(_Runner):
         One run loads one set of inputs, so a pipeline whose steps want
         different kinds cannot be served — and it is better to say which steps
         want which than to load one kind and let the other steps fail on it.
+
+        Returns
+        -------
+        str
+            ``"reports"`` or ``"datasets"``.
+
+        Raises
+        ------
+        ValueError
+            If the steps disagree, naming which want which.
         """
         wanted = {}
         for name, _ in self.pipeline.steps:
@@ -526,6 +719,21 @@ class ComparisonRunner(_Runner):
         return next(iter(wanted), self.default_consumes)
 
     def run(self, items: Sequence, reference=None):
+        """Run every comparison over the same items.
+
+        Parameters
+        ----------
+        items : sequence
+            The reports or datasets compared, in order; see
+            :meth:`consumes_all` for which.
+        reference : object | None
+            What everything is compared against, for an asymmetric check.
+
+        Returns
+        -------
+        RunReport
+            One StepReport per comparison.
+        """
         report = RunReport(pipeline=self.pipeline.document)
         for name, params in self.pipeline.steps:
             log.info("comparison: %s over %d items (consumes %s)",

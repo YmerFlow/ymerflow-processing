@@ -189,11 +189,11 @@ def implementation_equivalence(
 
     Parameters
     ----------
-    items
+    items : Dataset | sequence of Dataset
         The candidate's output — one dataset, or a one-item sequence. Per
         ``02``'s table, the candidate is ``items`` and the baseline is
         ``reference``.
-    reference
+    reference : Dataset
         The baseline's output over the same input. Required.
     relative : float
         Fractional agreement required, against the baseline value.
@@ -204,12 +204,12 @@ def implementation_equivalence(
         Why that tolerance is the right one. Carried into the report because a
         tolerance without a reason is a number someone tuned until the
         comparison passed.
-    expected_differences
+    expected_differences : list[dict] | None
         Declarations of where the two are *meant* to differ. Each is
         ``{quantity, channel?, reason, direction?}``, where ``direction`` is
         ``"smaller"``, ``"larger"`` or ``"any"``. A covered difference is a
         pass; one whose direction is violated is not.
-    quantities
+    quantities : sequence of str | None
         Which of ``data``, ``uncertainty``, ``mask`` to compare.
     position_tolerance : float
         How close two soundings must be, in CRS units, to be the same sounding
@@ -217,8 +217,8 @@ def implementation_equivalence(
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
     """
     report = StepReport(step=STEP)
 

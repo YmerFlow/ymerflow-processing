@@ -74,6 +74,9 @@ def data_misfit(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; a verdict column is written, no measurement is
+        changed.
     good_max : float | None
         Root-mean-square misfit, **in standard deviations**, at or below which
         a sounding is unremarkable. **Left unset, no verdict is produced** and

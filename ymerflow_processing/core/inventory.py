@@ -60,7 +60,19 @@ def _shape(frame) -> tuple:
 
 
 def take(dataset) -> dict:
-    """Account for the delivery: what arrived, and what was resolved from it."""
+    """Account for the delivery: what arrived, and what was resolved from it.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The delivery inspected; nothing is written.
+
+    Returns
+    -------
+    dict
+        The inventory — soundings, columns, arrays, channels, and what each
+        resolved to — as plain values.
+    """
     frame = dataset.flightlines
     channels = dataset.channels
     layer_data = dataset.layer_data
@@ -133,7 +145,15 @@ def take(dataset) -> dict:
 def inventory(dataset):
     """List what the delivery contains and what of it was resolved.
 
-    Reads only. Returns ``(dataset, StepReport)``.
+    Parameters
+    ----------
+    dataset : Dataset
+        The delivery inspected. Reads only.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``; the inventory is in ``distributions``.
     """
     report = StepReport(step=STEP)
     account = take(dataset)

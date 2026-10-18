@@ -108,9 +108,21 @@ def _open(infrastructure, crs):
 def distance_to_features(easting, northing, features) -> np.ndarray:
     """Distance from each sounding to the nearest feature, in CRS units.
 
-    ``NaN`` where the sounding has no position. An R-tree nearest query rather
-    than a distance to every feature: a national infrastructure layer has tens
-    of thousands of geometries and a survey has tens of thousands of soundings.
+    An R-tree nearest query rather than a distance to every feature: a national
+    infrastructure layer has tens of thousands of geometries and a survey has
+    tens of thousands of soundings.
+
+    Parameters
+    ----------
+    easting, northing : array_like
+        Sounding positions, in the same CRS as ``features``.
+    features : geopandas.GeoSeries | geopandas.GeoDataFrame
+        The mapped geometry.
+
+    Returns
+    -------
+    numpy.ndarray
+        One distance per sounding; ``NaN`` where the sounding has no position.
     """
     from shapely import STRtree, points
 
@@ -131,7 +143,20 @@ def distance_to_features(easting, northing, features) -> np.ndarray:
 
 
 def gate_distances(first: float, last: float, times) -> np.ndarray:
-    """Per-gate exclusion distance, interpolated linearly in log time."""
+    """Per-gate exclusion distance, interpolated linearly in log time.
+
+    Parameters
+    ----------
+    first, last : float
+        The distance at the first and last gate.
+    times : array_like
+        Gate centre times; only their log spacing matters.
+
+    Returns
+    -------
+    numpy.ndarray
+        One distance per gate.
+    """
     times = np.asarray(times, dtype=float)
     if times.size < 2:
         return np.full(max(times.size, 1), float(first))
@@ -159,18 +184,21 @@ def cull_by_external_evidence(dataset, criterion: str,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written, and a misfit column
+        may be added.
     criterion : str
         ``proximity`` — near a mapped feature (filter_30); ``misfit`` — poorly
         fit by a previous inversion; or ``both`` — near a feature **and**
         poorly fit, which is filter_31 and is more selective than either.
-    infrastructure
+    infrastructure : geopandas.GeoDataFrame | geopandas.GeoSeries | None
         Vector geometry, for ``proximity`` and ``both``.
-    distance_first
+    distance_first : float | dict | None
         Exclusion distance at the first gate, in the survey's CRS units. Per
         channel key or moment name, or one value for all.
-    distance_last
+    distance_last : float | dict | None
         The same at the last gate. Constant if unset.
-    result
+    result : XYZ | Dataset | str | Path | None
         A previous inversion's or forward model's output, for ``misfit`` and
         ``both``. **Only needed when the dataset has no misfit column yet** —
         this reads the column first and computes one from the result only if
@@ -180,7 +208,7 @@ def cull_by_external_evidence(dataset, criterion: str,
     max_misfit : float | None
         Largest acceptable gatewise misfit, **in standard deviations**. Data
         missed by more than this is suspect.
-    crs
+    crs : str | None
         The survey's CRS, if the dataset does not carry one.
     start_gate : int
         Where evaluation begins, 0-based.
@@ -189,10 +217,15 @@ def cull_by_external_evidence(dataset, criterion: str,
     disable_tail : bool
         Also disable everything after the earliest hit.
 
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Notes
+    -----
     Each criterion carries only its own parameters, so nothing in the signature
     is dead depending on a flag (R7).
-
-    Returns ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines

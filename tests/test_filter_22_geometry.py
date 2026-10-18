@@ -186,8 +186,23 @@ def test_a_missing_geometry_column_is_noted_not_fatal():
     dataset.survey.xyz.flightlines = dataset.flightlines.drop(columns=["tilt_x"])
 
     dataset, report = cull_by_geometry(dataset, max_pitch=10, max_roll=10)
-    assert any("tilt_x" in n and "not applied" in n for n in report.notes)
+    assert any("max_pitch" in n and "not applied" in n for n in report.notes)
     assert "max_roll" in report.distributions["limits"]
+
+
+def test_attitude_columns_are_discovered_under_their_other_spellings():
+    """`tilt_x` was a fixed default, so a delivery spelling pitch `TxPitch` had
+    its pitch limit silently skipped. The same spellings qc_02 looks for."""
+    pitch = np.zeros(N) + 0.5
+    pitch[[2, 7]] = 12.0
+    dataset = flown(pitch=pitch)
+    dataset.survey.xyz.flightlines = dataset.flightlines.rename(
+        columns={"tilt_x": "TxPitch", "tilt_y": "TxRoll"})
+
+    dataset, report = cull_by_geometry(dataset, max_pitch=10, max_roll=10)
+
+    assert list(np.flatnonzero(mask(dataset)[:, 0] == CULLED)) == [2, 7]
+    assert not any("not applied" in n for n in report.notes)
 
 
 # ── Provenance and plumbing ──────────────────────────────────────────────────

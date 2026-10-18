@@ -227,10 +227,10 @@ def parameter_sweep(items, reference=None, response_column: str | None = None,
 
     Parameters
     ----------
-    items
+    items : sequence of dict
         The runs, **ordered**. ``02`` makes ``items`` ordered and says a check
         may rely on it; a response curve is read in order.
-    reference
+    reference : dict | None
         The control every run is measured against. Without one the first run is
         used, which is the conventional sweep — a series starting from the
         current setting.
@@ -248,10 +248,12 @@ def parameter_sweep(items, reference=None, response_column: str | None = None,
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
 
-    **Nothing here is a recommendation** — the trade a sweep explores is the
+    Notes
+    -----
+    Nothing here is a recommendation — the trade a sweep explores is the
     user's to make.
     """
     report = StepReport(step=STEP)

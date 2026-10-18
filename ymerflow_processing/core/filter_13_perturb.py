@@ -84,7 +84,18 @@ DEFAULT_SEED = 42
 
 
 def applied(dataset) -> str | None:
-    """What perturbation this dataset already carries, if any."""
+    """What perturbation this dataset already carries, if any.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose metadata is read.
+
+    Returns
+    -------
+    str | None
+        The recorded application, ``seed=N``, or ``None``.
+    """
     value = dataset.survey.xyz.model_info.get(REGISTRY)
     return str(value) if value else None
 
@@ -96,12 +107,14 @@ def perturb_from_uncertainty(dataset, seed: int = DEFAULT_SEED,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset whose data arrays receive the noise.
     seed : int
         The draw to make. Defaults to 42, which is a legible marker for "not
         chosen" rather than a better number — no seed is. **Independent
         realizations need different seeds**; the default gives every one of
         them the same noise.
-    channels
+    channels : list[str] | None
         Which channels to perturb, by key or moment name. All of them if unset.
     again : bool
         Permit perturbing a dataset that already carries noise. Off by default,

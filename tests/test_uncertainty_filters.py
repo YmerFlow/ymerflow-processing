@@ -425,3 +425,19 @@ def test_the_role_key_follows_whatever_convention_the_data_uses():
     assert role_key(Fake("Gate_Ch01"), "inuse") == "InUse_Ch01"
     assert role_key(Fake("LM_Z_G01"), "std") == "LM_Z_G01_std"
     assert role_key(Fake("LM_Z_G01"), "inuse") == "LM_Z_G01_inuse"
+
+
+def test_the_role_key_is_never_the_data_key_whatever_the_case():
+    """A delivery spelling its prefix `DBDT_` must still get a distinct key.
+    The old case-sensitive replace found nothing and handed back the data key,
+    so the uncertainties would have been written over the measurements."""
+    from ymerflow_processing.core.dataset import role_key
+
+    class Fake:
+        def __init__(self, data_key):
+            self.data_key = data_key
+
+    assert role_key(Fake("DBDT_Ch1gt"), "std") == "dbdt_std_Ch1gt"
+    assert role_key(Fake("raw_DBDT_Ch1gt"), "inuse") == "raw_dbdt_inuse_Ch1gt"
+    for key in ("DBDT_Ch1gt", "raw_DBDT_Ch1gt", "GATE_CH01"):
+        assert role_key(Fake(key), "std") != key

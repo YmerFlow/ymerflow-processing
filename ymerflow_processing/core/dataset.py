@@ -78,31 +78,6 @@ RX_TX_NORMALIZED = "rx_tx"        # V/(A m^4) — additionally by transmitter mo
 NORMALIZATIONS = (RAW, RX_NORMALIZED, RX_TX_NORMALIZED)
 
 
-@dataclass
-class NoiseModel:
-    """The noise model, held once and read by every consumer (R9).
-
-    Defined in one place so that assignment and culling cannot disagree about
-    it. ``floor_1ms`` and ``exponent`` may be estimated from the data;
-    ``relative_fraction`` never is — it is systematic and has no separable
-    signature to measure.
-    """
-
-    floor_1ms: float | None = None       # V/m^2, receiver-area normalized
-    exponent: float = -0.5
-    relative_fraction: float | None = None
-
-    #: How each value was arrived at — "estimated", "supplied", or "system".
-    provenance: dict[str, str] = field(default_factory=dict)
-
-    #: What estimation found, even where a supplied value is being applied.
-    #: An override changes what is applied, never what is measured (R9).
-    estimated: dict[str, float] = field(default_factory=dict)
-
-    def is_complete(self) -> bool:
-        return self.floor_1ms is not None and self.relative_fraction is not None
-
-
 # ── The second axis of an array family ───────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -114,8 +89,15 @@ class Axis:
     step may read ``values`` to weight or taper along it without ever learning
     what the quantity is.
 
-    ``values`` is ``None`` for a method whose channels have no meaningful second
-    axis, such as a scalar magnetometer.
+    Parameters
+    ----------
+    values : array_like | None
+        The coordinate of each column. ``None`` for a method whose channels
+        have no meaningful second axis, such as a scalar magnetometer.
+    name : str | None
+        What the quantity is — ``"gate time"``, ``"frequency"``.
+    unit : str | None
+        Its unit — ``"s"``, ``"Hz"``.
     """
 
     values: Any = None
@@ -145,6 +127,26 @@ class Channel:
 
     :meth:`Dataset.resolve_per_channel` accepts either, so a pipeline can say
     ``{LM: 15, HM: 30}`` and still work on data whose moments are unnamed.
+
+    Parameters
+    ----------
+    key : str
+        The stable addressing token, ``"ch1"``.
+    index : int
+        The channel's number, 1-based, as the instrument numbers them.
+    data_key : str
+        The ``layer_data`` array holding the values.
+    name : str | None
+        The instrument's alias for it, such as ``"LM"``.
+    std_key : str | None
+        The uncertainties array, where present.
+    inuse_key : str | None
+        The in-use mask, where present.
+    axis : Axis
+        What the arrays' columns are indexed by.
+    component : str | None
+        Which field component this channel measures — ``"x"``, ``"y"`` or
+        ``"z"`` — where the system description says.
     """
 
     key: str
@@ -189,12 +191,24 @@ class ChannelNaming:
     fold two channels together. Nothing has ten channels today; the failure
     would be invisible when something does.
 
-    Not every convention numbers its channels
-    -----------------------------------------
-    Some name them. A real SkyTEM delivery ships ``LM_Z_G01`` and ``HM_Z_G01``,
-    identifying a channel by **transmitter moment and receiver component** with
-    no number anywhere — ``G01`` is the same on every array and is not a channel
-    index.
+    Parameters
+    ----------
+    data : tuple[str, ...]
+        Patterns for the data arrays.
+    std : tuple[str, ...]
+        Patterns for the uncertainty arrays.
+    inuse : tuple[str, ...]
+        Patterns for the in-use masks.
+    resolve : callable | None
+        Turns what a pattern captured, when it is not a digit string, into a
+        channel index: ``resolve(groups, context) -> int | None``.
+
+    Notes
+    -----
+    **Not every convention numbers its channels.** Some name them. A real
+    SkyTEM delivery ships ``LM_Z_G01`` and ``HM_Z_G01``, identifying a channel
+    by transmitter moment and receiver component with no number anywhere —
+    ``G01`` is the same on every array and is not a channel index.
 
     So a pattern may capture something other than a digit string, and
     :attr:`resolve` turns what it captured into an index. A pattern capturing a
@@ -255,14 +269,24 @@ def discover_by_naming(layer_data_keys, naming: ChannelNaming,
     *which arrays belong to each*, and knows nothing about what they measure. A
     method adapter supplies the naming and adds the meaning.
 
-    Returns ``{index: {"data_key": ..., "std_key": ..., "inuse_key": ...}}``.
-    A channel with no data array is not a channel — uncertainties or a mask
-    without values is a broken import, not a measurement — so those are dropped
-    with a warning rather than returned half-formed.
+    Parameters
+    ----------
+    layer_data_keys : iterable of str
+        The ``layer_data`` keys to group.
+    naming : ChannelNaming
+        The method's patterns, and its resolver for a named convention.
+    context : object | None
+        Passed through to ``naming.resolve`` untouched. For TEM it is the
+        system description, which is the only thing that knows which channel a
+        moment name refers to.
 
-    ``context`` is passed through to ``naming.resolve`` untouched. For TEM it is
-    the system description, which is the only thing that knows which channel a
-    moment name refers to.
+    Returns
+    -------
+    dict[int, dict]
+        ``{index: {"data_key": ..., "std_key": ..., "inuse_key": ...}}``. A
+        channel with no data array is not a channel — uncertainties or a mask
+        without values is a broken import, not a measurement — so those are
+        dropped with a warning rather than returned half-formed.
     """
     found: dict[int, dict] = {}
 
@@ -315,6 +339,16 @@ class MethodAdapter(Protocol):
 
         Returning ``[]`` is how an adapter says "this is not my data", so
         discovery can simply try each in turn.
+
+        Parameters
+        ----------
+        dataset : Dataset
+            The data to look at.
+
+        Returns
+        -------
+        list[Channel]
+            The channels found, in a stable order.
         """
         ...
 
@@ -325,6 +359,11 @@ def load_method_adapters() -> list[MethodAdapter]:
     Sorted by entry-point name because ``importlib.metadata`` does not promise
     an order, and which adapter claims a dataset must not depend on install
     order.
+
+    Returns
+    -------
+    list[MethodAdapter]
+        One instance per registered entry point.
     """
     adapters = []
     for ep in sorted(importlib.metadata.entry_points(group=METHOD_GROUP),
@@ -414,14 +453,29 @@ def role_key(channel, role: str) -> str:
     creating them under a discoverable name is what lets the next lookup find
     them without anything being kept in sync (``Channel`` is frozen and
     ``Dataset.channels`` rediscovers on every access).
+
+    Parameters
+    ----------
+    channel : Channel
+        The channel whose array is wanted; only its ``data_key`` is read.
+    role : str
+        ``"std"`` or ``"inuse"``.
+
+    Returns
+    -------
+    str
+        The ``layer_data`` key for that role.
     """
     data = channel.data_key
     lowered = data.lower()
     for prefix, roles in ROLE_SPELLINGS.items():
-        if lowered.startswith(prefix):
-            return roles[role] + data[len(prefix):]
-        if prefix in lowered:
-            return data.replace(prefix, roles[role], 1)
+        # Located on the lowered copy and spliced into the original, so a
+        # delivery spelling the prefix `DBDT_` gets the role substituted too.
+        # `str.replace` on the original is case-sensitive and, finding nothing,
+        # would hand back the data key itself as the key for the role.
+        at = lowered.find(prefix)
+        if at >= 0:
+            return data[:at] + roles[role] + data[at + len(prefix):]
     return f"{data}_{role}"
 
 
@@ -436,6 +490,18 @@ def find_column(frame, spellings) -> str | None:
 
     Order is priority: the most specific spelling first, so a file carrying both
     a specific and a generic name gets the specific one.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame | None
+        Where to look; ``None`` finds nothing.
+    spellings : sequence of str
+        Lower-case candidates, most specific first.
+
+    Returns
+    -------
+    str | None
+        The column as it is actually spelled in ``frame``, or ``None``.
     """
     if frame is None:
         return None
@@ -448,10 +514,19 @@ def find_column(frame, spellings) -> str | None:
 
 
 def find_flight_column(frame) -> str | None:
-    """The column identifying which flight each sounding belongs to, or ``None``."""
-    return find_column(frame, FLIGHT_COLUMNS)
+    """The column identifying which flight each sounding belongs to, or ``None``.
 
-    return None
+    Parameters
+    ----------
+    frame : pandas.DataFrame | None
+        The ``flightlines`` to search.
+
+    Returns
+    -------
+    str | None
+        The first of ``FLIGHT_COLUMNS`` present, as spelled in the frame.
+    """
+    return find_column(frame, FLIGHT_COLUMNS)
 
 
 # ── Copying a survey ─────────────────────────────────────────────────────────
@@ -488,7 +563,18 @@ def _copy_survey(survey):
 # ── The dataset ──────────────────────────────────────────────────────────────
 
 class Dataset:
-    """A survey, its system description, and what has been done to it."""
+    """A survey, its system description, and what has been done to it.
+
+    Parameters
+    ----------
+    survey : libaarhusxyz.Survey
+        The data file and its system description, already read.
+    normalization : str
+        The convention the amplitudes are in; one of ``NORMALIZATIONS``.
+    crs : str | None
+        The coordinate reference system, where known. Left unset, whatever the
+        delivery carries is kept.
+    """
 
     def __init__(
         self,
@@ -507,7 +593,6 @@ class Dataset:
         # always carries one.
         if crs is not None:
             self.crs = crs
-        self.noise_model = NoiseModel()
         #: Injectable for testing and for callers who know what they have.
         #: ``None`` means "ask the entry-point group".
         self._adapters: list[MethodAdapter] | None = None
@@ -550,6 +635,12 @@ class Dataset:
         read from the data, so they stay true when a file is renamed or
         re-exported — which is what makes them safe to order a cross-delivery
         drift series by.
+
+        Returns
+        -------
+        dict
+            Sounding and channel counts, the flights present, the time range,
+            and the CRS — plain values, ``None`` where the data says nothing.
         """
         frame = self.flightlines
         described: dict = {"flights": None, "time_range": None}
@@ -636,7 +727,23 @@ class Dataset:
         return len(self.channels)
 
     def channel(self, wanted: str) -> Channel:
-        """The channel addressed by ``wanted``, matched on key or on name."""
+        """The channel addressed by ``wanted``, matched on key or on name.
+
+        Parameters
+        ----------
+        wanted : str
+            A channel key (``"ch1"``) or name (``"LM"``).
+
+        Returns
+        -------
+        Channel
+            The matching channel.
+
+        Raises
+        ------
+        KeyError
+            If nothing matches, naming what is present.
+        """
         channels = self.channels
         for ch in channels:
             if wanted == ch.key or (ch.name is not None and wanted == ch.name):
@@ -654,8 +761,16 @@ class Dataset:
         may name a specific moment stays workable — a caller passes one number
         and it reaches every channel, however many there are.
 
-        Returns a mapping keyed by channel ``key``, so a consumer never has to
-        care which spelling the caller used.
+        Parameters
+        ----------
+        value : object | dict
+            A scalar for every channel, or a mapping by channel key or name.
+
+        Returns
+        -------
+        dict[str, Any]
+            Keyed by channel ``key``, so a consumer never has to care which
+            spelling the caller used.
         """
         channels = self.channels
         if not isinstance(value, dict):
@@ -691,7 +806,18 @@ class Dataset:
         return len(self.moments)
 
     def resolve_per_moment(self, value):
-        """Per-moment settings; see :meth:`resolve_per_channel`."""
+        """Per-moment settings; see :meth:`resolve_per_channel`.
+
+        Parameters
+        ----------
+        value : object | dict
+            A scalar for every moment, or a mapping by key or name.
+
+        Returns
+        -------
+        dict[str, Any]
+            Keyed by channel ``key``.
+        """
         return self.resolve_per_channel(value)
 
     # ── Where on earth it is ─────────────────────────────────────────────────
@@ -773,18 +899,33 @@ class Dataset:
             list(entries), default=str)
 
     def record_step(self, step: str, params: dict | None = None) -> None:
-        """Append one applied step. Used instead of ``history.append``, which
-        would append to a list reconstructed from the file and thrown away."""
+        """Append one applied step.
+
+        Used instead of ``history.append``, which would append to a list
+        reconstructed from the file and thrown away.
+
+        Parameters
+        ----------
+        step : str
+            The step's registered name.
+        params : dict | None
+            The parameters it ran with, as given in the pipeline document.
+        """
         self.history = self.history + [{"step": step, "params": params or {}}]
 
     # ── Copying ──────────────────────────────────────────────────────────────
 
     def copy(self) -> "Dataset":
-        """A deep copy, so a step can return a new dataset rather than mutate."""
+        """A deep copy, so a step can return a new dataset rather than mutate.
+
+        Returns
+        -------
+        Dataset
+            Independent of this one in every array and attribute.
+        """
         # type(self) rather than Dataset: a subclass must not be silently
         # downgraded to the base class by copying.
         new = type(self)(_copy_survey(self.survey), self.normalization, self.crs)
-        new.noise_model = copy.deepcopy(self.noise_model)
         # history is not copied: it lives in model_info, which the survey copy
         # already brought along. Copying it here would work but would give the
         # field two homes, and the one that round-trips should be the only one.
@@ -807,7 +948,8 @@ def _plain(value):
 
 # ── Loading ──────────────────────────────────────────────────────────────────
 
-def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -> Dataset:
+def load(xyz, gex, normalization: str | None = None,
+         crs: str | None = None) -> Dataset:
     """A dataset read from a survey file and a system description.
 
     Both are paths. That is deliberate and is what keeps the library usable on
@@ -815,6 +957,32 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
     nothing here resolves an asset identifier or reaches for a storage backend.
     Hand it two files and it works, with no platform and no credentials.
 
+    Parameters
+    ----------
+    xyz : str | Path
+        The survey file.
+    gex : str | Path
+        The system description.
+    normalization : str | None
+        The convention the data is in. Unset, the one the file declares is
+        used, and ``rx`` if it declares none. Given, it wins over the file —
+        a caller who names one is correcting the record.
+    crs : str | None
+        The coordinate reference system the positions are in, where known.
+
+    Returns
+    -------
+    Dataset
+        The two files as one object, with the system description's declared
+        initial gates already disabled.
+
+    Raises
+    ------
+    FileNotFoundError
+        If either path does not exist.
+
+    Notes
+    -----
     Missing files are reported here rather than surfacing from inside
     ``libaarhusxyz`` as something less obvious.
 
@@ -843,10 +1011,13 @@ def load(xyz, gex, normalization: str = RX_NORMALIZED, crs: str | None = None) -
     # that travels with it" — an assertion made once at load time does not
     # survive the file, so a written dataset records what it is and this reads
     # it back. An explicit argument still wins, since a caller who names one is
-    # correcting the record rather than guessing.
-    declared = survey.xyz.model_info.get("normalization")
-    if normalization == RX_NORMALIZED and declared in NORMALIZATIONS:
-        normalization = declared
+    # correcting the record rather than guessing — which is why the default is
+    # None and not RX_NORMALIZED: with the latter as a sentinel, a caller
+    # explicitly asking for rx on a file declaring rx_tx was overruled.
+    if normalization is None:
+        declared = survey.xyz.model_info.get("normalization")
+        normalization = (declared if declared in NORMALIZATIONS
+                         else RX_NORMALIZED)
 
     dataset = Dataset(survey, normalization, crs)
 

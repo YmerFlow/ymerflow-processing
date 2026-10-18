@@ -56,6 +56,8 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     max_curvature : float | None
         Curvature above this is culled (filter_27).
     min_curvature : float | None
@@ -128,7 +130,7 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.soundings_affected = removed
+    report.points_affected = removed       # gates, not soundings
     report.distributions = {
         "per_channel": per_channel,
         "removed": removed,

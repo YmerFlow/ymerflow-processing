@@ -53,6 +53,18 @@ def test_a_recorded_column_is_preferred():
     assert report.distributions["speed"]["source"] == "recorded ('GdSpeed')"
 
 
+def test_the_recorded_column_is_found_whatever_its_case():
+    """`GROUND_SPEED` was not in the list of exact spellings, so the check
+    silently fell back to deriving speed from position and time."""
+    dataset = make_dataset(n=3, n_lines=1, speed=[85, 85, 85],
+                           seconds=[0, 0.5, 1.0])
+    dataset.flightlines.rename(columns={"GdSpeed": "GROUND_SPEED"}, inplace=True)
+
+    assert find_speed_column(dataset.flightlines) == "GROUND_SPEED"
+    _, report = ground_speed(dataset, **SPEC)
+    assert report.distributions["speed"]["source"] == "recorded ('GROUND_SPEED')"
+
+
 def test_speed_is_derived_when_the_survey_records_none():
     """10 m apart, half a second apart -> 20 m/s -> 72 km/h."""
     dataset = make_dataset(n=4, n_lines=1, seconds=[0, 0.5, 1.0, 1.5])

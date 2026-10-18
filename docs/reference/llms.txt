@@ -64,11 +64,11 @@ Convert amplitudes into ``to``, from whatever the dataset declares.
 
 ### copy_array
 copy_array(source: str, destination: str)
-filter_15 — copy a per-gate array, leaving the original.
+Copy a per-gate array, leaving the original (filter_15).
 
 ### copy_attribute
 copy_attribute(source: str, destination: str)
-filter_14 — copy a per-sounding attribute, leaving the original.
+Copy a per-sounding attribute, leaving the original (filter_14).
 
 ### correct_tilt
 correct_tilt(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
@@ -91,7 +91,7 @@ cull_by_external_evidence(criterion: str, infrastructure: str | geopandas.geodat
 Disable data that evidence from outside the transient says is suspect.
 
 ### cull_by_geometry
-cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str = 'tilt_x', roll_column: str = 'tilt_y', altitude_column: str | None = None)
+cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
 Disable soundings flown outside the geometry the forward model assumes.
 
 ### cull_by_uncertainty
@@ -132,19 +132,19 @@ Add noise drawn from each datum's assigned uncertainty.
 
 ### remove_array
 remove_array(name: str)
-filter_19 — remove a per-gate array.
+Remove a per-gate array (filter_19).
 
 ### remove_attribute
 remove_attribute(name: str)
-filter_18 — remove a per-sounding attribute.
+Remove a per-sounding attribute (filter_18).
 
 ### rename_array
 rename_array(source: str, destination: str)
-filter_17 — rename a per-gate array.
+Rename a per-gate array (filter_17).
 
 ### rename_attribute
 rename_attribute(source: str, destination: str)
-filter_16 — rename a per-sounding attribute.
+Rename a per-sounding attribute (filter_16).
 
 ### select_channels
 select_channels(criterion: str, keep: list[str], drop_system_blocks: bool = True, drop_unclaimed: bool = False)

@@ -169,6 +169,33 @@ def test_converting_without_a_moment_is_refused_rather_than_skipped():
         model.floor([REFERENCE_TIME], normalization=RX_TX_NORMALIZED)
 
 
+def test_an_estimated_floor_is_labelled_with_the_data_s_normalization():
+    """The scatter is measured from the values as delivered, so the floor is in
+    their units. Labelling it RAW on moment-normalized data would have the
+    consumers divide it by the dipole moment a second time."""
+    dataset = delivery()
+    dataset.normalization = RX_TX_NORMALIZED
+    dataset, _ = estimate_noise_model(dataset)
+    model = recorded(dataset)
+    channel = dataset.channels[0]
+    times = np.asarray(channel.axis.values, dtype=float)
+
+    assert model.normalization == RX_TX_NORMALIZED
+    in_data_units = model.floor(times, dipole_moment=channel.dipole_moment,
+                                normalization=dataset.normalization)
+    assert np.allclose(in_data_units, model.floor(times))
+
+
+def test_a_supplied_floor_is_still_stated_raw():
+    """The parameter is documented as the floor before moment normalization,
+    whatever the dataset carries."""
+    dataset = delivery()
+    dataset.normalization = RX_TX_NORMALIZED
+    dataset, _ = estimate_noise_model(dataset, noise_level_1ms=1e-9)
+
+    assert recorded(dataset).normalization == RAW
+
+
 def test_the_two_components_combine_in_quadrature():
     model = NoiseModel(level_1ms=1e-9, exponent=0.0, relative_fraction=0.03)
     # A value where the floor contributes exactly 0.04 relative.

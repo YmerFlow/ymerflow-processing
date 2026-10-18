@@ -84,6 +84,16 @@ def score(verdicts) -> np.ndarray:
     no grade, and scoring it zero would make an unmeasured line indistinguishable
     from an entirely failing one — the more alarming of the two readings, for
     the case that carries the least evidence.
+
+    Parameters
+    ----------
+    verdicts : array_like
+        Verdict codes, or tier labels.
+
+    Returns
+    -------
+    numpy.ndarray
+        Points on the :data:`TIER_POINTS` scale, as floats.
     """
     values = pd.Series(np.asarray(verdicts, dtype=object))
     numeric = pd.to_numeric(values, errors="coerce")
@@ -110,6 +120,22 @@ def validate_spec(spec: dict) -> str:
 
     Fails loudly and early: a threshold that is wrong produces verdicts that are
     quietly wrong, and a QC verdict is what a client is shown.
+
+    Parameters
+    ----------
+    spec : dict
+        ``good_max``/``marginal_max`` for an upper limit, ``good_min``/
+        ``marginal_min`` for a lower one, or all four for a window.
+
+    Returns
+    -------
+    str
+        The kind — ``"ascending"``, ``"descending"`` or ``"window"``.
+
+    Raises
+    ------
+    ValueError
+        For a half-specified or disordered specification.
     """
     if not isinstance(spec, dict):
         raise TypeError(f"A threshold specification must be a mapping, got {spec!r}")
@@ -146,9 +172,23 @@ def validate_spec(spec: dict) -> str:
 def classify(values, spec: dict) -> np.ndarray:
     """Classify ``values`` against ``spec``, as verdict codes.
 
-    Returns ``float32`` codes on the :data:`TIER_POINTS` scale — 0 Out of Spec,
-    1 Marginal, 2 Good — with ``NaN`` where nothing was measured. A sounding
-    with no measurement has no verdict, which is different from failing one.
+    Parameters
+    ----------
+    values : array_like
+        The measured quantity, one per sounding.
+    spec : dict
+        The thresholds; see :func:`validate_spec`.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``float32`` codes on the :data:`TIER_POINTS` scale — 0 Out of Spec, 1
+        Marginal, 2 Good — with ``NaN`` where nothing was measured. A sounding
+        with no measurement has no verdict, which is different from failing
+        one.
+
+    Notes
+    -----
 
     **Numeric rather than labelled, because a string column is invisible
     downstream.** YmerFlow's plot layer enumerates what it can draw with
@@ -201,6 +241,18 @@ def describe(spec: dict, unit: str = "") -> dict[str, str]:
 
     Built from the specification rather than from anything axis-derived, so the
     numbers quoted are the ones classification actually used.
+
+    Parameters
+    ----------
+    spec : dict
+        The thresholds; see :func:`validate_spec`.
+    unit : str
+        Appended to each number.
+
+    Returns
+    -------
+    dict[str, str]
+        Tier name to its legend text.
     """
     kind = validate_spec(spec)
     suffix = f" {unit}" if unit else ""
@@ -233,6 +285,18 @@ def is_tier(codes, tier: str) -> np.ndarray:
     Replaces comparing a column to a label. ``NaN == anything`` is false, which
     is the wanted answer: a sounding nobody classified is not Out of Spec, and
     is not Good either.
+
+    Parameters
+    ----------
+    codes : array_like
+        Verdict codes.
+    tier : str
+        A tier name.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean, the shape of ``codes``.
     """
     return np.asarray(codes, dtype=float) == TIER_POINTS[tier]
 
@@ -252,6 +316,18 @@ def worst_of(arrays, require_all: bool = False) -> np.ndarray:
     separate questions — a sounding whose roll was not recorded has an unknown
     attitude, and reporting its pitch verdict as its attitude verdict would
     claim more than was measured.
+
+    Parameters
+    ----------
+    arrays : sequence of array_like
+        Verdict code columns of equal length.
+    require_all : bool
+        Missing where any column is missing, rather than where all are.
+
+    Returns
+    -------
+    numpy.ndarray
+        The worst code per position, ``NaN`` where missing.
     """
     stack = np.vstack([np.asarray(a, dtype=float) for a in arrays])
     with warnings.catch_warnings():
@@ -267,9 +343,18 @@ def worst_of(arrays, require_all: bool = False) -> np.ndarray:
 def labels(codes):
     """Codes back to their tier names, for anything read by a person.
 
-    ``None`` where unclassified, which every vector driver can write; the
-    exports replace it with an explicit label of their own, since shapefile
-    cannot distinguish a null from an empty string.
+    Parameters
+    ----------
+    codes : array_like
+        Verdict codes.
+
+    Returns
+    -------
+    list
+        One tier name per code, ``None`` where unclassified — which every
+        vector driver can write; the exports replace it with an explicit label
+        of their own, since shapefile cannot distinguish a null from an empty
+        string.
     """
     lookup = {v: k for k, v in TIER_POINTS.items()}
     return [lookup.get(v) for v in np.asarray(codes, dtype=float)]
@@ -301,7 +386,17 @@ THRESHOLD_REGISTRY = "qc_thresholds"
 
 
 def mark_thresholds(dataset, step: str, spec: dict) -> None:
-    """Record what ``step`` judged this dataset against."""
+    """Record what ``step`` judged this dataset against.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the record is kept, in ``model_info``.
+    step : str
+        The check's registered name.
+    spec : dict
+        The thresholds it used.
+    """
     known = recorded_thresholds(dataset)
     known[step] = dict(spec)
     entries = []
@@ -314,7 +409,18 @@ def mark_thresholds(dataset, step: str, spec: dict) -> None:
 
 
 def recorded_thresholds(dataset) -> dict[str, dict]:
-    """Every step's threshold specification, as recorded on the dataset."""
+    """Every step's threshold specification, as recorded on the dataset.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose record is read.
+
+    Returns
+    -------
+    dict[str, dict]
+        Step name to its specification; empty if no check has run.
+    """
     raw = dataset.survey.xyz.model_info.get(THRESHOLD_REGISTRY) or ""
     if not isinstance(raw, str):
         raw = " ".join(map(str, raw))
@@ -338,7 +444,15 @@ def recorded_thresholds(dataset) -> dict[str, dict]:
 
 
 def mark_verdicts(dataset, *names: str) -> None:
-    """Record that these ``flightlines`` columns hold verdict codes."""
+    """Record that these ``flightlines`` columns hold verdict codes.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Where the record is kept, in ``model_info``.
+    *names : str
+        The columns.
+    """
     info = dataset.survey.xyz.model_info
     known = _registered(info)
     for name in names:
@@ -355,7 +469,18 @@ def _registered(info) -> list[str]:
 
 
 def verdict_columns(dataset) -> list[str]:
-    """The recorded verdict columns still present in ``flightlines``."""
+    """The recorded verdict columns still present in ``flightlines``.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose record and ``flightlines`` are read.
+
+    Returns
+    -------
+    list[str]
+        Column names, in the order recorded.
+    """
     frame = dataset.flightlines
     if frame is None:
         return []
@@ -364,7 +489,18 @@ def verdict_columns(dataset) -> list[str]:
 
 
 def worst_verdict(codes) -> str | None:
-    """The most severe tier present, or ``None`` if nothing was classified."""
+    """The most severe tier present, or ``None`` if nothing was classified.
+
+    Parameters
+    ----------
+    codes : array_like
+        Verdict codes.
+
+    Returns
+    -------
+    str | None
+        A tier name.
+    """
     values = np.asarray(codes, dtype=float)
     values = values[np.isfinite(values)]
     if not values.size:
@@ -377,6 +513,16 @@ def tier_counts(codes) -> dict[str, int]:
 
     Every tier appears even at zero — a reader should see "OOS: 0"
     rather than have to infer it from an absence.
+
+    Parameters
+    ----------
+    codes : array_like
+        Verdict codes.
+
+    Returns
+    -------
+    dict[str, int]
+        Each tier name to its count, plus ``unclassified``.
     """
     values = np.asarray(codes, dtype=float)
     counts = {tier: int(is_tier(values, tier).sum()) for tier in TIERS}

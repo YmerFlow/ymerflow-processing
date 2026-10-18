@@ -180,7 +180,7 @@ SHAPES = {
 
 
 class FiguresUnavailable(ImportError):
-    """matplotlib is not installed, and figures are an optional extra."""
+    """Raised when matplotlib is not installed; figures are an optional extra."""
 
 
 def _figure_class():
@@ -205,7 +205,13 @@ def _figure_class():
 
 
 def available() -> bool:
-    """Whether figures can be drawn in this environment."""
+    """Whether figures can be drawn in this environment.
+
+    Returns
+    -------
+    bool
+        ``True`` if matplotlib imports.
+    """
     try:
         _figure_class()
     except FiguresUnavailable:
@@ -220,6 +226,11 @@ def missing_shapes() -> list[str]:
     :data:`SHAPES` has no figure and nothing says so, which is exactly how the
     teaching document would come to describe thirty-one of thirty-two filters
     while looking complete.
+
+    Returns
+    -------
+    list[str]
+        Registered filter names with no entry in :data:`SHAPES`.
     """
     return sorted(set(load_steps(FILTER_GROUP)) - set(SHAPES))
 
@@ -354,7 +365,8 @@ def _thresholded(report, before, after, channel, sounding):
             if key and key in source.layer_data:
                 series = source.layer_data[key].to_numpy(dtype=float)[sounding]
                 return label, np.abs(series), float(limit)
-        return None
+        # Not stored under this parameter's key; the next thresholded
+        # parameter may be. Returning here skipped them all.
     return None
 
 
@@ -450,16 +462,18 @@ def figure(step: str, before, after, report=None, channel=None,
     ----------
     step : str
         The registered filter name, which selects the shape.
-    before
+    before : Dataset
         The dataset as it was. Take a ``copy()`` before running.
-    after
+    after : Dataset
         The dataset the step returned.
-    report
-        That step's :class:`StepReport`, for the threshold it cut on.
-    channel
+    report : StepReport | None
+        That step's report, for the threshold it cut on.
+    channel : Channel | None
         Which channel to draw. The first, if unset.
     sounding : int
         Which sounding's transient to draw.
+    figsize : tuple[float, float] | None
+        The figure size in inches; matplotlib's default if unset.
 
     Returns
     -------

@@ -65,6 +65,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .dataset import FLIGHT_COLUMNS
 from .pipeline import StepReport
 from .qc.thresholds import labels, verdict_columns
 
@@ -123,6 +124,19 @@ def truncation_collisions(columns, limit: int = SHAPEFILE_NAME_LIMIT) -> dict:
     Silent in the format itself: one column simply replaces the other in the
     written file, and nothing reports it. Worth catching before a client opens
     the deliverable rather than after.
+
+    Parameters
+    ----------
+    columns : iterable of str
+        The column names to be written.
+    limit : int
+        The field-name length the format allows; ten for a shapefile.
+
+    Returns
+    -------
+    dict
+        Truncated name to the list of columns that would collapse onto it;
+        empty when nothing collides.
     """
     seen: dict[str, list[str]] = {}
     for name in columns:
@@ -169,8 +183,7 @@ def _line_features(frame, line_column, geometry_of):
     constant = [c for c in frame.columns
                 if str(c).startswith(("ql_", "qf_", "qd_"))]
     keep = [line_column] + [c for c in frame.columns
-                            if str(c).lower() in ("flight", "flight_no",
-                                                  "flight_id")]
+                            if str(c).lower() in FLIGHT_COLUMNS]
     rows, geometries = [], []
     for line, block in frame.groupby(line_column, sort=True, observed=True):
         geometry = geometry_of(block)
@@ -199,7 +212,27 @@ def build_layers(dataset, crs, source_crs=None, columns=None,
     standalone CLI can still write a file. Both read the same layers, so the two
     routes cannot drift.
 
-    Returns ``({name: GeoDataFrame}, notes)``.
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``flightlines`` become features. Not changed.
+    crs : str
+        The output CRS, e.g. ``"EPSG:32613"``.
+    source_crs : str | None
+        What the dataset's coordinates are in. Taken from the dataset if it
+        knows; an error if neither says.
+    columns : list[str] | None
+        Which attributes to carry. All of ``flightlines`` by default.
+    lines : bool
+        Also build one feature per flightline.
+    unclassified : str
+        What a verdict with no classification is written as.
+
+    Returns
+    -------
+    tuple
+        ``({name: GeoDataFrame}, notes)`` — the layers by name, and the notes
+        the build produced for the step report.
     """
     import geopandas as gpd
     from shapely.geometry import LineString, Point
@@ -289,17 +322,19 @@ def export_vector(
 
     Parameters
     ----------
-    path
+    dataset : Dataset
+        Whose ``flightlines`` are written. Returned unchanged.
+    path : str | Path
         Where to write.
-    crs
+    crs : str
         **Output** CRS, e.g. ``"EPSG:32613"``. Required and never guessed: it
         is a project decision, and a contractor's delivery CRS and a client's
         output CRS are routinely different.
-    source_crs
+    source_crs : str | None
         What the dataset's coordinates are in. Taken from the dataset if it
         knows; an error if neither says, since reprojecting from an assumed CRS
         produces plausible, wrong positions.
-    columns
+    columns : list[str] | None
         Which attributes to write. All of ``flightlines`` by default.
     lines : bool
         Also write one feature per flightline. GeoPackage takes both layers in
@@ -394,7 +429,8 @@ def export_vector(
             )
         layers[name] = len(layer)
 
-    _warn_on_size(path, report)
+    if is_shapefile:
+        _warn_on_size(path, report)
 
     report.distributions = {
         "files": written,

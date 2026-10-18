@@ -86,8 +86,18 @@ STEP_CODE = 20
 def declared_initial_gates(dataset, channel) -> int | None:
     """How many initial gates the system description declares unusable.
 
-    ``None`` when it says nothing — which is different from saying zero, and is
-    reported differently.
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose system description is read.
+    channel : Channel
+        The channel asked about.
+
+    Returns
+    -------
+    int | None
+        The declared count, or ``None`` when the description says nothing —
+        which is different from saying zero, and is reported differently.
     """
     gex = dataset.survey.gex
     if gex is None:
@@ -104,12 +114,21 @@ def declared_initial_gates(dataset, channel) -> int | None:
 def honor_system_description(dataset):
     """Apply the declaration, quietly, wherever a dataset comes into being.
 
-    The mandate form: no report, no parameters, nothing to configure. Returns
-    the number of gate-samples disabled, so a caller can say whether anything
-    happened without this needing to know how to say it.
+    The mandate form: no report, no parameters, nothing to configure. Safe to
+    call repeatedly — culling is subtractive, so this is a no-op on a dataset
+    that already has it.
 
-    Safe to call repeatedly — culling is subtractive, so this is a no-op on a
-    dataset that already has it.
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset to apply its own system description to; its in-use masks
+        are written.
+
+    Returns
+    -------
+    int
+        The number of gate-samples disabled, so a caller can say whether
+        anything happened without this needing to know how to say it.
     """
     try:
         _, report = disable_initial_gates(dataset)
@@ -130,6 +149,8 @@ def disable_initial_gates(dataset, gates: dict | int | None = None):
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     gates : dict | int | None
         Override the system description, per channel key or moment name
         (``{"ch1": 6}``), or one count for every channel. Left unset — the

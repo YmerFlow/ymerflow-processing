@@ -109,10 +109,25 @@ PRESERVE = (PRESERVE_ELEVATION, PRESERVE_ALTITUDE)
 def sample_terrain(raster, easting, northing, source_crs=None, band: int = 1):
     """Ground elevation at each position, ``NaN`` off the model or on nodata.
 
-    ``raster`` is an open ``rasterio`` dataset or a path to one. R8 asks for
-    external inputs typed rather than as paths, and an opened dataset is the
-    typed form; a path is accepted because a standalone run has nothing to
-    materialise it, which is the same layering :func:`core.dataset.load` follows.
+    Parameters
+    ----------
+    raster : rasterio.DatasetReader | str | Path
+        An open ``rasterio`` dataset or a path to one. R8 asks for external
+        inputs typed rather than as paths, and an opened dataset is the typed
+        form; a path is accepted because a standalone run has nothing to
+        materialise it, which is the same layering :func:`core.dataset.load`
+        follows.
+    easting, northing : array_like
+        The positions to sample at.
+    source_crs : str | None
+        What the positions are in, if it differs from the raster's CRS.
+    band : int
+        Which raster band holds elevation.
+
+    Returns
+    -------
+    numpy.ndarray
+        One elevation per position.
     """
     opened = raster if hasattr(raster, "read") else rasterio.open(str(raster))
     try:
@@ -156,10 +171,12 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
 
     Parameters
     ----------
-    terrain
+    dataset : Dataset
+        The dataset whose altitude or elevation column is rewritten.
+    terrain : rasterio.DatasetReader | str | Path
         The terrain model — an open ``rasterio`` dataset or a path. Its values
         are ground elevation in the same vertical units as the delivery.
-    crs
+    crs : str | None
         The survey's horizontal CRS, needed only if it differs from the
         raster's. Taken from the dataset when it carries one.
     band : int

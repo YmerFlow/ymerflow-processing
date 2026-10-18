@@ -175,7 +175,7 @@ transmitter_stability(good_fraction: float, marginal_fraction: float, nominal_go
 | `columns` | `None` | ``{channel key or moment name: column}``, when the current columns cannot be discovered. Discovered from the moment names otherwise. |
 | `output_column` | `'qs_cur'` | Where the combined verdict is written — the worst of stability and nominal agreement, across every moment. |
 | `nominal_column` | `'qs_nom'` | Where the nominal-agreement verdict alone is written. ``None`` to skip. |
-| `nominal_offset_prefix` | `'nom_'` |  |
+| `nominal_offset_prefix` | `'nom_'` | Prefix for one column per moment holding its offset from the declared nominal current, as a fraction — ``nom_ch1``. ``None`` writes none. |
 | `per_moment_prefix` | `'qs_cur_'` | Prefix for the per-moment stability verdicts, suffixed with the channel key so the name stays inside the ten characters a shapefile field allows. ``None`` to skip them. |
 | `line_column` | `None` | Which column identifies the line. Discovered if unset. |
 | `flight_column` | `None` | Which column identifies the flight, used to keep jump detection from flagging each flight's first sample. Discovered if unset. |

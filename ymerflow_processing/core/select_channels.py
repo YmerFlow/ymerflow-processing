@@ -52,7 +52,8 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 
 import logging
 
-from .mask import is_provenance
+from .dataset import role_key
+from .mask import is_provenance, provenance_key
 from .pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -88,6 +89,16 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
     **What it is cannot be determined here.** It is unclaimed precisely because
     it is undeclared; those are the same fact. So this reports, and the caller
     decides.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``layer_data`` is inspected.
+
+    Returns
+    -------
+    dict[str, tuple]
+        Key to shape, for every unclaimed gate-shaped array.
     """
     claimed = {key for channel in dataset.channels for key in channel.array_keys}
     shapes = {dataset.layer_data[k].shape for k in claimed
@@ -106,11 +117,13 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to reduce; discarded channels' arrays leave ``layer_data``.
     criterion : str
         How channels are chosen — ``component`` (``x``/``y``/``z``, from the
         receiver polarization), ``moment`` (the transmitter moment name, such
         as ``LM``), or ``key`` (``ch1``, always available).
-    keep
+    keep : str | list[str]
         Which values to keep. Matched case-insensitively, so ``Z`` and ``z``
         are the same request.
     drop_system_blocks : bool
@@ -129,16 +142,21 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
     tuple
         ``(dataset, StepReport)``.
 
-    **Refuses to remove everything.** A criterion that matches no channel is
-    almost always a typo or a wrong assumption about the data, and a dataset
-    with no data in it fails much later and much less clearly. It raises here
-    instead, naming what was actually present.
+    Raises
+    ------
+    ValueError
+        If the selection would remove every channel. A criterion that matches
+        no channel is almost always a typo or a wrong assumption about the
+        data, and a dataset with no data in it fails much later and much less
+        clearly — so it raises here, naming what was actually present.
 
-    **It cannot promise the result contains only what you asked for.**
-    Selection works through the channel model, and an array no channel claims
-    is outside it — so a delivery carrying an undeclared component keeps it
-    unless ``drop_unclaimed`` says otherwise. That is reported rather than
-    assumed away.
+    Notes
+    -----
+    It cannot promise the result contains only what you asked for. Selection
+    works through the channel model, and an array no channel claims is outside
+    it — so a delivery carrying an undeclared component keeps it unless
+    ``drop_unclaimed`` says otherwise. That is reported rather than assumed
+    away.
     """
     report = StepReport(step=STEP)
 
@@ -205,7 +223,12 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
         return dataset, report
 
     for channel in discarded:
-        for key in channel.array_keys:
+        # The provenance array belongs to no channel's array_keys by design
+        # (mask.is_provenance), so it has to be named here or it is orphaned
+        # — gate-shaped, claimed by nothing, and flagged as unclaimed on the
+        # next run of this very step.
+        why = provenance_key(channel.inuse_key or role_key(channel, "inuse"))
+        for key in (*channel.array_keys, why):
             if key in dataset.layer_data:
                 del dataset.layer_data[key]
                 removed.append(key)

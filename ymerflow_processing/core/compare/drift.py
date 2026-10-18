@@ -191,9 +191,9 @@ def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
 
     Parameters
     ----------
-    items
+    items : sequence of dict
         Stored run reports, ordered.
-    reference
+    reference : dict | None
         A run to measure everything against. Without one the baseline is the
         series median, which is robust to the outlier being looked for.
     source_step : str
@@ -205,8 +205,9 @@ def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report; the series and its trend are in
+        ``distributions``.
     """
     report = StepReport(step=STEP)
     if not items:
@@ -246,8 +247,20 @@ def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
         return report
 
     found.sort(key=lambda entry: entry["order"])
+    # Labelled by the weakest key any entry fell back to. The first entry has
+    # the strongest, so reading the label from it called a series "ordered by
+    # time range" when one delivery carried one and the rest were placed by
+    # flight number.
+    priorities = {entry["order"][0] for entry in found}
     ordered_by = {0: "time_range", 1: "flight number",
-                  2: "the order given"}[found[0]["order"][0]]
+                  2: "the order given"}[max(priorities)]
+    if len(priorities) > 1:
+        report.notes.append(
+            "The deliveries do not all carry the same ordering key, so the "
+            "series mixes them: those with a time range first, then those "
+            "placed by flight number, then the rest in the order given. A "
+            "trend across that boundary is not chronological."
+        )
     if ordered_by == "flight number":
         _check_flight_assumption(found, report)
     for entry in found:

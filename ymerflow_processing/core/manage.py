@@ -88,7 +88,22 @@ def _note_discovery_loss(dataset, report, before):
 # ── Attributes ───────────────────────────────────────────────────────────────
 
 def copy_attribute(dataset, source: str, destination: str):
-    """filter_14 — copy a per-sounding attribute, leaving the original."""
+    """Copy a per-sounding attribute, leaving the original (filter_14).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``flightlines`` gain a column.
+    source : str
+        The column to copy.
+    destination : str
+        The name to copy it under.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     frame = _attributes(dataset)
     _require(frame.columns, source, "attribute")
     report = _report("copy_attribute", dataset, "attribute",
@@ -101,7 +116,22 @@ def copy_attribute(dataset, source: str, destination: str):
 
 
 def rename_attribute(dataset, source: str, destination: str):
-    """filter_16 — rename a per-sounding attribute."""
+    """Rename a per-sounding attribute (filter_16).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``flightlines`` column is renamed.
+    source : str
+        The column to rename.
+    destination : str
+        Its new name.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     frame = _attributes(dataset)
     _require(frame.columns, source, "attribute")
     report = _report("rename_attribute", dataset, "attribute",
@@ -114,7 +144,20 @@ def rename_attribute(dataset, source: str, destination: str):
 
 
 def remove_attribute(dataset, name: str):
-    """filter_18 — remove a per-sounding attribute."""
+    """Remove a per-sounding attribute (filter_18).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``flightlines`` lose a column.
+    name : str
+        The column to remove.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     frame = _attributes(dataset)
     _require(frame.columns, name, "attribute")
     report = _report("remove_attribute", dataset, "attribute", removed=name)
@@ -126,7 +169,22 @@ def remove_attribute(dataset, name: str):
 # ── Arrays ───────────────────────────────────────────────────────────────────
 
 def copy_array(dataset, source: str, destination: str):
-    """filter_15 — copy a per-gate array, leaving the original."""
+    """Copy a per-gate array, leaving the original (filter_15).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``layer_data`` gains an array.
+    source : str
+        The array to copy.
+    destination : str
+        The key to copy it under.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     _require(dataset.layer_data, source, "array")
     report = _report("copy_array", dataset, "array",
                      source=source, destination=destination)
@@ -139,7 +197,22 @@ def copy_array(dataset, source: str, destination: str):
 
 
 def rename_array(dataset, source: str, destination: str):
-    """filter_17 — rename a per-gate array."""
+    """Rename a per-gate array (filter_17).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``layer_data`` key is renamed.
+    source : str
+        The array to rename.
+    destination : str
+        Its new key.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     _require(dataset.layer_data, source, "array")
     before = {c.key for c in dataset.channels}
     report = _report("rename_array", dataset, "array",
@@ -154,7 +227,20 @@ def rename_array(dataset, source: str, destination: str):
 
 
 def remove_array(dataset, name: str):
-    """filter_19 — remove a per-gate array."""
+    """Remove a per-gate array (filter_19).
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose ``layer_data`` loses an array.
+    name : str
+        The array to remove.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
     _require(dataset.layer_data, name, "array")
     before = {c.key for c in dataset.channels}
     report = _report("remove_array", dataset, "array", removed=name)

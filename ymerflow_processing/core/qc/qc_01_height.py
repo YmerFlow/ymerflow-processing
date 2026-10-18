@@ -108,6 +108,9 @@ def height_above_ground(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; a verdict column is written, no measurement is
+        changed.
     good_max : float
         Height at or below which a sounding meets spec, in ``unit``. A contract
         term — no default, because inventing one would put a number with no
@@ -137,6 +140,8 @@ def height_above_ground(
         ``(dataset, StepReport)``. The dataset is returned rather than mutated
         silently, per ``building_plans/02``.
 
+    Notes
+    -----
     **On terrain models.** ``building_plans/03`` lists a terrain model among
     this check's inputs. It is not taken here, and that is deliberate:
     producing a correct height-above-ground column from a DTM is filter_05's

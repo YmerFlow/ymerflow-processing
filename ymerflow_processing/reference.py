@@ -222,7 +222,18 @@ def _consumes(function) -> str | None:
 
 
 def markdown(group: str) -> str:
-    """The reference for one runner group, as markdown."""
+    """The reference for one runner group, as markdown.
+
+    Parameters
+    ----------
+    group : str
+        ``"filters"``, ``"qc"`` or ``"compare"`` — a name from :data:`GROUPS`.
+
+    Returns
+    -------
+    str
+        The document, ending in one newline.
+    """
     name, entry_point, purpose = next(g for g in GROUPS if g[0] == group)
     steps = load_steps(entry_point)
 
@@ -253,7 +264,13 @@ def markdown(group: str) -> str:
 
 
 def llms_txt() -> str:
-    """The machine-readable index: facts an agent needs, without the prose."""
+    """The machine-readable index: facts an agent needs, without the prose.
+
+    Returns
+    -------
+    str
+        The ``llms.txt`` document.
+    """
     out = ["# ymerflow-processing",
            "",
            "Airborne geophysical data processing, QC and comparison.",
@@ -294,6 +311,16 @@ def generate(directory) -> dict[str, str]:
 
     Returned rather than written, so a test can compare against what is on disk
     without a temporary directory — the check that keeps this from drifting.
+
+    Parameters
+    ----------
+    directory : object
+        Unused; accepted so the call reads as "generate for this directory".
+
+    Returns
+    -------
+    dict[str, str]
+        Relative path to content, for every reference file.
     """
     files = {f"{name}.md": markdown(name) for name, _, _ in GROUPS}
     files["llms.txt"] = llms_txt()

@@ -65,6 +65,7 @@ import logging
 
 import numpy as np
 
+from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
 from ..mask import cull, mark_step
 from ..pipeline import StepReport
 from ..qc.thresholds import recorded_thresholds
@@ -107,14 +108,16 @@ def cull_by_geometry(
     max_roll: float | None = None,
     max_altitude: float | None = None,
     min_altitude: float | None = None,
-    pitch_column: str = "tilt_x",
-    roll_column: str = "tilt_y",
+    pitch_column: str | None = None,
+    roll_column: str | None = None,
     altitude_column: str | None = None,
 ):
     """Disable soundings flown outside the geometry the forward model assumes.
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; every channel's in-use mask is written.
     max_pitch : float | None
         Beyond ±this, in the attitude column's units, the sounding is disabled.
         Defaults to ``system_attitude``'s out-of-spec boundary if that check
@@ -128,10 +131,11 @@ def cull_by_geometry(
         Below this the sounding is disabled — a reading too low to be real
         usually means the altimeter, not the aircraft. **No default:** qc_01 is
         one-sided and has no minimum to borrow.
-    pitch_column : str
-        Which ``flightlines`` column holds pitch.
-    roll_column : str
-        Which holds roll.
+    pitch_column : str | None
+        Which ``flightlines`` column holds pitch. Discovered if unset, under
+        the same spellings ``system_attitude`` looks for.
+    roll_column : str | None
+        Which holds roll. Discovered likewise.
     altitude_column : str | None
         Which holds height above ground. Discovered if unset.
 
@@ -165,7 +169,14 @@ def cull_by_geometry(
             "operational judgement about an instrument."
         )
 
-    altitude_column = altitude_column or dataset.survey.xyz.alt_column
+    # Discovered the way qc_02 discovers them. A fixed default of `tilt_x`
+    # would silently skip the pitch limit on a delivery spelling it `TxPitch`.
+    xyz = dataset.survey.xyz
+    altitude_column = altitude_column or xyz.alt_column
+    pitch_column = (pitch_column or xyz.tilt_pitch_column
+                    or find_column(frame, PITCH_COLUMNS))
+    roll_column = (roll_column or xyz.tilt_roll_column
+                   or find_column(frame, ROLL_COLUMNS))
     bad = np.zeros(len(frame), dtype=bool)
     measured = {}
 
@@ -179,8 +190,9 @@ def cull_by_geometry(
         if limit is None:
             continue
         if column is None or column not in frame.columns:
+            which = "column found" if column is None else f"column {column!r}"
             report.notes.append(
-                f"No column {column!r} for {name}; that limit was not applied."
+                f"No {which} for {name}; that limit was not applied."
             )
             continue
         values = frame[column].to_numpy(dtype=float)

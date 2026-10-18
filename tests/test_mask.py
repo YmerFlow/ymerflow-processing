@@ -289,6 +289,17 @@ def test_collateral_is_recorded_with_a_negative_code():
     assert report["removed_collateral"] == 4
 
 
+def test_direct_hits_must_match_the_mask_s_shape():
+    """`bad` was shape-checked and `direct` was not, so a predicate answering
+    per sounding would have been broadcast against the mask or failed deep
+    inside numpy with no mention of which channel."""
+    d = dataset()
+    channel = d.channels[0]
+    with pytest.raises(ValueError, match="same shape"):
+        cull(d, channel, nothing_bad(), step_code=4,
+             direct=np.zeros(nothing_bad().shape[0], dtype=bool))
+
+
 def test_the_first_step_to_cull_keeps_the_attribution():
     """Under subtractive semantics the first is the causal one. A later step
     that would also have culled it is not recorded."""

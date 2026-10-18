@@ -260,6 +260,20 @@ def test_the_convention_survives_a_round_trip(tmp_path):
     assert load(xyz, gex).normalization == RX_TX_NORMALIZED
 
 
+def test_an_explicit_argument_wins_over_the_file_s_declaration(tmp_path):
+    """A caller who names the convention is correcting the record. With `rx`
+    doubling as the default, asking for it explicitly on a file declaring
+    `rx_tx` was overruled by the file."""
+    dataset = delivery()
+    dataset.normalization = RX_NORMALIZED
+    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
+
+    xyz, gex = tmp_path / "d.xyz", tmp_path / "s.gex"
+    dataset.survey.dump(xyzfile=str(xyz), gexfile=str(gex))
+
+    assert load(xyz, gex, normalization=RX_NORMALIZED).normalization == RX_NORMALIZED
+
+
 def test_a_missing_constant_refuses_rather_than_converting_some():
     """Converting the rest would leave one dataset in two conventions, which is
     the failure this filter exists to prevent."""

@@ -76,7 +76,10 @@ def altimeter_agreement(
 
     Parameters
     ----------
-    columns
+    dataset : Dataset
+        The dataset to grade; the spread and a verdict column are written, no
+        measurement is changed.
+    columns : list[str]
         The altimeter columns to compare — at least two. Required and never
         guessed: which sensors a survey carries, and what they are called, is a
         property of the aircraft rather than something to infer.

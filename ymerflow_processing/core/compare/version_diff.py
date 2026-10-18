@@ -192,13 +192,13 @@ def version_diff(items, reference=None, quantities=QUANTITIES,
 
     Parameters
     ----------
-    items
+    items : Dataset | sequence of Dataset
         The newer version — one dataset, or a one-item sequence.
-    reference
+    reference : Dataset
         The older version. Required: which of two versions is the newer one
         cannot be inferred, and getting it backwards reverses the sign of every
         finding while reporting the same magnitudes.
-    quantities
+    quantities : sequence of str | None
         Which of ``data``, ``uncertainty``, ``mask`` to diff.
     relative : float
         Below this fractional change a value counts as unmoved. Tight by
@@ -212,10 +212,12 @@ def version_diff(items, reference=None, quantities=QUANTITIES,
 
     Returns
     -------
-    tuple
-        a :class:`StepReport`.
+    StepReport
+        The comparison's report.
 
-    **No pass or fail**: the two versions are meant to differ, so a difference
+    Notes
+    -----
+    No pass or fail: the two versions are meant to differ, so a difference
     is the answer rather than the finding.
     """
     report = StepReport(step=STEP)

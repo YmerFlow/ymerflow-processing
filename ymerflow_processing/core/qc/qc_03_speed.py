@@ -53,6 +53,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from ..dataset import find_column
 from ..distribution import summarize
 from ..pipeline import MISSING, StepReport
 from . import aggregate
@@ -65,10 +66,10 @@ log = logging.getLogger(__name__)
 
 STEP = "ground_speed"
 
-#: Spellings a recorded ground speed turns up under. Continues the idiom
-#: libaarhusxyz uses for position, altitude and line identity.
-SPEED_COLUMNS = ("ground_speed", "GdSpeed", "gdspeed", "groundspeed",
-                 "speed", "Speed")
+#: Spellings a recorded ground speed turns up under, matched without regard
+#: to case. Continues the idiom libaarhusxyz uses for position, altitude and
+#: line identity.
+SPEED_COLUMNS = ("ground_speed", "gdspeed", "groundspeed", "speed")
 
 #: Metres per second in one kilometre per hour. Position is in CRS units —
 #: metres for any projected survey CRS — while contracts are written in km/h.
@@ -76,11 +77,23 @@ MS_TO_KMH = 3.6
 
 
 def find_speed_column(frame) -> str | None:
-    """A recorded ground-speed column, or ``None`` if the survey has none."""
-    for name in SPEED_COLUMNS:
-        if name in frame.columns:
-            return name
-    return None
+    """A recorded ground-speed column, or ``None`` if the survey has none.
+
+    Case-insensitive, as every other column discovery in the library is: a
+    round trip through the xyz format changes case, and a list of exact
+    spellings cannot anticipate every capitalisation a contractor uses.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame | None
+        The ``flightlines`` to search.
+
+    Returns
+    -------
+    str | None
+        The column as spelled in the frame.
+    """
+    return find_column(frame, SPEED_COLUMNS)
 
 
 def derive_speed(easting, northing, seconds, lines) -> np.ndarray:
@@ -92,6 +105,21 @@ def derive_speed(easting, northing, seconds, lines) -> np.ndarray:
 
     Each sounding takes the speed of the step that *reached* it; the first
     sounding of a line has no preceding step and so no speed.
+
+    Parameters
+    ----------
+    easting, northing : array_like
+        Positions, in CRS units.
+    seconds : array_like
+        Time of each sounding, in seconds.
+    lines : array_like
+        Line identity per sounding.
+
+    Returns
+    -------
+    numpy.ndarray
+        Speed per sounding; ``NaN`` at the first of each line and where the
+        time step is zero.
     """
     easting = np.asarray(easting, dtype=float)
     northing = np.asarray(northing, dtype=float)
@@ -144,6 +172,9 @@ def ground_speed(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; a verdict column is written, no measurement is
+        changed.
     good_min : float
         Slowest speed meeting spec, in ``unit``. A contract term, so no
         default.

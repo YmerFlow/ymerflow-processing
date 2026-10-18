@@ -61,9 +61,19 @@ log = logging.getLogger(__name__)
 def neighbours(live) -> tuple[np.ndarray, np.ndarray]:
     """Index of the nearest surviving gate on each side, per datum.
 
-    ``-1`` where there is none. Vectorised over soundings: the running maximum
-    of "index if live else -1" is the previous survivor, and the same trick
-    reversed gives the next one.
+    Vectorised over soundings: the running maximum of "index if live else -1"
+    is the previous survivor, and the same trick reversed gives the next one.
+
+    Parameters
+    ----------
+    live : numpy.ndarray
+        Boolean, soundings by gates; ``True`` where a gate survives.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray]
+        ``(previous, next)`` gate indices, each the shape of ``live``; ``-1``
+        where there is none.
     """
     live = np.asarray(live, dtype=bool)
     rows, gates = live.shape
@@ -93,6 +103,20 @@ def log_slope(values, times, live=None) -> np.ndarray:
     Negative for a decaying transient, and typically between about -1 and -3 for
     airborne TEM over an earth. A central divided difference, so the uneven
     spacing of log-spaced gates is handled rather than assumed away.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        The transients, soundings by gates; positive where meaningful.
+    times : array_like
+        Gate centre times, one per gate.
+    live : numpy.ndarray | None
+        Which gates survive, the shape of ``values``; all of them if unset.
+
+    Returns
+    -------
+    numpy.ndarray
+        The slope at each datum, ``NaN`` where it cannot be formed.
     """
     values = np.asarray(values, dtype=float)
     times = np.asarray(times, dtype=float)
@@ -126,6 +150,20 @@ def log_curvature(values, times, live=None) -> np.ndarray:
     which reduces to the familiar ``y₀ − 2y₁ + y₂`` only when the spacing is
     even. It never is here — gates are logarithmic and culling makes the gaps
     variable on top of that.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        The transients, soundings by gates; positive where meaningful.
+    times : array_like
+        Gate centre times, one per gate.
+    live : numpy.ndarray | None
+        Which gates survive, the shape of ``values``; all of them if unset.
+
+    Returns
+    -------
+    numpy.ndarray
+        The curvature at each datum, ``NaN`` where it cannot be formed.
     """
     values = np.asarray(values, dtype=float)
     times = np.asarray(times, dtype=float)

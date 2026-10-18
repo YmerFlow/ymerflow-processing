@@ -65,6 +65,8 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     max_uncertainty : float
         Largest relative uncertainty to keep, as a fraction — ``0.15`` is
         fifteen percent. Inclusive: a point exactly at the limit is kept. **No

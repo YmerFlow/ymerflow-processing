@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
+from ymerflow_processing.core.pipeline import (
+    MISSING, QC_GROUP, Pipeline, QCRunner, load_steps,
+)
 from ymerflow_processing.core.qc.qc_10_spacing import (
     along_line_spacing, sounding_spacing,
 )
@@ -137,6 +139,8 @@ def test_no_position_is_a_note_not_an_error():
 
     assert "qs_spacing" not in dataset.flightlines.columns
     assert any("no position columns" in n.lower() for n in report.notes)
+    # Position is not optional; a run without it must not read as graded.
+    assert report.ungraded == MISSING
 
 
 def test_an_empty_dataset_reports_rather_than_raises():

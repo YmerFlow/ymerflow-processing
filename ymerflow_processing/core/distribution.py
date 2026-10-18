@@ -32,6 +32,24 @@ def summarize(values, bins: int = 20, percentiles=PERCENTILES) -> dict:
     ``None`` statistics rather than raising. A step that classified nothing
     still has to be able to report, and a report that cannot be produced is
     worse than one that says "nothing here".
+
+    Parameters
+    ----------
+    values : array_like
+        The sample; non-finite entries count as missing.
+    bins : int
+        How many histogram bins.
+    percentiles : sequence of float
+        Which percentiles to report.
+
+    Returns
+    -------
+    dict
+        ``n`` and ``n_missing``; ``min``, ``max``, ``mean`` and ``std``; the
+        ``percentiles`` asked for, keyed by their string; and the
+        ``histogram`` as ``edges`` and ``counts``. Plain Python values, so the
+        result serializes as JSON; the statistics are ``None`` when nothing is
+        finite.
     """
     values = np.asarray(values, dtype=float).ravel()
     finite = values[np.isfinite(values)]

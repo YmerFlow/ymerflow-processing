@@ -77,7 +77,18 @@ REGISTRY = "tilt_corrected"
 
 
 def corrected(dataset) -> str | None:
-    """What tilt correction this dataset already carries, if any."""
+    """What tilt correction this dataset already carries, if any.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose metadata is read.
+
+    Returns
+    -------
+    str | None
+        The recorded correction, or ``None`` if none has been applied.
+    """
     value = dataset.survey.xyz.model_info.get(REGISTRY)
     return str(value) if value else None
 
@@ -93,6 +104,19 @@ def resolve_attitude_columns(dataset, pitch_column, roll_column):
     Falls back to the canonical spelling when nothing is discovered, rather
     than to nothing: ``zero_attitude`` *creates* these columns where a delivery
     carries no attitude at all, and it needs a name to create them under.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        Whose ``flightlines`` are searched.
+    pitch_column, roll_column : str | None
+        Names given by the caller; ``None`` means discover.
+
+    Returns
+    -------
+    tuple[str, str]
+        ``(pitch_column, roll_column)``, each a column name — present in the
+        frame, or the canonical spelling to create.
     """
     xyz = dataset.survey.xyz
     frame = dataset.flightlines
@@ -121,6 +145,8 @@ def correct_tilt(dataset, pitch_column: str | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to correct; every channel's data array is rescaled.
     pitch_column : str | None
         Which column holds pitch, along the flight direction.
     roll_column : str | None
@@ -222,6 +248,13 @@ def zero_attitude(dataset, pitch_column: str | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset whose attitude columns are zeroed, or created.
+    pitch_column : str | None
+        Which column holds pitch. Discovered if unset; created under the
+        canonical spelling if absent.
+    roll_column : str | None
+        Which holds roll. Likewise.
     stash : bool
         Keep the delivered attitude alongside. Where the columns did not exist
         there is nothing to keep, and that is reported.

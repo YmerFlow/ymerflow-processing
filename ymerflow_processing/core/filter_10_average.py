@@ -120,6 +120,18 @@ def kernel(width: int, method: str = HANN) -> np.ndarray:
 
     A width of one is ``[1.0]`` for every method, which is what makes the no-op
     fall out rather than being special-cased.
+
+    Parameters
+    ----------
+    width : int
+        Window width in soundings; made odd so the window is centred.
+    method : str
+        ``hann``, ``gaussian`` or ``boxcar``.
+
+    Returns
+    -------
+    numpy.ndarray
+        The taper, ``width`` long (or one more), summing to one.
     """
     width = int(width)
     if width < 1:
@@ -147,7 +159,20 @@ def kernel(width: int, method: str = HANN) -> np.ndarray:
 
 
 def gate_widths(first: int, last: int, times) -> np.ndarray:
-    """Per-gate window widths, interpolated linearly in log time."""
+    """Per-gate window widths, interpolated linearly in log time.
+
+    Parameters
+    ----------
+    first, last : int
+        The width at the first and last gate.
+    times : array_like
+        Gate centre times; only their log spacing matters.
+
+    Returns
+    -------
+    numpy.ndarray
+        One integer width per gate.
+    """
     times = np.asarray(times, dtype=float)
     if times.size < 2:
         return np.full(max(times.size, 1), int(first))
@@ -163,14 +188,16 @@ def gate_widths(first: int, last: int, times) -> np.ndarray:
 
 
 def _convolve(values, weights, taper):
-    """Weighted sum and its two moments, along one line's sounding axis.
+    """Weighted sum and the sums its mean and variance need, along one line.
 
-    Returns ``(Σwx, Σw, Σw²)`` at every sounding, with the window centred and
-    edges handled by shortening rather than by wrapping or zero-padding the
-    data — a sounding at the start of a line has fewer neighbours, and that is
-    a fact about it rather than a reason to invent some.
+    Returns four arrays, one value per sounding: ``Σkwx``, ``Σkw``, ``Σk²w²``
+    (Kish's denominator, for the effective sample size) and ``Σk²w`` (the
+    variance numerator), where ``k`` is the taper and ``w`` the weights. The
+    window is centred and edges are handled by shortening rather than by
+    wrapping or zero-padding the data — a sounding at the start of a line has
+    fewer neighbours, and that is a fact about it rather than a reason to
+    invent some.
     """
-    pad = len(taper) // 2
     def full(series):
         return np.convolve(np.asarray(series, dtype=float), taper, mode="same")
 
@@ -195,6 +222,9 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to average; data and uncertainty arrays are replaced, and
+        with ``decimate_to`` soundings are dropped.
     width_first : int
         Window width in soundings at the first gate.
     width_last : int | None

@@ -51,7 +51,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..mask import CULLED, PROVENANCE_PREFIX, provenance_key, step_codes
+from ..mask import CULLED, provenance_key, step_codes
 from ..pipeline import OPTIONAL, UNJUDGED, StepReport
 from . import aggregate
 from .thresholds import (
@@ -77,6 +77,9 @@ def culled_fraction(
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to grade; the fraction and a verdict column are written, no
+        measurement or mask is changed.
     good_max : float | None
         Culled fraction at or below which a sounding is unremarkable. **Left
         unset, no verdict is produced** and only the measurement is written.

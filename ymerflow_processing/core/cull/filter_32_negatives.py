@@ -68,6 +68,8 @@ def cull_negatives(dataset, start_gate: int = 0, spread_earlier: int = 0,
 
     Parameters
     ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
     start_gate : int
         Where evaluation begins, 0-based. Early gates sit in the transmitter
         turn-off and legitimately change sign there.

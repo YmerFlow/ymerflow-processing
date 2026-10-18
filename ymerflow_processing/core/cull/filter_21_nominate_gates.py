@@ -71,9 +71,26 @@ STEP_CODE = 21
 def parse_gates(nominated, width: int) -> list[int]:
     """Gate indices from an int, a range string, or a list mixing both.
 
-    Raises on anything outside the delivered window rather than clamping: a
-    nomination naming a gate that does not exist is a mistake about the data,
-    and silently doing four fifths of what was asked is how that goes unnoticed.
+    Parameters
+    ----------
+    nominated : int | str | list
+        A gate index, an inclusive range such as ``"0-5"``, or a list mixing
+        the two.
+    width : int
+        How many gates the channel has; nominations are checked against it.
+
+    Returns
+    -------
+    list[int]
+        The nominated indices, in order, without duplicates.
+
+    Raises
+    ------
+    ValueError
+        On anything outside the delivered window, rather than clamping: a
+        nomination naming a gate that does not exist is a mistake about the
+        data, and silently doing four fifths of what was asked is how that
+        goes unnoticed.
     """
     if isinstance(nominated, (int, np.integer)) or isinstance(nominated, str):
         nominated = [nominated]
@@ -119,17 +136,24 @@ def nominate_gates(dataset, enable_gates: int | str | list[int | str] | dict | N
 
     Parameters
     ----------
-    enable_gates
+    dataset : Dataset
+        The dataset to edit; its in-use masks are written.
+    enable_gates : int | str | list | dict | None
         Gates to turn back on, per channel key or moment name (``{"ch1":
         "0-5"}``), or one nomination for every channel.
-    disable_gates
+    disable_gates : int | str | list | dict | None
         Gates to turn off, in the same forms.
 
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Notes
+    -----
     Two parameters rather than one plus a direction flag. R7's argument against
     booleans applies: ``enable: false`` reads as "do not enable" rather than
     "disable", and a reader should not have to work out which.
-
-    Returns ``(dataset, StepReport)``.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
