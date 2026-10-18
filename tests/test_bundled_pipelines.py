@@ -19,8 +19,8 @@ import yaml
 from click.testing import CliRunner
 
 from conftest import make_dataset
-from ymerflow_processing.core.cli import EXIT_NOT_STARTED, cli
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.cli import EXIT_NOT_STARTED, cli
+from ymerflow_processing.pipeline import (
     GROUPS, Pipeline, ProcessingRunner, QCRunner, bundled, describe_bundled,
     load_steps, resolve_group,
 )

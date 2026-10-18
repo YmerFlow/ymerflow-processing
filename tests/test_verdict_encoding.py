@@ -19,9 +19,9 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, step, tier_names
-from ymerflow_processing.core.dataset import load
-from ymerflow_processing.core.pipeline import Pipeline, QCRunner
-from ymerflow_processing.core.qc.thresholds import (
+from ymerflow_processing.dataset import load
+from ymerflow_processing.pipeline import Pipeline, QCRunner
+from ymerflow_processing.qc.thresholds import (
     ASCENDING, GOOD, MARGINAL, MAX_POINTS, OUT_OF_SPEC, TIER_POINTS, classify,
     is_tier, labels, mark_verdicts, verdict_columns, worst_of,
 )

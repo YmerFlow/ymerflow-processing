@@ -11,13 +11,13 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.misfit import RMS_COLUMN, compute_misfit
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.filters.misfit import RMS_COLUMN, compute_misfit
+from ymerflow_processing.pipeline import (
     QC_GROUP, Pipeline, QCRunner, load_steps,
 )
-from ymerflow_processing.core.qc.data_misfit import STEP, data_misfit
-from ymerflow_processing.core.qc.rollup import DEFAULT_WEIGHTS
-from ymerflow_processing.core.qc.thresholds import (
+from ymerflow_processing.qc.data_misfit import STEP, data_misfit
+from ymerflow_processing.qc.rollup import DEFAULT_WEIGHTS
+from ymerflow_processing.qc.thresholds import (
     GOOD, MARGINAL, OUT_OF_SPEC, TIER_POINTS, recorded_thresholds,
 )
 

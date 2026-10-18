@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.powerline import (
+from ymerflow_processing.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
+from ymerflow_processing.qc.powerline import (
     find_powerline_column, local_excess, powerline_noise,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 # Detection sensitivity, not a contract term.
 SPEC = {"good_max": 5.0, "marginal_max": 10.0}

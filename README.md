@@ -34,16 +34,18 @@ Where a method genuinely has one obvious implementation, that is fine.
 
 ```
 ymerflow_processing/
-├── core/          any airborne survey — no method assumptions
-│   └── qc/        acquisition QC
-├── em/            shared by TEM and FEM
-│   └── tem/       gates, moments, transient decay
-└── (mag/, em/fem/ when there is code for them)
+├── dataset.py pipeline.py mask.py …   the data model, the runners, the in-use mask
+├── filters/       dataset in, dataset out — all 32, flat; cull_* write the mask
+├── qc/            dataset in, dataset plus verdicts out
+├── compare/       N reports or datasets in, one report out
+└── methods/       one adapter per measurement method — tem.py today
 ```
 
-`em/` is a sibling of `core/` rather than nested inside it, so that "core" keeps
-meaning *method-agnostic* and other methods have an obvious home. Packages are created
-when they have contents, not before.
+Role at the top, mirroring the three entry-point groups the runners see. The
+specialization axis — which of this is EM, which is time-domain — is deliberately
+not a directory yet: it was drawn once before a second method existed and produced
+an empty package. `docs/plans/done/package-layout.md` has the measurement and the
+decision; it is redrawn when a second method registers.
 
 ---
 
@@ -109,7 +111,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **Channel discovery (R1).** The number of channels is read from the data, never assumed.
   One moment, two, three or four take the same path, and a survey with no array families at
   all — a scalar magnetometer — correctly reports none.
-- **`core/qc/`** — Good / Marginal / OOS with four threshold kinds, per-line and
+- **`qc/`** — Good / Marginal / OOS with four threshold kinds, per-line and
   per-flight aggregation with gap-tolerant contiguous runs, and a cross-check rollup.
 - **Nine checks**: qc_01 height, qc_02 attitude, qc_03 speed, qc_04 transmitter stability,
   qc_05 powerline, qc_08 altimeter agreement, qc_10 sounding spacing, qc_12 culled fraction —
@@ -118,10 +120,10 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   `compute_misfit` writes. qc_11 reports as a `model` finding at zero weight: a poor fit may
   be geology a 1D model cannot represent, so it names itself among the reasons without
   grading a survey down for the earth being complicated.
-- **`core/inventory.py`** — the implicit first step of every run: what arrived, what was
+- **`inventory.py`** — the implicit first step of every run: what arrived, what was
   resolved into channels, and what was not. An array no channel claims is invisible rather
   than absent, and every channel-based step steps over it silently.
-- **`core/mask.py`** — the in-use mask (R6's second clause) and the culling policy every
+- **`mask.py`** — the in-use mask (R6's second clause) and the culling policy every
   predicate shares: start gate, spread-earlier, tail disabling, applied once rather than
   thirteen times. Per-datum provenance rides alongside, recording which step removed each
   point and whether it was a direct hit or collateral.
@@ -144,45 +146,45 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
-- **`core/noise.py`** (R9) — one noise model, estimated from the sounding-to-sounding scatter
+- **`filters/noise.py`** (R9) — one noise model, estimated from the sounding-to-sounding scatter
   at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
   (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
   to run without one, which is what makes the defect R9 exists for unrepresentable.
 - **`cull_by_external_evidence`** (filter_30 + filter_31) — one filter, three criteria:
   `proximity` to mapped features, gatewise `misfit` against a previous inversion, or `both`,
   which `01` says is more selective than either.
-- **`core/misfit.py`** (filter, per `01`'s resolution of filter_31) — writes measured-minus-
+- **`filters/misfit.py`** (filter, per `01`'s resolution of filter_31) — writes measured-minus-
   synthetic as a column, gatewise and per sounding, in standard deviations. Once it is a column
   misfit is plottable, exportable and thresholdable by an ordinary culling filter.
-- **`core/compare/align.py`** — which sounding is which, which channel is which, which
+- **`compare/align.py`** — which sounding is which, which channel is which, which
   gate is which. Shared by every dataset-consuming comparison rather than copied into each,
   since three copies drift while each looks correct alone.
-- **`core/compare/version_diff.py`** — what changed between two processing versions, joining
+- **`compare/version_diff.py`** — what changed between two processing versions, joining
   the parameter that moved to the step whose culling moved with it. No verdict: the two are
   meant to differ.
-- **`core/compare/sweep.py`** — one parameter varied across a series, with the varied
+- **`compare/sweep.py`** — one parameter varied across a series, with the varied
   parameter discovered from the runs rather than restated by the caller, and the point where
   the response stops moving reported as an observation rather than a recommendation.
-- **`core/compare/equivalence.py`** — two implementations over one input, per datum.
+- **`compare/equivalence.py`** — two implementations over one input, per datum.
   Four outcomes rather than two, because bit-for-bit agreement with a defective baseline
   would mean reproducing its defects: a *declared* difference is a pass, and a declared
   difference that went the wrong way is still a finding. Aligns by timestamp, gate time and
   semantic quantity — never by column name, since two implementations are two schemas.
-- **`core/compare/`** — the fourth contract: N reports to one report. `noise_floor_drift`
+- **`compare/`** — the fourth contract: N reports to one report. `noise_floor_drift`
   (qc_09) trends the estimated floor across deliveries, which no per-run check can see. It
   invents no state — R3 already stores what it reads.
-- **`core/export_vector.py`** — `build_layers` produces named `GeoDataFrame`s and writes
+- **`filters/export_vector.py`** — `build_layers` produces named `GeoDataFrame`s and writes
   nothing; `export_vector` is a thin writer over it. R8's "format is a loader concern" applied
   in reverse: the layers are the product, a file is one delivery of them, and one build can
   serve several formats.
-- **`core/transient.py`** — local slope and curvature in log-log space, measured over the gates
+- **`transient.py`** — local slope and curvature in log-log space, measured over the gates
   that are still in use, at their real times. Shared by `cull_by_decay_rate` (filter_25/26) and
   `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbour and getting that
   wrong yields a plausible number rather than an error.
-- **`core/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
+- **`filters/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
   rescales amplitudes to what a level transmitter would have measured; the other declares there
   is no trustworthy attitude, so the correction becomes exactly one.
-- **`core/normalize.py`** (filter_08, filter_09) — conversion between normalization conventions,
+- **`filters/normalize.py`** (filter_08, filter_09) — conversion between normalization conventions,
   reading what the dataset declares rather than what a caller asserts, and the nominal current.
 - **`average_along_line`** (filter_10) — the along-line weighted average, which `01` calls the
   most consequential filter in the library. Tapered kernel, widths that grow with gate time,
@@ -191,17 +193,17 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   operator's knob on uncertainty, and drawing synthetic noise from it. The second enforces its
   own ordering hazard: it refuses to perturb twice and calls out uncertainties that look like
   an untouched default.
-- **`core/terrain.py`** (filter_05) — samples a terrain model and re-expresses altitude
+- **`filters/terrain.py`** (filter_05) — samples a terrain model and re-expresses altitude
   against it, holding the instrument's elevation fixed. Reports the offset's median and spread
   together, because a vertical datum mismatch and genuine terrain error have opposite
   signatures in those two numbers.
 - **`apply_manual_edits`** (filter_33) — replays a hand-authored in-use diff, which is what
   makes the chain reproducible in the presence of human judgement. The second and last step
   permitted to turn data back on.
-- **`core/lines.py`** (filter_01-04, collapsed to two by `01`'s decision) — `classify_lines`
+- **`filters/lines.py`** (filter_01-04, collapsed to two by `01`'s decision) — `classify_lines`
   labels flightlines by height threshold or by name; `select_lines` reduces the dataset to the
   ones wanted, moving every array with the soundings so nothing can misalign.
-- **`core/manage.py`** (filter_14-19) — copy, rename and remove, for attributes and arrays.
+- **`filters/manage.py`** (filter_14-19) — copy, rename and remove, for attributes and arrays.
   Six entry points over one symmetry. They exist to work around import problems, not to do
   geophysics, and a rename that takes a channel out of the model says so.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
@@ -254,12 +256,13 @@ The plans are the clean-room input and are not revised. Where the build diverged
 recorded here — "the plan said X, we did Y, here is why X could not hold" is more useful
 than a corrected plan.
 
-**`Moment` in `core/`** — `01` and `02` put it on the data object, while `core/` is specified
-as knowing nothing about gates or moments. Both cannot hold. Split on structure versus
-physics: identity and array addressing are method-agnostic and live in `core/` as `Channel`
-and `Axis`; gate times and dipole moment are time-domain and live in `em/tem/`. This
-produced a fourth entry-point group, `ymerflow.processing.methods`, so adding FEM, mag, rad
-or gravity later is a new package plus one adapter with nothing in `core/` to change.
+**`Moment` on the data object** — `01` and `02` put it there, while the data model is
+specified as knowing nothing about gates or moments. Both cannot hold. Split on structure
+versus physics: identity and array addressing are method-agnostic and live in `dataset.py`
+as `Channel` and `Axis`; gate times and dipole moment are time-domain and live in
+`methods/tem.py`. This produced a fourth entry-point group, `ymerflow.processing.methods`,
+so adding FEM, mag, rad or gravity later is a new adapter with nothing in the data model to
+change.
 
 **qc_10 classifies spacing, not density** — `03` asks for "along-line spacing" with kind
 `descending`, which cannot both hold: they are inverses, so wider spacing is `ascending` and

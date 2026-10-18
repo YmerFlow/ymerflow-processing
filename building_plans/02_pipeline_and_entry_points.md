@@ -237,7 +237,13 @@ Levers 1 and 3 change the experience. Lever 2 is free and should happen regardle
 
 ---
 
-## Package layout — DECIDED
+## Package layout — DECIDED, then superseded
+
+> **Superseded 2026-10-18** by `docs/plans/done/package-layout.md`. The layout below was
+> drawn before a second method existed and `em/` stayed empty; the package is now laid out
+> by role — `filters/`, `qc/`, `compare/`, `methods/` — with the specialization axis
+> deferred until a second method registers. The text is kept as the record of the
+> original reasoning.
 
 ```
 ymerflow_processing/
@@ -425,7 +431,7 @@ sits beside the code depending on it, and reports remain the default.
 `02`'s remaining two uses for the comparison shape, plus the module all three
 dataset-consuming checks now share.
 
-### `core/compare/align.py`
+### `compare/align.py`
 
 Extracted rather than copied three times. Every comparison that reaches into
 datasets faces the same problem — which sounding is which, which channel is which,

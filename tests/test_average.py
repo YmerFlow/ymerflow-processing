@@ -13,12 +13,12 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.average import (
+from ymerflow_processing.filters.average import (
     BOXCAR, GAUSSIAN, HANN, STASH_SUFFIX, STEP_CODE, average_along_line,
     gate_widths, kernel,
 )
-from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 40
 GATES = 8

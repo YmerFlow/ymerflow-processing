@@ -8,10 +8,10 @@ pytest.importorskip("geopandas")
 import geopandas as gpd
 
 from conftest import make_dataset
-from ymerflow_processing.core.export_vector import (
+from ymerflow_processing.filters.export_vector import (
     export_vector, truncation_collisions,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, QCRunner, load_steps,
 )
 
@@ -260,7 +260,7 @@ def test_the_layers_can_be_built_without_writing_anything(tmp_path):
     """R8 says format is a loader concern on the way in. On the way out it is a
     delivery concern, and neither is a property of the processing — so what this
     step produces is vector geometry, and serialising it is a separate act."""
-    from ymerflow_processing.core.export_vector import build_layers
+    from ymerflow_processing.filters.export_vector import build_layers
 
     built, _ = build_layers(classified(), crs=UTM)
 
@@ -269,7 +269,7 @@ def test_the_layers_can_be_built_without_writing_anything(tmp_path):
 
 
 def test_the_built_layers_are_already_in_the_output_crs():
-    from ymerflow_processing.core.export_vector import build_layers
+    from ymerflow_processing.filters.export_vector import build_layers
 
     built, _ = build_layers(classified(), crs="EPSG:4326")
     assert str(built["soundings"].crs) == "EPSG:4326"

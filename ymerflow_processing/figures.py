@@ -41,9 +41,9 @@ import logging
 
 import numpy as np
 
-from .core.mask import in_use
-from .core.noise import recorded
-from .core.pipeline import FILTER_GROUP, load_steps
+from .mask import in_use
+from .filters.noise import recorded
+from .pipeline import FILTER_GROUP, load_steps
 
 log = logging.getLogger(__name__)
 

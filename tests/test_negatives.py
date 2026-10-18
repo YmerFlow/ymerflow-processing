@@ -12,11 +12,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.negatives import (
+from ymerflow_processing.filters.cull_negatives import (
     STEP_CODE, cull_negatives,
 )
-from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 5
 GATES = 8

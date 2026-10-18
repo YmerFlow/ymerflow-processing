@@ -15,11 +15,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.dataset import ChannelNaming, discover_by_naming
-from ymerflow_processing.core.select_channels import (
+from ymerflow_processing.dataset import ChannelNaming, discover_by_naming
+from ymerflow_processing.filters.select_channels import (
     select_channels, unclaimed_arrays,
 )
-from ymerflow_processing.em.tem.method import (
+from ymerflow_processing.methods.tem import (
     NAMED_MOMENT, NAMED_MOMENT_INUSE, TEM_NAMING, _by_moment_and_component,
 )
 
@@ -163,7 +163,7 @@ def test_the_mask_this_library_writes_is_not_read_back_as_data():
 
 
 def test_the_mask_is_claimed_by_its_own_channel():
-    from ymerflow_processing.core.mask import ensure
+    from ymerflow_processing.mask import ensure
 
     dataset = delivery()
     ensure(dataset, dataset.channels[0])
@@ -226,7 +226,7 @@ def test_our_own_provenance_is_not_reported_as_an_undeclared_component():
     """The note explains that a vendor may ship a component it omits from the
     system description — a confusing thing to read about a column this library
     created two steps ago."""
-    from ymerflow_processing.core.mask import cull, mark_step
+    from ymerflow_processing.mask import cull, mark_step
 
     dataset = delivery()
     mark_step(dataset, 32, "cull_negatives")
@@ -242,8 +242,8 @@ def test_our_own_provenance_is_not_reported_as_an_undeclared_component():
 def test_the_inventory_and_select_channels_agree_on_what_is_unclaimed():
     """They had two implementations of the same idea, and the second had not
     learned what the first knew."""
-    from ymerflow_processing.core.inventory import take
-    from ymerflow_processing.core.mask import cull, mark_step
+    from ymerflow_processing.inventory import take
+    from ymerflow_processing.mask import cull, mark_step
 
     dataset = delivery()
     mark_step(dataset, 32, "cull_negatives")

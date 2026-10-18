@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names, step
-from ymerflow_processing.core.pipeline import Pipeline, QCRunner
-from ymerflow_processing.core.qc.rollup import NO_REASON
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.pipeline import Pipeline, QCRunner
+from ymerflow_processing.qc.rollup import NO_REASON
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 ALL_THREE = """
 kind: qc

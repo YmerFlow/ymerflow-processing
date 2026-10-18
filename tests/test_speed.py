@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.speed import (
+from ymerflow_processing.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
+from ymerflow_processing.qc.speed import (
     derive_speed, find_speed_column, ground_speed,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 # A contract window: 70-100 km/h good, 60-120 tolerated.
 SPEC = {"good_min": 70, "good_max": 100, "marginal_min": 60, "marginal_max": 120}

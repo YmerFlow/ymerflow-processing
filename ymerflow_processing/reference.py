@@ -38,7 +38,7 @@ import logging
 
 from numpydoc.docscrape import NumpyDocString
 
-from .core.pipeline import (
+from .pipeline import (
     COMPARE_GROUP, FILTER_GROUP, QC_GROUP, load_steps,
 )
 

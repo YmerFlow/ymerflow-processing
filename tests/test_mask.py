@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.mask import (
+from ymerflow_processing.mask import (
     CULLED, IN_USE, UNTOUCHED, apply_policy, cull, ensure, in_use,
     PROVENANCE_PREFIX, enable, provenance, provenance_key, summarize,
 )

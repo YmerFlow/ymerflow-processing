@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.compare.sweep import (
+from ymerflow_processing.compare.sweep import (
     CONSUMES, STEP, parameter_sweep,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     COMPARE_GROUP, ComparisonRunner, Pipeline, load_steps,
 )
 
@@ -123,7 +123,7 @@ def test_a_named_column_no_run_carries_is_said_rather_than_silently_dropped():
 
 
 def test_divergence_ignores_what_no_run_kept():
-    from ymerflow_processing.core.mask import CULLED
+    from ymerflow_processing.mask import CULLED
     control = run(1)
     varied = run(3)
     varied.layer_data[varied.channels[0].data_key].iloc[:, 5] = 1e9
@@ -234,7 +234,7 @@ def test_alignment_notes_are_not_repeated_once_per_run():
 def test_a_real_sweep_over_a_real_filter():
     """The discovery premise end to end: the runner writes history, and the
     sweep reads the widths back out of it rather than being told."""
-    from ymerflow_processing.core.pipeline import Pipeline, ProcessingRunner
+    from ymerflow_processing.pipeline import Pipeline, ProcessingRunner
 
     runs = []
     for width in (3, 5, 7, 9):

@@ -7,13 +7,13 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     MISSING, QC_GROUP, Pipeline, QCRunner, load_steps,
 )
-from ymerflow_processing.core.qc.spacing import (
+from ymerflow_processing.qc.spacing import (
     along_line_spacing, sounding_spacing,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 # The fixture lays soundings 10 m apart. Good up to 12 m, out of spec
 # beyond 30 m — representative numbers, not anyone's contract.

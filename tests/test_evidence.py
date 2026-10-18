@@ -14,13 +14,13 @@ import pytest
 pytest.importorskip("geopandas", reason="geopandas is declared in setup.py")
 
 from conftest import make_dataset, make_infrastructure
-from ymerflow_processing.core.cull.evidence import (
+from ymerflow_processing.filters.cull_evidence import (
     STEP_CODES, cull_by_external_evidence, distance_to_features,
     gate_distances,
 )
-from ymerflow_processing.core.misfit import gatewise_misfit
-from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.filters.misfit import gatewise_misfit
+from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 10
 GATES = 8
@@ -423,7 +423,7 @@ def test_proximity_and_the_conjunction_are_attributed_separately():
 def test_it_thresholds_a_column_when_one_exists():
     """01's resolution: filter_31 stops being special and becomes an ordinary
     culling filter thresholding a column."""
-    from ymerflow_processing.core.misfit import compute_misfit
+    from ymerflow_processing.filters.misfit import compute_misfit
 
     dataset = delivery()
     for channel in dataset.channels:
@@ -441,7 +441,7 @@ def test_it_thresholds_a_column_when_one_exists():
 def test_it_creates_the_column_when_there_is_none_and_it_can():
     """A caller with the result to hand should not have to run a separate step
     to make one appear."""
-    from ymerflow_processing.core.misfit import misfit_key
+    from ymerflow_processing.filters.misfit import misfit_key
 
     dataset = delivery()
     for channel in dataset.channels:

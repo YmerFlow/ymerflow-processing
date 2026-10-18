@@ -51,104 +51,71 @@ setup(
         # Three runners, three groups — see building_plans/02.
         # dataset -> dataset
         "ymerflow.processing.filters": [
-            "select_channels = "
-            "ymerflow_processing.core.select_channels:select_channels",
-            "export_vector = "
-            "ymerflow_processing.core.export_vector:export_vector",
-            "disable_initial_gates = ymerflow_processing.core.cull."
-            "initial_gates:disable_initial_gates",
-            "cull_by_geometry = ymerflow_processing.core.cull."
-            "geometry:cull_by_geometry",
-            "cull_by_uncertainty = ymerflow_processing.core.cull."
-            "uncertainty:cull_by_uncertainty",
-            "cull_by_external_evidence = ymerflow_processing.core.cull."
-            "evidence:cull_by_external_evidence",
-            "cull_by_decay_rate = ymerflow_processing.core.cull."
-            "decay_rate:cull_by_decay_rate",
-            "cull_by_curvature = ymerflow_processing.core.cull."
-            "curvature:cull_by_curvature",
-            "cull_negatives = ymerflow_processing.core.cull."
-            "negatives:cull_negatives",
-            "apply_manual_edits = ymerflow_processing.core.cull."
-            "manual_edits:apply_manual_edits",
-            "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
+            "select_channels = ymerflow_processing.filters.select_channels:select_channels",
+            "export_vector = ymerflow_processing.filters.export_vector:export_vector",
+            "disable_initial_gates = ymerflow_processing.filters.cull_initial_gates:disable_initial_gates",
+            "cull_by_geometry = ymerflow_processing.filters.cull_geometry:cull_by_geometry",
+            "cull_by_uncertainty = ymerflow_processing.filters.cull_uncertainty:cull_by_uncertainty",
+            "cull_by_external_evidence = ymerflow_processing.filters.cull_evidence:cull_by_external_evidence",
+            "cull_by_decay_rate = ymerflow_processing.filters.cull_decay_rate:cull_by_decay_rate",
+            "cull_by_curvature = ymerflow_processing.filters.cull_curvature:cull_by_curvature",
+            "cull_negatives = ymerflow_processing.filters.cull_negatives:cull_negatives",
+            "apply_manual_edits = ymerflow_processing.filters.cull_manual_edits:apply_manual_edits",
+            "apply_terrain_model = ymerflow_processing.filters.terrain:apply_terrain_model",
             # R9: one noise model on the dataset; filter_12 and filter_29 read it.
-            "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
+            "estimate_noise_model = ymerflow_processing.filters.noise:estimate_noise_model",
             # filter_06-09: geometry, conventions and constants.
-            "correct_tilt = ymerflow_processing.core.attitude:correct_tilt",
-            "zero_attitude = ymerflow_processing.core.attitude:zero_attitude",
-            "convert_normalization = "
-            "ymerflow_processing.core.normalize:convert_normalization",
-            "apply_nominal_current = "
-            "ymerflow_processing.core.normalize:apply_nominal_current",
-            "compute_misfit = ymerflow_processing.core.misfit:compute_misfit",
-            "average_along_line = "
-            "ymerflow_processing.core.average:average_along_line",
-            "inflate_uncertainty = "
-            "ymerflow_processing.core.inflate:inflate_uncertainty",
-            "perturb_from_uncertainty = "
-            "ymerflow_processing.core.perturb:perturb_from_uncertainty",
-            "assign_uncertainty = "
-            "ymerflow_processing.core.uncertainty:assign_uncertainty",
-            "cull_below_noise_floor = ymerflow_processing.core.cull."
-            "noise_floor:cull_below_noise_floor",
+            "correct_tilt = ymerflow_processing.filters.attitude:correct_tilt",
+            "zero_attitude = ymerflow_processing.filters.attitude:zero_attitude",
+            "convert_normalization = ymerflow_processing.filters.normalize:convert_normalization",
+            "apply_nominal_current = ymerflow_processing.filters.normalize:apply_nominal_current",
+            "compute_misfit = ymerflow_processing.filters.misfit:compute_misfit",
+            "average_along_line = ymerflow_processing.filters.average:average_along_line",
+            "inflate_uncertainty = ymerflow_processing.filters.inflate:inflate_uncertainty",
+            "perturb_from_uncertainty = ymerflow_processing.filters.perturb:perturb_from_uncertainty",
+            "assign_uncertainty = ymerflow_processing.filters.uncertainty:assign_uncertainty",
+            "cull_below_noise_floor = ymerflow_processing.filters.cull_noise_floor:cull_below_noise_floor",
             # filter_01-04: line selection, collapsed to two by 01's decision.
-            "classify_lines = ymerflow_processing.core.lines:classify_lines",
-            "select_lines = ymerflow_processing.core.lines:select_lines",
+            "classify_lines = ymerflow_processing.filters.lines:classify_lines",
+            "select_lines = ymerflow_processing.filters.lines:select_lines",
             # filter_14-19: data management, one entry point each.
-            "copy_attribute = ymerflow_processing.core.manage:copy_attribute",
-            "copy_array = ymerflow_processing.core.manage:copy_array",
-            "rename_attribute = ymerflow_processing.core.manage:rename_attribute",
-            "rename_array = ymerflow_processing.core.manage:rename_array",
-            "remove_attribute = ymerflow_processing.core.manage:remove_attribute",
-            "remove_array = ymerflow_processing.core.manage:remove_array",
-            "nominate_gates = ymerflow_processing.core.cull."
-            "nominate_gates:nominate_gates",
-            "cull_sparse_soundings = ymerflow_processing.core.cull."
-            "sparse_soundings:cull_sparse_soundings",
+            "copy_attribute = ymerflow_processing.filters.manage:copy_attribute",
+            "copy_array = ymerflow_processing.filters.manage:copy_array",
+            "rename_attribute = ymerflow_processing.filters.manage:rename_attribute",
+            "rename_array = ymerflow_processing.filters.manage:rename_array",
+            "remove_attribute = ymerflow_processing.filters.manage:remove_attribute",
+            "remove_array = ymerflow_processing.filters.manage:remove_array",
+            "nominate_gates = ymerflow_processing.filters.cull_nominate_gates:nominate_gates",
+            "cull_sparse_soundings = ymerflow_processing.filters.cull_sparse_soundings:cull_sparse_soundings",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [
-            "noise_floor_drift = "
-            "ymerflow_processing.core.compare.drift:noise_floor_drift",
-            "implementation_equivalence = "
-            "ymerflow_processing.core.compare.equivalence"
-            ":implementation_equivalence",
-            "version_diff = "
-            "ymerflow_processing.core.compare.version_diff:version_diff",
-            "parameter_sweep = "
-            "ymerflow_processing.core.compare.sweep:parameter_sweep",
+            "noise_floor_drift = ymerflow_processing.compare.drift:noise_floor_drift",
+            "implementation_equivalence = ymerflow_processing.compare.equivalence:implementation_equivalence",
+            "version_diff = ymerflow_processing.compare.version_diff:version_diff",
+            "parameter_sweep = ymerflow_processing.compare.sweep:parameter_sweep",
         ],
         # dataset -> dataset + report
         "ymerflow.processing.qc": [
-            "height_above_ground = "
-            "ymerflow_processing.core.qc.height:height_above_ground",
-            "system_attitude = "
-            "ymerflow_processing.core.qc.attitude:system_attitude",
-            "ground_speed = "
-            "ymerflow_processing.core.qc.speed:ground_speed",
-            "altimeter_agreement = "
-            "ymerflow_processing.core.qc.altimeter:altimeter_agreement",
-            "sounding_spacing = "
-            "ymerflow_processing.core.qc.spacing:sounding_spacing",
-            "transmitter_stability = "
-            "ymerflow_processing.core.qc.current:transmitter_stability",
-            "powerline_noise = "
-            "ymerflow_processing.core.qc.powerline:powerline_noise",
-            "culled_fraction = "
-            "ymerflow_processing.core.qc.culled_fraction:culled_fraction",
-            "data_misfit = "
-            "ymerflow_processing.core.qc.data_misfit:data_misfit",
+            "height_above_ground = ymerflow_processing.qc.height:height_above_ground",
+            "system_attitude = ymerflow_processing.qc.attitude:system_attitude",
+            "ground_speed = ymerflow_processing.qc.speed:ground_speed",
+            "altimeter_agreement = ymerflow_processing.qc.altimeter:altimeter_agreement",
+            "sounding_spacing = ymerflow_processing.qc.spacing:sounding_spacing",
+            "transmitter_stability = ymerflow_processing.qc.current:transmitter_stability",
+            "powerline_noise = ymerflow_processing.qc.powerline:powerline_noise",
+            "culled_fraction = ymerflow_processing.qc.culled_fraction:culled_fraction",
+            "data_misfit = ymerflow_processing.qc.data_misfit:data_misfit",
         ],
         # N reports (or N datasets) -> one report
         # How each method names its arrays and what their second axis means.
         # core/ owns the discovery mechanism; a method package owns only this.
         # Adding FEM, mag, rad or grav later is one more line here.
         "ymerflow.processing.methods": [
-            "tem = ymerflow_processing.em.tem.method:TEMMethod",
+            "tem = ymerflow_processing.methods.tem:TEMMethod",
         ],
         "console_scripts": [
-            "yf-process = ymerflow_processing.core.cli:main",
+            "yf-process = ymerflow_processing.cli:main",
         ],
     },
 )

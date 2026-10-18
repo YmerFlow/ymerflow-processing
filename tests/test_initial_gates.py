@@ -12,13 +12,13 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.initial_gates import (
+from ymerflow_processing.filters.cull_initial_gates import (
     STEP_CODE, declared_initial_gates, disable_initial_gates,
 )
-from ymerflow_processing.core.mask import (
+from ymerflow_processing.mask import (
     CULLED, IN_USE, provenance_key, step_codes,
 )
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 GATES = 8
 
@@ -236,7 +236,7 @@ def test_a_qc_run_applies_it_without_being_asked():
     """The whole point of promoting it. Left optional it is the easiest thing in
     the library to forget, and forgetting it is silent — the inversion runs,
     converges, and is confidently wrong about the shallow section."""
-    from ymerflow_processing.core.pipeline import Pipeline, QCRunner
+    from ymerflow_processing.pipeline import Pipeline, QCRunner
 
     dataset = delivery(remove=(3, 5), n=20)
     dataset.flightlines["tx_alt"] = np.full(20, 30.0)
@@ -249,7 +249,7 @@ def test_a_qc_run_applies_it_without_being_asked():
 
 
 def test_a_filter_run_applies_it_before_any_step():
-    from ymerflow_processing.core.pipeline import Pipeline, ProcessingRunner
+    from ymerflow_processing.pipeline import Pipeline, ProcessingRunner
 
     dataset = delivery(remove=(3, 3), n=20)
     dataset, _ = ProcessingRunner(Pipeline.parse(
@@ -262,7 +262,7 @@ def test_a_filter_run_applies_it_before_any_step():
 def test_declaring_zero_leaves_a_delivery_untouched():
     """R6's byte-identical promise. Materializing a mask to say "nothing to
     disable" would write arrays into a delivery that had none."""
-    from ymerflow_processing.core.pipeline import Pipeline, QCRunner
+    from ymerflow_processing.pipeline import Pipeline, QCRunner
 
     dataset = delivery(remove=(0, 0), n=20)
     dataset.flightlines["tx_alt"] = np.full(20, 30.0)
@@ -280,7 +280,7 @@ def test_declaring_zero_leaves_a_delivery_untouched():
 
 
 def test_the_mandate_form_is_a_no_op_the_second_time():
-    from ymerflow_processing.core.cull.initial_gates import (
+    from ymerflow_processing.filters.cull_initial_gates import (
         honor_system_description,
     )
     dataset = delivery(remove=(3, 3))
@@ -292,7 +292,7 @@ def test_the_mandate_form_is_a_no_op_the_second_time():
 def test_a_description_disagreeing_with_the_delivery_does_not_break_a_load():
     """It raises from the explicit step, where someone asked and is watching.
     Raising it from a load would make an unreadable file out of a readable one."""
-    from ymerflow_processing.core.cull.initial_gates import (
+    from ymerflow_processing.filters.cull_initial_gates import (
         honor_system_description,
     )
     dataset = delivery(remove=(20, 0))

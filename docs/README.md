@@ -59,7 +59,7 @@ through module docstrings.
 **How to add a step**, and **how to add a method** — the second being the one with
 no worked example, since only TEM is registered.
 
-Much of this exists in `building_plans/02` and in the `core/` docstrings, and
+Much of this exists in `building_plans/02` and in the package docstrings, and
 needs collecting rather than composing.
 
 ### 3. An agent or LLM using the library

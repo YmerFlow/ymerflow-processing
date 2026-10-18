@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import Pipeline, QCRunner
-from ymerflow_processing.core.qc.rollup import (
+from ymerflow_processing.pipeline import Pipeline, QCRunner
+from ymerflow_processing.qc.rollup import (
     DEFAULT_WEIGHTS, UNWEIGHTED, summarize_run,
 )
-from ymerflow_processing.core.qc.thresholds import (
+from ymerflow_processing.qc.thresholds import (
     GOOD, MARGINAL, MAX_POINTS, OUT_OF_SPEC, TIER_POINTS, score,
 )
 

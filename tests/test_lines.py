@@ -11,10 +11,10 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.lines import (
+from ymerflow_processing.filters.lines import (
     DEFAULT_LINE_TYPE, LINE_TYPE_COLUMN, classify_lines, select_lines,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
 

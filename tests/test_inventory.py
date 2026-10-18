@@ -13,8 +13,8 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, named, step
-from ymerflow_processing.core.inventory import inventory, take
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.inventory import inventory, take
+from ymerflow_processing.pipeline import (
     Pipeline, ProcessingRunner, QCRunner,
 )
 

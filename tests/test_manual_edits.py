@@ -14,12 +14,12 @@ import pytest
 from libaarhusxyz.xyz import XYZ
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.nominate_gates import nominate_gates
-from ymerflow_processing.core.cull.manual_edits import (
+from ymerflow_processing.filters.cull_nominate_gates import nominate_gates
+from ymerflow_processing.filters.cull_manual_edits import (
     APPLY_INDEX, STEP_CODE, apply_manual_edits,
 )
-from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
 

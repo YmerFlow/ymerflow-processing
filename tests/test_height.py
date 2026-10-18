@@ -7,9 +7,9 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, named, step, tier_names
-from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.height import height_above_ground
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
+from ymerflow_processing.qc.height import height_above_ground
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 # Representative survey-spec values. Real thresholds are contract parameters per survey.
 SPEC = {"good_max": 45, "marginal_max": 65}

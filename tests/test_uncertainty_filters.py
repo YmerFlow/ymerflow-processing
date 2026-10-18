@@ -13,13 +13,13 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.inflate import inflate_uncertainty
-from ymerflow_processing.core.perturb import (
+from ymerflow_processing.filters.inflate import inflate_uncertainty
+from ymerflow_processing.filters.perturb import (
     DEFAULT_SEED, STASH_SUFFIX, applied, perturb_from_uncertainty,
 )
-from ymerflow_processing.core.uncertainty import assign_uncertainty
-from ymerflow_processing.core.noise import estimate_noise_model, REFERENCE_TIME
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.filters.uncertainty import assign_uncertainty
+from ymerflow_processing.filters.noise import estimate_noise_model, REFERENCE_TIME
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
 
@@ -337,7 +337,7 @@ def _raw(n=8, gates=5):
 
 
 def _with_model(dataset):
-    from ymerflow_processing.core.noise import estimate_noise_model
+    from ymerflow_processing.filters.noise import estimate_noise_model
     dataset, _ = estimate_noise_model(
         dataset, noise_level_1ms=5.0e-10, noise_exponent=-0.5,
         relative_fraction=0.03)
@@ -346,7 +346,7 @@ def _with_model(dataset):
 
 def test_an_absent_uncertainty_array_is_created_rather_than_skipped():
     """Assigning uncertainty is precisely how it comes to exist."""
-    from ymerflow_processing.core.uncertainty import assign_uncertainty
+    from ymerflow_processing.filters.uncertainty import assign_uncertainty
 
     dataset = _with_model(_raw())
     assert all(c.std_key is None for c in dataset.channels)
@@ -359,7 +359,7 @@ def test_an_absent_uncertainty_array_is_created_rather_than_skipped():
 def test_the_created_array_is_discoverable_afterwards():
     """Created under a name the next lookup finds, so nothing is kept in sync —
     Channel is frozen and channels rediscover on every access."""
-    from ymerflow_processing.core.uncertainty import assign_uncertainty
+    from ymerflow_processing.filters.uncertainty import assign_uncertainty
 
     dataset, _ = assign_uncertainty(_with_model(_raw()))
     for channel in dataset.channels:
@@ -371,7 +371,7 @@ def test_the_created_array_is_discoverable_afterwards():
 def test_creation_reports_no_before_distribution():
     """There is nothing to compare against, so it is absent rather than a
     summary of an array that never existed."""
-    from ymerflow_processing.core.uncertainty import assign_uncertainty
+    from ymerflow_processing.filters.uncertainty import assign_uncertainty
 
     _, report = assign_uncertainty(_with_model(_raw()))
     for entry in report.distributions["per_channel"].values():
@@ -382,7 +382,7 @@ def test_creation_reports_no_before_distribution():
 
 def test_an_existing_array_is_still_stashed_and_overwritten():
     """The ordinary path is unchanged."""
-    from ymerflow_processing.core.uncertainty import (
+    from ymerflow_processing.filters.uncertainty import (
         STASH_SUFFIX, assign_uncertainty,
     )
     from conftest import make_dataset
@@ -400,7 +400,7 @@ def test_a_channel_whose_gate_times_do_not_match_is_still_refused():
     """Gate times come from the system description, so a mismatch is a
     description that does not describe this data — not something to invent
     around."""
-    from ymerflow_processing.core.uncertainty import assign_uncertainty
+    from ymerflow_processing.filters.uncertainty import assign_uncertainty
 
     dataset = _with_model(_raw())
     channel = dataset.channels[0]
@@ -414,7 +414,7 @@ def test_a_channel_whose_gate_times_do_not_match_is_still_refused():
 def test_the_role_key_follows_whatever_convention_the_data_uses():
     """Both numbered conventions put the role in the same position; a named one
     has no number to assemble from, so the key is derived from the data key."""
-    from ymerflow_processing.core.dataset import role_key
+    from ymerflow_processing.dataset import role_key
 
     class Fake:
         def __init__(self, data_key):
@@ -431,7 +431,7 @@ def test_the_role_key_is_never_the_data_key_whatever_the_case():
     """A delivery spelling its prefix `DBDT_` must still get a distinct key.
     The old case-sensitive replace found nothing and handed back the data key,
     so the uncertainties would have been written over the measurements."""
-    from ymerflow_processing.core.dataset import role_key
+    from ymerflow_processing.dataset import role_key
 
     class Fake:
         def __init__(self, data_key):

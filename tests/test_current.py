@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.current import (
+from ymerflow_processing.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
+from ymerflow_processing.qc.current import (
     detect_jumps, find_current_columns, transmitter_stability,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 # 1% steady is good, beyond 3% is out of spec. Operational judgements, not
 # measured values.

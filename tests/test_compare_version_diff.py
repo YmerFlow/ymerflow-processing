@@ -11,17 +11,17 @@ import numpy as np
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.compare.align import DATA, MASK, UNCERTAINTY
-from ymerflow_processing.core.compare.version_diff import (
+from ymerflow_processing.compare.align import DATA, MASK, UNCERTAINTY
+from ymerflow_processing.compare.version_diff import (
     CONSUMES, STEP, version_diff,
 )
-from ymerflow_processing.core.mask import (
+from ymerflow_processing.mask import (
     CULLED, apply_policy, cull, mark_step,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     COMPARE_GROUP, ComparisonRunner, Pipeline, QCRunner, load_steps,
 )
-from ymerflow_processing.core.qc.thresholds import GOOD, OUT_OF_SPEC, TIER_POINTS
+from ymerflow_processing.qc.thresholds import GOOD, OUT_OF_SPEC, TIER_POINTS
 
 N = 10
 GATES = 6

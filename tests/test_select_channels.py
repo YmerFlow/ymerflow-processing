@@ -10,8 +10,8 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.pipeline import FILTER_GROUP, Pipeline, ProcessingRunner, load_steps
-from ymerflow_processing.core.select_channels import select_channels
+from ymerflow_processing.pipeline import FILTER_GROUP, Pipeline, ProcessingRunner, load_steps
+from ymerflow_processing.filters.select_channels import select_channels
 
 
 def three_component(moments=("LM", "HM")):
@@ -71,7 +71,7 @@ def test_a_discarded_channel_s_provenance_leaves_with_it():
     """Provenance is gate-shaped and belongs to no channel's array_keys, so it
     was left behind — and the next run of this step reported it as an unclaimed
     array that might be real data."""
-    from ymerflow_processing.core.mask import provenance_key
+    from ymerflow_processing.mask import provenance_key
     dataset = three_component()
     x = next(c for c in dataset.channels if c.component == "x")
     why = provenance_key(x.inuse_key)

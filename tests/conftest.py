@@ -17,9 +17,9 @@ from libaarhusxyz import Survey
 from libaarhusxyz.gex import GEX
 from libaarhusxyz.xyz import XYZ
 
-from ymerflow_processing.core.dataset import Dataset
-from ymerflow_processing.core.qc.thresholds import labels
-from ymerflow_processing.em.tem.method import TEMMethod
+from ymerflow_processing.dataset import Dataset
+from ymerflow_processing.qc.thresholds import labels
+from ymerflow_processing.methods.tem import TEMMethod
 
 
 def make_infrastructure(path=None, lines=((0, 500), (1000, 500)),

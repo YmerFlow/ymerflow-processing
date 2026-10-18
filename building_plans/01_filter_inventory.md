@@ -1121,7 +1121,7 @@ loaded dataset and cannot be what this addresses.
 `enable: false` reads as "do not enable" rather than "disable", and a reader should not have to
 work out which.
 
-**Enabling is a guarded exception, not a general capability.** `core/mask.py` grew an `enable`
+**Enabling is a guarded exception, not a general capability.** `mask.py` grew an `enable`
 beside `cull`, callable only by this filter and filter_33. Everything else remains subtractive,
 which is what keeps idempotency nearly free and stops an automated step quietly undoing a
 human's judgement.
@@ -1426,7 +1426,7 @@ penalising it, and this filter is the decision that report informs.
 two *bounds on one measurement* rather than two predicates. That is the same shape as every
 threshold pair in the QC group, and it is not the thirteen-valued mode `01` warns against.
 
-**The measurement lives in `core/transient.py`, not in the filters.** Writing it four times
+**The measurement lives in `transient.py`, not in the filters.** Writing it four times
 would give four chances to get it wrong differently, and the ways to get it wrong all produce a
 plausible number rather than an error:
 

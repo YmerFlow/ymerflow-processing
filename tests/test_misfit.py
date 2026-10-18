@@ -12,12 +12,12 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.mask import CULLED
-from ymerflow_processing.core.misfit import (
+from ymerflow_processing.mask import CULLED
+from ymerflow_processing.filters.misfit import (
     RMS_COLUMN, compute_misfit, ensure_misfit, find_misfit, gatewise_misfit,
     misfit_key,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
 

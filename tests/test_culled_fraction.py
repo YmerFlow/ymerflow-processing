@@ -13,14 +13,14 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.core.cull.nominate_gates import nominate_gates
-from ymerflow_processing.core.cull.negatives import cull_negatives
-from ymerflow_processing.core.mask import CULLED
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.filters.cull_nominate_gates import nominate_gates
+from ymerflow_processing.filters.cull_negatives import cull_negatives
+from ymerflow_processing.mask import CULLED
+from ymerflow_processing.pipeline import (
     QC_GROUP, Pipeline, QCRunner, load_steps,
 )
-from ymerflow_processing.core.qc.culled_fraction import culled_fraction
-from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
+from ymerflow_processing.qc.culled_fraction import culled_fraction
+from ymerflow_processing.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 N = 4
 GATES = 8

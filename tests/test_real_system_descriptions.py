@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ymerflow_processing.em.tem.method import _dipole_moment, _gate_axis
+from ymerflow_processing.methods.tem import _dipole_moment, _gate_axis
 
 #: Where to find stock system descriptions. Set ``YF_GEX_DIR`` to a directory of
 #: ``.gex`` files to enable these; unset, they skip.

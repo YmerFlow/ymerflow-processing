@@ -6,11 +6,11 @@ import pytest
 
 from conftest import tier_names
 
-from ymerflow_processing.core.qc.aggregate import (
+from ymerflow_processing.qc.aggregate import (
     apply_rule, find_flight_column, grain_measures, longest_run, per_flight,
     per_line,
 )
-from ymerflow_processing.core.qc.thresholds import (
+from ymerflow_processing.qc.thresholds import (
     GOOD, MARGINAL, OUT_OF_SPEC, TIER_POINTS,
 )
 

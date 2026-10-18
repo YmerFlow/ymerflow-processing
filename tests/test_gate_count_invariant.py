@@ -25,8 +25,8 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.pipeline import Pipeline, ProcessingRunner, QCRunner
-from ymerflow_processing.core.select_channels import select_channels
+from ymerflow_processing.pipeline import Pipeline, ProcessingRunner, QCRunner
+from ymerflow_processing.filters.select_channels import select_channels
 
 
 def gate_count_mismatches(dataset) -> list[str]:

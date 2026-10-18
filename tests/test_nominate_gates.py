@@ -12,16 +12,16 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.initial_gates import (
+from ymerflow_processing.filters.cull_initial_gates import (
     disable_initial_gates,
 )
-from ymerflow_processing.core.cull.nominate_gates import (
+from ymerflow_processing.filters.cull_nominate_gates import (
     STEP_CODE, nominate_gates, parse_gates,
 )
-from ymerflow_processing.core.mask import (
+from ymerflow_processing.mask import (
     CULLED, IN_USE, provenance_key, step_codes,
 )
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 5
 GATES = 8
