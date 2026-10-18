@@ -186,6 +186,28 @@ def test_an_estimated_floor_is_labelled_with_the_data_s_normalization():
     assert np.allclose(in_data_units, model.floor(times))
 
 
+def test_a_supplied_floor_reaches_rx_tx_data_divided_by_the_moment():
+    """The platform's deliveries are V/(A·m⁴) and say so nowhere, so the loader
+    assumes rx and a supplied absolute floor would be applied unconverted —
+    wrong by the dipole moment. Declaring the convention first is what makes
+    the division happen."""
+    from ymerflow_processing.filters.normalize import declare_normalization
+    undeclared = delivery()
+    declared, _ = declare_normalization(delivery(), convention=RX_TX_NORMALIZED)
+    for dataset in (undeclared, declared):
+        estimate_noise_model(dataset, noise_level_1ms=1e-9, noise_exponent=0.0)
+
+    def applied(dataset):
+        channel = dataset.channels[0]
+        return recorded(dataset).floor([REFERENCE_TIME],
+                                       dipole_moment=channel.dipole_moment,
+                                       normalization=dataset.normalization)[0]
+
+    moment = declared.channels[0].dipole_moment
+    assert applied(undeclared) == pytest.approx(1e-9)
+    assert applied(declared) == pytest.approx(1e-9 / moment)
+
+
 def test_a_supplied_floor_is_still_stated_raw():
     """The parameter is documented as the floor before moment normalization,
     whatever the dataset carries."""

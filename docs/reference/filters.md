@@ -4,7 +4,7 @@
 
 dataset in, dataset out. These change the data.
 
-32 step(s).
+33 step(s).
 
 ## `apply_manual_edits`
 
@@ -293,6 +293,19 @@ cull_sparse_soundings(minimum_gates: int)
 |---|---|---|
 | `minimum_gates` | `required` | Fewest usable gates a sounding may have and still be kept, per channel. Inclusive — a sounding with exactly this many is kept, since "at least N gates" is how the requirement is stated. **No default:** how many gates constrain a model depends on how many layers the inversion solves for. |
 
+## `declare_normalization`
+
+State which convention the amplitudes are already in. Changes no value.
+
+```python
+declare_normalization(convention: str, override: bool = False)
+```
+
+| parameter | default | |
+|---|---|---|
+| `convention` | `required` | ``raw``, ``rx`` or ``rx_tx``. Platform imports of SkyTEM and VTEM deliveries are ``rx_tx`` — V/(A·m⁴), normalized by receiver area and transmitter moment. |
+| `override` | `False` | Permit contradicting a convention the dataset already records. Refused by default: the record was written by a step that knew, and a declaration that disagrees with it is the undetectable error ``01`` names. |
+
 ## `disable_initial_gates`
 
 Disable each channel's declared initial gates in the in-use mask.
@@ -316,7 +329,7 @@ estimate_noise_model(scope: str = 'per_dataset', noise_level_1ms: float | None =
 | parameter | default | |
 |---|---|---|
 | `scope` | `'per_dataset'` | ``per_line``, ``per_flight`` or ``per_dataset`` — the grain the estimate is made over. Not "per survey": this library has no concept of one, ``Survey`` is already the data object's class, and a campaign may map to one dataset, part of one, or several. |
-| `noise_level_1ms` | `None` | The absolute floor at 1 ms, before moment normalization. Absent means estimate. |
+| `noise_level_1ms` | `None` | The absolute floor at 1 ms, before moment normalization — the instrument's own dB/dt noise. Applied to the data, it is divided by each channel's dipole moment when the dataset declares ``rx_tx``, and left as it is otherwise; so the dataset's declaration must be right (see ``declare_normalization``). Absent means estimate. |
 | `noise_exponent` | `None` | The power-law slope. Absent means fit it; ``-0.5`` is the usual value and a fitted number far from it usually means the gates involved are not ambient noise. |
 | `relative_fraction` | `None` | Systematic error as a fraction of signal. Absent takes it from the system description's ``UniformDataSTD``. **Never estimated** — it has no separable signature in the data, and estimating it would invent a number with a measurement's authority. |
 | `late_gates` | `None` | How many trailing gates to estimate from. Enough to fit a slope, few enough to be noise-dominated; the last third by default. The per-gate scatter is reported so the choice is checkable rather than trusted. |

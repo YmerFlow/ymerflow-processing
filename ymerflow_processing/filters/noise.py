@@ -370,8 +370,11 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
         one, ``Survey`` is already the data object's class, and a campaign may
         map to one dataset, part of one, or several.
     noise_level_1ms : float | None
-        The absolute floor at 1 ms, before moment normalization. Absent means
-        estimate.
+        The absolute floor at 1 ms, before moment normalization — the
+        instrument's own dB/dt noise. Applied to the data, it is divided by
+        each channel's dipole moment when the dataset declares ``rx_tx``, and
+        left as it is otherwise; so the dataset's declaration must be right
+        (see ``declare_normalization``). Absent means estimate.
     noise_exponent : float | None
         The power-law slope. Absent means fit it; ``-0.5`` is the usual value
         and a fitted number far from it usually means the gates involved are

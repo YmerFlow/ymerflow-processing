@@ -51,7 +51,9 @@ steps:
   # what makes the synthetic representative rather than merely noisy.
 
   - estimate_noise_model:
-      noise_level_1ms: 5.0e-10   # EDIT: the floor at 1 ms, in data units
+      noise_level_1ms: 5.0e-10   # EDIT: the absolute floor at 1 ms, before moment
+                                 # normalization; divided by the dipole moment if
+                                 # the dataset declares rx_tx (declare_normalization)
       noise_exponent: -0.5       # how the floor falls with time
       relative_fraction: 0.03    # the proportional part, 3%
 

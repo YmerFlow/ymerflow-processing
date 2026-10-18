@@ -21,7 +21,8 @@ from ymerflow_processing.dataset import (
     RAW, RX_NORMALIZED, RX_TX_NORMALIZED, load,
 )
 from ymerflow_processing.filters.normalize import (
-    apply_nominal_current, convert_normalization, recorded_normalization,
+    apply_nominal_current, convert_normalization, declare_normalization,
+    recorded_normalization,
 )
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
@@ -183,6 +184,50 @@ def test_a_delivery_with_no_attitude_can_still_be_tilt_corrected():
 def test_the_stash_names_fit_a_shapefile_field():
     for name in (STASHED_PITCH, STASHED_ROLL):
         assert len(name) <= 10
+
+
+# ── Declaring the convention ─────────────────────────────────────────────────
+
+def test_declaring_sets_and_records_the_convention_and_changes_no_value():
+    """A delivery rarely says what it is; the loader assumes rx. The declaration
+    is a step so it sits in the pipeline document and the history, not in a
+    loader argument nobody sees."""
+    dataset = delivery()
+    before = data(dataset).copy()
+
+    dataset, report = declare_normalization(dataset, convention=RX_TX_NORMALIZED)
+
+    assert dataset.normalization == RX_TX_NORMALIZED
+    assert recorded_normalization(dataset) == RX_TX_NORMALIZED
+    assert np.array_equal(data(dataset), before)
+    assert report.distributions["was"] == RX_NORMALIZED
+
+
+def test_a_declaration_contradicting_the_record_is_refused():
+    """The record was written by a step that knew. A declaration disagreeing
+    with it is the undetectable, orders-of-magnitude error 01 names."""
+    dataset = delivery()
+    dataset.normalization = RX_NORMALIZED
+    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
+
+    with pytest.raises(ValueError, match="records its normalization"):
+        declare_normalization(dataset, convention=RAW)
+    dataset, report = declare_normalization(dataset, convention=RAW, override=True)
+    assert recorded_normalization(dataset) == RAW
+    assert any("Overrode" in n for n in report.notes)
+
+
+def test_a_declaration_survives_a_round_trip(tmp_path):
+    dataset, _ = declare_normalization(delivery(), convention=RX_TX_NORMALIZED)
+    xyz, gex = tmp_path / "d.xyz", tmp_path / "s.gex"
+    dataset.survey.dump(xyzfile=str(xyz), gexfile=str(gex))
+
+    assert load(xyz, gex).normalization == RX_TX_NORMALIZED
+
+
+def test_an_unknown_convention_is_refused():
+    with pytest.raises(ValueError, match="Unknown normalization"):
+        declare_normalization(delivery(), convention="volts")
 
 
 # ── filter_08: normalization ─────────────────────────────────────────────────
