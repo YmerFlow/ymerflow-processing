@@ -4,11 +4,11 @@ Fourth document in the `ymerflow-processing` seed set. `01` says what the filter
 says what shape to build them in, `03` covers QC, this one covers **running a pipeline from
 the command line**.
 
-**Status: BUILT.** Everything below is implemented in `core/cli.py`, with `RunReport`'s
-identity fields and `resolve_group` in `core/pipeline.py`, and covered by `tests/test_cli.py`.
+**Status: BUILT.** Everything below is implemented in `cli.py`, with `RunReport`'s
+identity fields and `resolve_group` in `pipeline.py`, and covered by `tests/test_cli.py`.
 
 Two deviations from what is described below, both noted in place: the CLI lives in its own
-module rather than inside `core/pipeline.py`, and `compare` is registered but has no checks
+module rather than inside `pipeline.py`, and `compare` is registered but has no checks
 to run yet, since no package registers under `ymerflow.processing.compare`.
 
 ---
@@ -171,7 +171,7 @@ than datasets.
 ### The report is JSON
 
 `StepReport.to_dict()` and `RunReport.to_dict()` already exist and already produce plain
-Python. `tests/test_qc_01_height.py` pins that a report survives a JSON round trip. So the
+Python. `tests/test_height.py` pins that a report survives a JSON round trip. So the
 report writer is `json.dump(report.to_dict())` and nothing more.
 
 **Why JSON and not YAML**, given pipelines are YAML: the pipeline is written by a human and
@@ -218,7 +218,7 @@ repeated `--report` and `--label` options by position is fragile.
 `--label`, defaulting to the input filename stem. The comparison runner then reads identity
 out of the report itself and the command-line question disappears.
 
-This is an interface change in `core/pipeline.py`, and the only one this document proposes.
+This is an interface change in `pipeline.py`, and the only one this document proposes.
 
 **Identity names the delivery, not a flight.** A delivered file usually holds three or four
 flights, so one report covers several. Per-flight identity is not the report's identity — it
@@ -254,7 +254,7 @@ layout exists to prevent.
 **The resolution is to stop asking identity to do two jobs.** Ordering a drift series needs
 *time, per flight*, and that is data — `libaarhusxyz` already has a `timestamp` column
 convention built from `date` and `time` in `normalize_dates`, and the flight column is
-discovered by `core/qc/aggregate.find_flight_column`. So the report carries `flights` and
+discovered by `qc/aggregate.find_flight_column`. So the report carries `flights` and
 `time_range` read from the data, drift orders by those, and `identity` is left to be what a
 human calls the run.
 

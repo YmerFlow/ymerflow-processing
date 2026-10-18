@@ -3,9 +3,9 @@
 Third document in the `ymerflow-processing` seed set. `01` says what the processing filters
 do, `02` says what shape to build them in, this one covers QC.
 
-Lives in `core/qc/`. Almost everything here is method-agnostic — altitude, attitude, speed and
+Lives in `qc/`. Almost everything here is method-agnostic — altitude, attitude, speed and
 line adherence apply to any airborne survey — which is why this is also the work that will
-prove whether `core/` is genuinely agnostic before the TEM filters depend on it.
+prove whether the data model is genuinely agnostic before the TEM filters depend on it.
 
 **This is the first funded deliverable of an upcoming acquisition program**, required before the first
 production flight.

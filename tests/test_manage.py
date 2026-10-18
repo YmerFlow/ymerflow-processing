@@ -11,11 +11,11 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.manage import (
+from ymerflow_processing.filters.manage import (
     copy_array, copy_attribute, remove_array, remove_attribute, rename_array,
     rename_attribute,
 )
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 4
 GATES = 8

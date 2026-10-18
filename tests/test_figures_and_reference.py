@@ -12,7 +12,7 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing import figures, reference
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
 

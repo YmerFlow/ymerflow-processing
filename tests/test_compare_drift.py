@@ -13,10 +13,10 @@ import json
 import numpy as np
 import pytest
 
-from ymerflow_processing.core.compare.drift import (
+from ymerflow_processing.compare.drift import (
     _flight_key, noise_floor_drift,
 )
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     COMPARE_GROUP, ComparisonRunner, Pipeline, load_steps,
 )
 

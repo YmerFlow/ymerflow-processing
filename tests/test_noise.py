@@ -13,17 +13,17 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_29_noise_floor import (
+from ymerflow_processing.filters.cull_noise_floor import (
     STEP_CODE, cull_below_noise_floor,
 )
-from ymerflow_processing.core.dataset import RAW, RX_TX_NORMALIZED
-from ymerflow_processing.core.filter_12_uncertainty import assign_uncertainty
-from ymerflow_processing.core.mask import CULLED, IN_USE
-from ymerflow_processing.core.noise import (
+from ymerflow_processing.dataset import RAW, RX_TX_NORMALIZED
+from ymerflow_processing.filters.uncertainty import assign_uncertainty
+from ymerflow_processing.mask import CULLED, IN_USE
+from ymerflow_processing.filters.noise import (
     DEFAULT_EXPONENT, NoiseModel, REFERENCE_TIME, estimate_noise_model,
     recorded, store,
 )
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 60
 GATES = 8

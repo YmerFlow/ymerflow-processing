@@ -103,7 +103,7 @@ classify_lines(criterion: str, line_type: str, threshold: float | None = None, l
 Write misfit between the data and a forward synthetic as columns.
 
 ```python
-compute_misfit(result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.core.dataset.Dataset, rms_column: str = 'resdata')
+compute_misfit(result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset, rms_column: str = 'resdata')
 ```
 
 | parameter | default | |
@@ -218,7 +218,7 @@ cull_by_decay_rate(shallowest: float | None = None, steepest: float | None = Non
 Disable data that evidence from outside the transient says is suspect.
 
 ```python
-cull_by_external_evidence(criterion: str, infrastructure: str | geopandas.geodataframe.GeoDataFrame | None = None, distance_first: float | dict[str, float] | None = None, distance_last: float | dict[str, float] | None = None, result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.core.dataset.Dataset | None = None, max_misfit: float | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_external_evidence(criterion: str, infrastructure: str | geopandas.geodataframe.GeoDataFrame | None = None, distance_first: float | dict[str, float] | None = None, distance_last: float | dict[str, float] | None = None, result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset | None = None, max_misfit: float | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 ```
 
 | parameter | default | |

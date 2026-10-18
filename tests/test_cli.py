@@ -11,15 +11,15 @@ import pytest
 from click.testing import CliRunner
 
 from conftest import make_dataset
-from ymerflow_processing.core import cli as cli_module
+from ymerflow_processing import cli as cli_module
 from conftest import named, step, tier_names
-from ymerflow_processing.core.dataset import load
-from ymerflow_processing.core.cli import (
+from ymerflow_processing.dataset import load
+from ymerflow_processing.cli import (
     EXIT_GOOD, EXIT_MARGINAL, EXIT_NOT_STARTED, EXIT_OUT_OF_SPEC,
     EXIT_STEP_RAISED, cli,
 )
-from ymerflow_processing.core.qc.rollup import NO_REASON
-from ymerflow_processing.core.qc.thresholds import GOOD, OUT_OF_SPEC
+from ymerflow_processing.qc.rollup import NO_REASON
+from ymerflow_processing.qc.thresholds import GOOD, OUT_OF_SPEC
 
 QC_PIPELINE = """
 kind: qc
@@ -539,7 +539,7 @@ def test_a_run_that_could_not_grade_does_not_exit_good(delivery, pipeline_file,
                                                        tmp_path):
     """A check that was asked for and could not act leaves the flight ungraded,
     not clean."""
-    from ymerflow_processing.core.cli import EXIT_UNGRADED
+    from ymerflow_processing.cli import EXIT_UNGRADED
 
     xyz, gex = delivery(np.full(20, 30.0), n_lines=2, n_flights=1)
     document = """
@@ -596,8 +596,8 @@ def test_an_optional_check_does_not_make_a_run_ungraded(delivery, pipeline_file,
 
 def test_a_missing_powerline_monitor_is_an_absent_instrument():
     """Not every system carries one, so its absence is not a fault."""
-    from ymerflow_processing.core.pipeline import OPTIONAL
-    from ymerflow_processing.core.qc.qc_05_powerline import powerline_noise
+    from ymerflow_processing.pipeline import OPTIONAL
+    from ymerflow_processing.qc.powerline import powerline_noise
 
     dataset = make_dataset(n=8, n_lines=1, n_gates=4)
     _, report = powerline_noise(dataset)

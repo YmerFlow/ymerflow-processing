@@ -10,11 +10,11 @@ import numpy as np
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.compare.align import (
+from ymerflow_processing.compare.align import (
     DATA, MASK, QUANTITIES, UNCERTAINTY, align_channels, align_soundings,
     axis_of, block, gate_overlap, key_for, sounding_keys,
 )
-from ymerflow_processing.core.pipeline import StepReport
+from ymerflow_processing.pipeline import StepReport
 
 N = 8
 GATES = 6

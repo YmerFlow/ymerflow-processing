@@ -36,7 +36,9 @@ and the only reliable fix is to make drift a failing test rather than a habit.
 import inspect
 import logging
 
-from .core.pipeline import (
+from numpydoc.docscrape import NumpyDocString
+
+from .pipeline import (
     COMPARE_GROUP, FILTER_GROUP, QC_GROUP, load_steps,
 )
 
@@ -146,31 +148,14 @@ def _sphinx_parameters(doc: str) -> dict[str, str]:
 def _numpy_parameters(doc: str) -> dict[str, str]:
     """Descriptions from a NumPy-style ``Parameters`` section.
 
-    An entry is ``name : type`` at the section's own indent, with its
-    description indented beneath. The section ends at the next underlined
-    heading — ``Returns``, ``Raises``, ``Notes`` — or at the end of the
-    docstring. The type is ignored: it is already in the signature, and
-    printing it twice is how the two drift apart.
+    Read with numpydoc's own parser — the same one swaggerspect uses to build
+    the platform's step forms, so the reference and the forms cannot disagree
+    about what a docstring says. The type is ignored: it is already in the
+    signature, and printing it twice is how the two drift apart.
     """
-    lines = doc.splitlines()
-    described: dict[str, str] = {}
-    current = None
-    inside = False
-
-    for index, line in enumerate(lines):
-        following = lines[index + 1] if index + 1 < len(lines) else ""
-        if line.strip() and _is_underline(following):
-            inside = line.strip() == "Parameters"
-            current = None
-            continue
-        if _is_underline(line) or not inside or not line.strip():
-            continue
-        if line[:1] not in " \t":
-            current = line.split(":", 1)[0].strip()
-            described[current] = ""
-        elif current is not None:
-            described[current] = f"{described[current]} {line.strip()}".strip()
-    return described
+    parsed = NumpyDocString(doc)
+    return {entry.name: " ".join(line.strip() for line in entry.desc).strip()
+            for entry in parsed["Parameters"]}
 
 
 def _parameters(function) -> list[tuple[str, str, str]]:

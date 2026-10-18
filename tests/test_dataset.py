@@ -13,10 +13,10 @@ from libaarhusxyz.gex import GEX
 from libaarhusxyz.xyz import XYZ
 
 from conftest import make_dataset, make_flightlines
-from ymerflow_processing.core.dataset import (
+from ymerflow_processing.dataset import (
     Axis, Channel, ChannelNaming, Dataset, discover_by_naming,
 )
-from ymerflow_processing.em.tem.method import TEM_NAMING, Moment, TEMMethod
+from ymerflow_processing.methods.tem import TEM_NAMING, Moment, TEMMethod
 
 
 # ── One to N moments ─────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ def test_copy_preserves_the_subclass():
 def test_history_survives_a_round_trip(tmp_path):
     """The bug this fixes was silent and confident: two files processed
     differently, and a version diff reporting no pipeline difference."""
-    from ymerflow_processing.core.dataset import load
+    from ymerflow_processing.dataset import load
 
     dataset = make_dataset(n=4, n_lines=1, n_gates=4)
     dataset.record_step("cull_negatives", {"start_gate": 3})
@@ -267,7 +267,7 @@ def test_history_survives_a_round_trip(tmp_path):
 def test_a_processed_delivery_says_how_it_was_processed(tmp_path):
     """Worth having on its own — the same argument mask makes for its
     provenance legend: whoever opens the file will not have the run report."""
-    from ymerflow_processing.core.pipeline import Pipeline, ProcessingRunner
+    from ymerflow_processing.pipeline import Pipeline, ProcessingRunner
 
     dataset, _ = ProcessingRunner(Pipeline.parse("""
         kind: filters
@@ -350,7 +350,7 @@ def test_a_delivery_with_no_projection_has_no_crs():
 def test_constructing_without_a_crs_does_not_clobber_the_carried_one():
     """Dataset(survey) is called in copy() and in load(); passing None through
     would erase a projection the delivery arrived with."""
-    from ymerflow_processing.core.dataset import Dataset
+    from ymerflow_processing.dataset import Dataset
 
     dataset = make_dataset(n=4, n_lines=1, n_gates=4)
     dataset.crs = "EPSG:32610"
@@ -360,7 +360,7 @@ def test_constructing_without_a_crs_does_not_clobber_the_carried_one():
 
 
 def test_the_crs_survives_a_round_trip(tmp_path):
-    from ymerflow_processing.core.dataset import load
+    from ymerflow_processing.dataset import load
 
     dataset = make_dataset(n=4, n_lines=1, n_gates=4)
     dataset.crs = "EPSG:32610"

@@ -19,10 +19,10 @@ pytest.importorskip("rasterio",
                            "in setup.py; this environment does not have it")
 
 from conftest import make_dataset, make_terrain
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
-from ymerflow_processing.core.terrain import (
+from ymerflow_processing.filters.terrain import (
     STASHED_ALTITUDE, STASHED_ELEVATION, apply_terrain_model, sample_terrain,
 )
 

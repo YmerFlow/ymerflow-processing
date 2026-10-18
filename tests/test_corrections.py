@@ -13,17 +13,17 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.attitude import (
+from ymerflow_processing.filters.attitude import (
     REGISTRY as TILT_REGISTRY, STASHED_PITCH, STASHED_ROLL, correct_tilt,
     corrected, zero_attitude,
 )
-from ymerflow_processing.core.dataset import (
+from ymerflow_processing.dataset import (
     RAW, RX_NORMALIZED, RX_TX_NORMALIZED, load,
 )
-from ymerflow_processing.core.normalize import (
+from ymerflow_processing.filters.normalize import (
     apply_nominal_current, convert_normalization, recorded_normalization,
 )
-from ymerflow_processing.core.pipeline import FILTER_GROUP, load_steps
+from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 12
 GATES = 6

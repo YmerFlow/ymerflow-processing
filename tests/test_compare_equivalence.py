@@ -12,12 +12,12 @@ import numpy as np
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.compare.equivalence import (
+from ymerflow_processing.compare.equivalence import (
     ABSENT, AGREES, CONSUMES, DATA, DIFFERS, EXPECTED, MASK, STEP, UNCERTAINTY,
     implementation_equivalence,
 )
-from ymerflow_processing.core.mask import CULLED
-from ymerflow_processing.core.pipeline import (
+from ymerflow_processing.mask import CULLED
+from ymerflow_processing.pipeline import (
     COMPARE_GROUP, ComparisonRunner, Pipeline, load_steps,
 )
 

@@ -6,7 +6,7 @@ import pytest
 
 from conftest import tier_names
 
-from ymerflow_processing.core.qc.thresholds import (
+from ymerflow_processing.qc.thresholds import (
     GOOD, MARGINAL, OUT_OF_SPEC, TIER_POINTS, TIERS,
     classify, describe, tier_counts, validate_spec, worst_verdict,
 )
