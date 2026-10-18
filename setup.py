@@ -34,6 +34,10 @@ setup(
         "rasterio",    # filter_05 samples a terrain model
         "pyyaml",
         "click",
+        # The step reference is generated from the docstrings, read with
+        # numpydoc's parser -- the same one swaggerspect builds the platform's
+        # forms with, so the two cannot read a docstring differently.
+        "numpydoc",
     ],
     extras_require={
         "test": ["pytest"],
