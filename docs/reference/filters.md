@@ -11,7 +11,7 @@ dataset in, dataset out. These change the data.
 Apply a hand-authored in-use diff at the soundings it names.
 
 ```python
-apply_manual_edits(diff, checkpoint: str | None = None)
+apply_manual_edits(diff: str | libaarhusxyz.xyz.XYZ, checkpoint: str | None = None)
 ```
 
 | parameter | default | |
@@ -24,7 +24,7 @@ apply_manual_edits(diff, checkpoint: str | None = None)
 Overwrite the per-sounding transmitter current with the declared nominal.
 
 ```python
-apply_nominal_current(columns = None, stash: bool = True)
+apply_nominal_current(columns: str | dict[str, str] | None = None, stash: bool = True)
 ```
 
 | parameter | default | |
@@ -37,7 +37,7 @@ apply_nominal_current(columns = None, stash: bool = True)
 Re-express altitude against a terrain model.
 
 ```python
-apply_terrain_model(terrain, crs = None, band: int = 1, preserve: str = 'elevation', altitude_column: str | None = None, elevation_column: str | None = None, stash: bool = True)
+apply_terrain_model(terrain: str | rasterio.io.DatasetReader, crs: str | None = None, band: int = 1, preserve: str = 'elevation', altitude_column: str | None = None, elevation_column: str | None = None, stash: bool = True)
 ```
 
 | parameter | default | |
@@ -85,7 +85,7 @@ average_along_line(width_first: int, width_last: int | None = None, method: str 
 Label flightlines, without removing anything.
 
 ```python
-classify_lines(criterion: str, line_type: str, threshold: float | None = None, lines = None, altitude_column: str | None = None, line_column: str | None = None, default_line_type: str = 'Production')
+classify_lines(criterion: str, line_type: str, threshold: float | None = None, lines: list[int | str] | None = None, altitude_column: str | None = None, line_column: str | None = None, default_line_type: str = 'Production')
 ```
 
 | parameter | default | |
@@ -103,7 +103,7 @@ classify_lines(criterion: str, line_type: str, threshold: float | None = None, l
 Write misfit between the data and a forward synthetic as columns.
 
 ```python
-compute_misfit(result, rms_column: str = 'resdata')
+compute_misfit(result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset, rms_column: str = 'resdata')
 ```
 
 | parameter | default | |
@@ -218,7 +218,7 @@ cull_by_decay_rate(shallowest: float | None = None, steepest: float | None = Non
 Disable data that evidence from outside the transient says is suspect.
 
 ```python
-cull_by_external_evidence(criterion: str, infrastructure = None, distance_first = None, distance_last = None, result = None, max_misfit: float | None = None, crs = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_external_evidence(criterion: str, infrastructure: str | geopandas.geodataframe.GeoDataFrame | None = None, distance_first: float | dict[str, float] | None = None, distance_last: float | dict[str, float] | None = None, result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset | None = None, max_misfit: float | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 ```
 
 | parameter | default | |
@@ -326,7 +326,7 @@ estimate_noise_model(scope: str = 'per_dataset', noise_level_1ms: float | None =
 Write the dataset's per-sounding attributes out as vector geometry.
 
 ```python
-export_vector(path, crs, source_crs = None, columns = None, lines: bool = True, unclassified: str = 'Unclassified', format: str | None = None)
+export_vector(path: str, crs: str, source_crs: str | None = None, columns: list[str] | None = None, lines: bool = True, unclassified: str = 'Unclassified', format: str | None = None)
 ```
 
 | parameter | default | |
@@ -344,7 +344,7 @@ export_vector(path, crs, source_crs = None, columns = None, lines: bool = True, 
 Add ``fraction`` to the uncertainty of the nominated gates.
 
 ```python
-inflate_uncertainty(fraction, gates = None)
+inflate_uncertainty(fraction: float | dict[str, float], gates: int | str | list[int | str] | dict | None = None)
 ```
 
 | parameter | default | |
@@ -357,7 +357,7 @@ inflate_uncertainty(fraction, gates = None)
 Set named gates in the mask, either direction, per channel.
 
 ```python
-nominate_gates(enable_gates = None, disable_gates = None)
+nominate_gates(enable_gates: int | str | list[int | str] | dict | None = None, disable_gates: int | str | list[int | str] | dict | None = None)
 ```
 
 | parameter | default | |
@@ -370,7 +370,7 @@ nominate_gates(enable_gates = None, disable_gates = None)
 Add noise drawn from each datum's assigned uncertainty.
 
 ```python
-perturb_from_uncertainty(seed: int = 42, channels = None, again: bool = False, stash: bool = True)
+perturb_from_uncertainty(seed: int = 42, channels: list[str] | None = None, again: bool = False, stash: bool = True)
 ```
 
 | parameter | default | |
@@ -435,7 +435,7 @@ rename_attribute(source: str, destination: str)
 Keep only the channels whose ``criterion`` value is in ``keep``.
 
 ```python
-select_channels(criterion: str, keep, drop_system_blocks: bool = True, drop_unclaimed: bool = False)
+select_channels(criterion: str, keep: list[str], drop_system_blocks: bool = True, drop_unclaimed: bool = False)
 ```
 
 | parameter | default | |
@@ -450,7 +450,7 @@ select_channels(criterion: str, keep, drop_system_blocks: bool = True, drop_uncl
 Reduce the dataset to the flightlines wanted. **Drops soundings.**
 
 ```python
-select_lines(criterion: str, line_types = None, lines = None, line_column: str | None = None)
+select_lines(criterion: str, line_types: list[str] | None = None, lines: list[int | str] | None = None, line_column: str | None = None)
 ```
 
 | parameter | default | |

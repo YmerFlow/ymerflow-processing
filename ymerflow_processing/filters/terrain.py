@@ -82,6 +82,9 @@ interpolating between cells invents relief the model does not claim.
 import logging
 
 import numpy as np
+import rasterio
+from rasterio.io import DatasetReader
+from rasterio.warp import transform as warp_transform
 
 from ..pipeline import StepReport
 
@@ -126,9 +129,6 @@ def sample_terrain(raster, easting, northing, source_crs=None, band: int = 1):
     numpy.ndarray
         One elevation per position.
     """
-    import rasterio
-    from rasterio.warp import transform as warp_transform
-
     opened = raster if hasattr(raster, "read") else rasterio.open(str(raster))
     try:
         x = np.asarray(easting, dtype=float)
@@ -161,7 +161,8 @@ def sample_terrain(raster, easting, northing, source_crs=None, band: int = 1):
             opened.close()
 
 
-def apply_terrain_model(dataset, terrain, crs=None, band: int = 1,
+def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None = None,
+                        band: int = 1,
                         preserve: str = PRESERVE_ELEVATION,
                         altitude_column: str | None = None,
                         elevation_column: str | None = None,

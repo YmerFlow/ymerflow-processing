@@ -54,7 +54,8 @@ log = logging.getLogger(__name__)
 STEP = "inflate_uncertainty"
 
 
-def inflate_uncertainty(dataset, fraction, gates=None):
+def inflate_uncertainty(dataset, fraction: float | dict[str, float],
+                        gates: int | str | list[int | str] | dict | None = None):
     """Add ``fraction`` to the uncertainty of the nominated gates.
 
     Parameters

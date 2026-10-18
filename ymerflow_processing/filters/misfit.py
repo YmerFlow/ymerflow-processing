@@ -58,6 +58,9 @@ import re
 import numpy as np
 import pandas as pd
 
+from libaarhusxyz.xyz import XYZ
+
+from ..dataset import Dataset
 from ..distribution import summarize
 from ..mask import in_use
 from ..pipeline import StepReport
@@ -145,7 +148,6 @@ def _as_xyz(result):
         return result
     if hasattr(result, "survey"):
         return result.survey.xyz
-    from libaarhusxyz.xyz import XYZ
     return XYZ(str(result))
 
 
@@ -242,7 +244,7 @@ def ensure_misfit(dataset, channel, result=None):
     return computed
 
 
-def compute_misfit(dataset, result, rms_column: str = RMS_COLUMN):
+def compute_misfit(dataset, result: str | XYZ | Dataset, rms_column: str = RMS_COLUMN):
     """Write misfit between the data and a forward synthetic as columns.
 
     Parameters

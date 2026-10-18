@@ -130,7 +130,8 @@ def parse_gates(nominated, width: int) -> list[int]:
     return sorted(set(out))
 
 
-def nominate_gates(dataset, enable_gates=None, disable_gates=None):
+def nominate_gates(dataset, enable_gates: int | str | list[int | str] | dict | None = None,
+                   disable_gates: int | str | list[int | str] | dict | None = None):
     """Set named gates in the mask, either direction, per channel.
 
     Parameters
