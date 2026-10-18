@@ -597,7 +597,7 @@ def test_an_optional_check_does_not_make_a_run_ungraded(delivery, pipeline_file,
 def test_a_missing_powerline_monitor_is_an_absent_instrument():
     """Not every system carries one, so its absence is not a fault."""
     from ymerflow_processing.core.pipeline import OPTIONAL
-    from ymerflow_processing.core.qc.qc_05_powerline import powerline_noise
+    from ymerflow_processing.core.qc.powerline import powerline_noise
 
     dataset = make_dataset(n=8, n_lines=1, n_gates=4)
     _, report = powerline_noise(dataset)

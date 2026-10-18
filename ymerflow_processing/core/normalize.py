@@ -240,7 +240,7 @@ def apply_nominal_current(dataset, columns=None, stash: bool = True):
     measures stability against the moment's own mean and agreement with this
     same declared nominal, and reports the offset without penalising it.
     """
-    from .qc.qc_04_current import _nominal_current, find_current_columns
+    from .qc.current import _nominal_current, find_current_columns
 
     report = StepReport(step="apply_nominal_current")
     frame = dataset.flightlines

@@ -52,21 +52,21 @@ setup(
             "export_vector = "
             "ymerflow_processing.core.export_vector:export_vector",
             "disable_initial_gates = ymerflow_processing.core.cull."
-            "filter_20_initial_gates:disable_initial_gates",
+            "initial_gates:disable_initial_gates",
             "cull_by_geometry = ymerflow_processing.core.cull."
-            "filter_22_geometry:cull_by_geometry",
+            "geometry:cull_by_geometry",
             "cull_by_uncertainty = ymerflow_processing.core.cull."
-            "filter_24_uncertainty:cull_by_uncertainty",
+            "uncertainty:cull_by_uncertainty",
             "cull_by_external_evidence = ymerflow_processing.core.cull."
-            "filter_30_evidence:cull_by_external_evidence",
+            "evidence:cull_by_external_evidence",
             "cull_by_decay_rate = ymerflow_processing.core.cull."
-            "filter_25_decay_rate:cull_by_decay_rate",
+            "decay_rate:cull_by_decay_rate",
             "cull_by_curvature = ymerflow_processing.core.cull."
-            "filter_27_curvature:cull_by_curvature",
+            "curvature:cull_by_curvature",
             "cull_negatives = ymerflow_processing.core.cull."
-            "filter_32_negatives:cull_negatives",
+            "negatives:cull_negatives",
             "apply_manual_edits = ymerflow_processing.core.cull."
-            "filter_33_manual_edits:apply_manual_edits",
+            "manual_edits:apply_manual_edits",
             "apply_terrain_model = ymerflow_processing.core.terrain:apply_terrain_model",
             # R9: one noise model on the dataset; filter_12 and filter_29 read it.
             "estimate_noise_model = ymerflow_processing.core.noise:estimate_noise_model",
@@ -79,15 +79,15 @@ setup(
             "ymerflow_processing.core.normalize:apply_nominal_current",
             "compute_misfit = ymerflow_processing.core.misfit:compute_misfit",
             "average_along_line = "
-            "ymerflow_processing.core.filter_10_average:average_along_line",
+            "ymerflow_processing.core.average:average_along_line",
             "inflate_uncertainty = "
-            "ymerflow_processing.core.filter_11_inflate:inflate_uncertainty",
+            "ymerflow_processing.core.inflate:inflate_uncertainty",
             "perturb_from_uncertainty = "
-            "ymerflow_processing.core.filter_13_perturb:perturb_from_uncertainty",
+            "ymerflow_processing.core.perturb:perturb_from_uncertainty",
             "assign_uncertainty = "
-            "ymerflow_processing.core.filter_12_uncertainty:assign_uncertainty",
+            "ymerflow_processing.core.uncertainty:assign_uncertainty",
             "cull_below_noise_floor = ymerflow_processing.core.cull."
-            "filter_29_noise_floor:cull_below_noise_floor",
+            "noise_floor:cull_below_noise_floor",
             # filter_01-04: line selection, collapsed to two by 01's decision.
             "classify_lines = ymerflow_processing.core.lines:classify_lines",
             "select_lines = ymerflow_processing.core.lines:select_lines",
@@ -99,9 +99,9 @@ setup(
             "remove_attribute = ymerflow_processing.core.manage:remove_attribute",
             "remove_array = ymerflow_processing.core.manage:remove_array",
             "nominate_gates = ymerflow_processing.core.cull."
-            "filter_21_nominate_gates:nominate_gates",
+            "nominate_gates:nominate_gates",
             "cull_sparse_soundings = ymerflow_processing.core.cull."
-            "filter_23_sparse_soundings:cull_sparse_soundings",
+            "sparse_soundings:cull_sparse_soundings",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [
@@ -118,23 +118,23 @@ setup(
         # dataset -> dataset + report
         "ymerflow.processing.qc": [
             "height_above_ground = "
-            "ymerflow_processing.core.qc.qc_01_height:height_above_ground",
+            "ymerflow_processing.core.qc.height:height_above_ground",
             "system_attitude = "
-            "ymerflow_processing.core.qc.qc_02_attitude:system_attitude",
+            "ymerflow_processing.core.qc.attitude:system_attitude",
             "ground_speed = "
-            "ymerflow_processing.core.qc.qc_03_speed:ground_speed",
+            "ymerflow_processing.core.qc.speed:ground_speed",
             "altimeter_agreement = "
-            "ymerflow_processing.core.qc.qc_08_altimeter:altimeter_agreement",
+            "ymerflow_processing.core.qc.altimeter:altimeter_agreement",
             "sounding_spacing = "
-            "ymerflow_processing.core.qc.qc_10_spacing:sounding_spacing",
+            "ymerflow_processing.core.qc.spacing:sounding_spacing",
             "transmitter_stability = "
-            "ymerflow_processing.core.qc.qc_04_current:transmitter_stability",
+            "ymerflow_processing.core.qc.current:transmitter_stability",
             "powerline_noise = "
-            "ymerflow_processing.core.qc.qc_05_powerline:powerline_noise",
+            "ymerflow_processing.core.qc.powerline:powerline_noise",
             "culled_fraction = "
-            "ymerflow_processing.core.qc.qc_12_culled:culled_fraction",
+            "ymerflow_processing.core.qc.culled_fraction:culled_fraction",
             "data_misfit = "
-            "ymerflow_processing.core.qc.qc_11_misfit:data_misfit",
+            "ymerflow_processing.core.qc.data_misfit:data_misfit",
         ],
         # N reports (or N datasets) -> one report
         # How each method names its arrays and what their second axis means.

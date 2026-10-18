@@ -45,7 +45,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .cull.filter_21_nominate_gates import parse_gates
+from .cull.nominate_gates import parse_gates
 from .distribution import summarize
 from .pipeline import StepReport
 

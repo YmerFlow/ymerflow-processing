@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_20_initial_gates import (
+from ymerflow_processing.core.cull.initial_gates import (
     STEP_CODE, declared_initial_gates, disable_initial_gates,
 )
 from ymerflow_processing.core.mask import (
@@ -280,7 +280,7 @@ def test_declaring_zero_leaves_a_delivery_untouched():
 
 
 def test_the_mandate_form_is_a_no_op_the_second_time():
-    from ymerflow_processing.core.cull.filter_20_initial_gates import (
+    from ymerflow_processing.core.cull.initial_gates import (
         honor_system_description,
     )
     dataset = delivery(remove=(3, 3))
@@ -292,7 +292,7 @@ def test_the_mandate_form_is_a_no_op_the_second_time():
 def test_a_description_disagreeing_with_the_delivery_does_not_break_a_load():
     """It raises from the explicit step, where someone asked and is watching.
     Raising it from a load would make an unreadable file out of a readable one."""
-    from ymerflow_processing.core.cull.filter_20_initial_gates import (
+    from ymerflow_processing.core.cull.initial_gates import (
         honor_system_description,
     )
     dataset = delivery(remove=(20, 0))

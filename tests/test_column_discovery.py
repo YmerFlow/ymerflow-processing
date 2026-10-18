@@ -17,9 +17,9 @@ from ymerflow_processing.core.attitude import (
 from ymerflow_processing.core.dataset import (
     HEIGHT_COLUMNS, PITCH_COLUMNS, ROLL_COLUMNS, find_column,
 )
-from ymerflow_processing.core.qc.qc_01_height import height_above_ground
-from ymerflow_processing.core.qc.qc_02_attitude import system_attitude
-from ymerflow_processing.core.qc.qc_04_current import find_current_columns
+from ymerflow_processing.core.qc.height import height_above_ground
+from ymerflow_processing.core.qc.attitude import system_attitude
+from ymerflow_processing.core.qc.current import find_current_columns
 
 SPEC = {"good_max": 45, "marginal_max": 65}
 

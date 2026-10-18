@@ -171,7 +171,7 @@ than datasets.
 ### The report is JSON
 
 `StepReport.to_dict()` and `RunReport.to_dict()` already exist and already produce plain
-Python. `tests/test_qc_01_height.py` pins that a report survives a JSON round trip. So the
+Python. `tests/test_height.py` pins that a report survives a JSON round trip. So the
 report writer is `json.dump(report.to_dict())` and nothing more.
 
 **Why JSON and not YAML**, given pipelines are YAML: the pipeline is written by a human and

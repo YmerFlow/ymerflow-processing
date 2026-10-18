@@ -1023,6 +1023,6 @@ def load(xyz, gex, normalization: str | None = None,
 
     # Imported here rather than at module scope: the culling package imports
     # Dataset, so a top-level import back would be a cycle.
-    from .cull.filter_20_initial_gates import honor_system_description
+    from .cull.initial_gates import honor_system_description
     honor_system_description(dataset)
     return dataset

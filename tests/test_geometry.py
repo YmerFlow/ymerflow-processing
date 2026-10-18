@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_22_geometry import (
+from ymerflow_processing.core.cull.geometry import (
     STEP_CODE, cull_by_geometry,
 )
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key

@@ -527,7 +527,7 @@ class _Runner:
         """
         # Imported here rather than at module scope: both import StepReport
         # from this module.
-        from .cull.filter_20_initial_gates import honor_system_description
+        from .cull.initial_gates import honor_system_description
         from .inventory import inventory as take_inventory
 
         # A dataset built without load() — a fixture, or one the platform

@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_32_negatives import (
+from ymerflow_processing.core.cull.negatives import (
     STEP_CODE, cull_negatives,
 )
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key

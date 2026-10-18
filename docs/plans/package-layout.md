@@ -1,6 +1,11 @@
 # Package layout — role at the top, and the specialization axis deferred
 
-**Status:** planned, not started. Analysis done 2026-08-22.
+**Status:** planned. Analysis done 2026-08-22. The "filenames lose their spec
+numbers" decision was executed on 2026-10-18 (`filter_22_geometry.py` →
+`core/cull/geometry.py`, `qc_01_height.py` → `core/qc/height.py`, test files
+following); the directory move — `core/` into `filters/`, `qc/`, `compare/`,
+`methods/` — is still open, and the names below describe the layout before that
+rename.
 **Scope:** moves and renames only. No behavior change, no interface change.
 
 ## Why

@@ -13,10 +13,10 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_25_decay_rate import (
+from ymerflow_processing.core.cull.decay_rate import (
     cull_by_decay_rate,
 )
-from ymerflow_processing.core.cull.filter_27_curvature import (
+from ymerflow_processing.core.cull.curvature import (
     cull_by_curvature,
 )
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key

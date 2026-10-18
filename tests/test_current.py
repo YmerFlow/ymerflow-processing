@@ -8,7 +8,7 @@ import pytest
 
 from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.qc_04_current import (
+from ymerflow_processing.core.qc.current import (
     detect_jumps, find_current_columns, transmitter_stability,
 )
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC

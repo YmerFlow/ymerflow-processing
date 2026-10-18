@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip("geopandas", reason="geopandas is declared in setup.py")
 
 from conftest import make_dataset, make_infrastructure
-from ymerflow_processing.core.cull.filter_30_evidence import (
+from ymerflow_processing.core.cull.evidence import (
     STEP_CODES, cull_by_external_evidence, distance_to_features,
     gate_distances,
 )

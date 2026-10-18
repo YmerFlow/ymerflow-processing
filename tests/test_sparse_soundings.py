@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_23_sparse_soundings import (
+from ymerflow_processing.core.cull.sparse_soundings import (
     STEP_CODE, cull_sparse_soundings, usable,
 )
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key

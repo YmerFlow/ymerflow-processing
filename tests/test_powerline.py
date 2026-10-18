@@ -8,7 +8,7 @@ import pytest
 
 from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.qc_05_powerline import (
+from ymerflow_processing.core.qc.powerline import (
     find_powerline_column, local_excess, powerline_noise,
 )
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC

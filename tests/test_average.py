@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.filter_10_average import (
+from ymerflow_processing.core.average import (
     BOXCAR, GAUSSIAN, HANN, STASH_SUFFIX, STEP_CODE, average_along_line,
     gate_widths, kernel,
 )

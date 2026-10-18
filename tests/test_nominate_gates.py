@@ -12,10 +12,10 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_20_initial_gates import (
+from ymerflow_processing.core.cull.initial_gates import (
     disable_initial_gates,
 )
-from ymerflow_processing.core.cull.filter_21_nominate_gates import (
+from ymerflow_processing.core.cull.nominate_gates import (
     STEP_CODE, nominate_gates, parse_gates,
 )
 from ymerflow_processing.core.mask import (

@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.core.cull.filter_24_uncertainty import (
+from ymerflow_processing.core.cull.uncertainty import (
     STEP_CODE, cull_by_uncertainty,
 )
 from ymerflow_processing.core.mask import CULLED, IN_USE, provenance_key

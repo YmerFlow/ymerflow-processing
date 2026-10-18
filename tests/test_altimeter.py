@@ -8,8 +8,8 @@ import pytest
 
 from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import QC_GROUP, Pipeline, QCRunner, load_steps
-from ymerflow_processing.core.qc.qc_01_height import height_above_ground
-from ymerflow_processing.core.qc.qc_08_altimeter import altimeter_agreement
+from ymerflow_processing.core.qc.height import height_above_ground
+from ymerflow_processing.core.qc.altimeter import altimeter_agreement
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
 
 SPEC = {"good_max": 1.0, "marginal_max": 3.0}

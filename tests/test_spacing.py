@@ -10,7 +10,7 @@ from conftest import make_dataset, tier_names
 from ymerflow_processing.core.pipeline import (
     MISSING, QC_GROUP, Pipeline, QCRunner, load_steps,
 )
-from ymerflow_processing.core.qc.qc_10_spacing import (
+from ymerflow_processing.core.qc.spacing import (
     along_line_spacing, sounding_spacing,
 )
 from ymerflow_processing.core.qc.thresholds import GOOD, MARGINAL, OUT_OF_SPEC
