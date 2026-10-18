@@ -73,7 +73,9 @@ import re
 
 import numpy as np
 
-from ..mask import CULLED, IN_USE, cull, enable, mark_step
+from libaarhusxyz.xyz import XYZ, df_apply
+
+from ..mask import CULLED, IN_USE, cull, enable, ensure, mark_step
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -108,11 +110,34 @@ def _open(diff):
     """
     if hasattr(diff, "layer_data"):
         return diff
-    from libaarhusxyz.xyz import XYZ
+    # The plot editor saves msgpack, which the XYZ text reader cannot open; and
+    # the text form would renumber its gate columns, which carry gate indices.
+    if str(diff).endswith(".msgpack"):
+        from libaarhusxyz.export import msgpack
+        return msgpack.load(str(diff))
     return XYZ(str(diff))
 
 
-def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
+def _gates_not_here(edit_columns, mask_columns) -> list:
+    """The diff's column labels that name no gate of this mask.
+
+    ``df_apply`` coerces a diff's labels to the mask's column type and would
+    *add* a column for one it does not find, silently widening the mask — so
+    a label outside the channel is refused here before anything is applied.
+    """
+    kind = type(mask_columns[0])
+    outside = []
+    for label in edit_columns:
+        try:
+            known = kind(label) in mask_columns
+        except (TypeError, ValueError):
+            known = False
+        if not known:
+            outside.append(label)
+    return outside
+
+
+def apply_manual_edits(dataset, diff: str | XYZ, checkpoint: str | None = None):
     """Apply a hand-authored in-use diff at the soundings it names.
 
     Parameters
@@ -133,11 +158,21 @@ def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
     report.soundings_total = 0 if frame is None else len(frame)
 
     edit = _open(diff)
-    if not getattr(edit, "model_info", {}).get("diff_dummy"):
+    info = getattr(edit, "model_info", {}) or {}
+    if "diff_dummy" not in info:
         report.notes.append(
             "This file carries no 'diff_dummy' marker, so it may not be an edit "
             "set. Applying it anyway; only its non-NaN in-use entries are read."
         )
+    # The diff's own sentinel for "nothing said here" — the plot editor writes
+    # NaN. Read by libaarhusxyz, not here; absent, NaN is assumed so a missing
+    # marker cannot turn every untouched cell into an override.
+    dummy = info.get("diff_dummy", np.nan)
+    if isinstance(dummy, bool) or not isinstance(dummy, (int, float)):
+        # A marker that is not a value — an older edit set wrote `True` — says
+        # "this is a diff" but cannot be the sentinel: libaarhusxyz would read
+        # every 1 in the diff as untouched. NaN is what the editor writes.
+        dummy = np.nan
 
     edited = getattr(edit, "flightlines", None)
     if edited is None or APPLY_INDEX not in getattr(edited, "columns", []):
@@ -166,26 +201,37 @@ def apply_manual_edits(dataset, diff, checkpoint: str | None = None):
         if channel is None:
             continue
 
-        overrides = np.asarray(array, dtype=float)
-        if overrides.shape[0] != where.size:
+        if len(array) != where.size:
             raise ValueError(
-                f"Edit array {key!r} has {overrides.shape[0]} rows against "
+                f"Edit array {key!r} has {len(array)} rows against "
                 f"{where.size} entries in {APPLY_INDEX}; they must agree."
             )
-        gates = dataset.layer_data[channel.data_key].shape[1]
-        if overrides.shape[1] != gates:
+        current = ensure(dataset, channel)
+        gates = current.shape[1]
+        outside = _gates_not_here(array.columns, current.columns)
+        if outside:
+            # A gate this channel does not have: authored against something
+            # else, so none of this channel's edit is trusted.
             unmatched.append(
-                f"{key} ({overrides.shape[1]} gates against {gates})")
+                f"{key} (gate(s) {', '.join(map(str, outside))} against {gates})")
             continue
 
-        # NaN means "no override" and is the diff's sentinel, not the mask's.
-        # It is read out here and goes no further.
-        stated = np.isfinite(overrides)
-        on = np.zeros((len(frame), gates), dtype=bool)
-        off = np.zeros((len(frame), gates), dtype=bool)
-        on[where] = stated & (overrides != CULLED)
-        off[where] = stated & (overrides == CULLED)
+        # libaarhusxyz applies the diff: it is the format's own reader, and the
+        # one the platform's editor writes for, so the plot editor writing only
+        # the gates someone touched, labelled by gate index, and NaN meaning
+        # "nothing said" are its concern rather than a second copy here. It is
+        # applied to a scratch copy of the mask, and the difference is what
+        # goes through cull/enable — so the provenance still says who did it.
+        scratch = current.reset_index(drop=True).copy()
+        df_apply(scratch, array, where, dummy_value=dummy)
+        before = current.to_numpy()
+        after = scratch.to_numpy()
+        changed = after != before
+        off = changed & (after == CULLED)
+        on = changed & (after != CULLED)
 
+        values = array.to_numpy(dtype=float)
+        stated = ~np.isnan(values) if np.isnan(dummy) else values != dummy
         outcome = {"overrides": int(stated.sum())}
         if off.any():
             outcome["disabled"] = cull(dataset, channel, off,

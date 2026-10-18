@@ -89,7 +89,8 @@ def applied(dataset) -> str | None:
     return str(value) if value else None
 
 
-def perturb_from_uncertainty(dataset, seed: int = DEFAULT_SEED, channels=None,
+def perturb_from_uncertainty(dataset, seed: int = DEFAULT_SEED,
+                             channels: list[str] | None = None,
                              again: bool = False, stash: bool = True):
     """Add noise drawn from each datum's assigned uncertainty.
 

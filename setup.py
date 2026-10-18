@@ -21,7 +21,12 @@ setup(
         #
         # A direct reference cannot be uploaded to PyPI, so publishing this
         # package would first require publishing the fork under its own name.
-        "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz@master",
+        #
+        # Spelled exactly as aem-processes spells it. pip compares direct
+        # references as text, so ".git" against "@master" for the same commit
+        # reads as two sources and the two packages cannot be installed
+        # together. No ref means the default branch, master.
+        "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz.git",
         # Deliberately unpinned, and deliberately compatible with both majors.
         # numpy 2 is what this is developed against, but the inversion stack it
         # feeds still runs on 1.x, so a floor here would strand the environment

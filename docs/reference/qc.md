@@ -11,7 +11,7 @@ dataset in, dataset plus a report out. These grade it and change no measurement.
 Classify the disagreement between independent altimeters.
 
 ```python
-altimeter_agreement(columns, good_max: float, marginal_max: float, output_column: str = 'qs_altim', spread_column: str = 'alt_spread', line_column: str | None = None, unit: str = 'm', gap_tolerance: float = 0.0)
+altimeter_agreement(columns: list[str], good_max: float, marginal_max: float, output_column: str = 'qs_altim', spread_column: str = 'alt_spread', line_column: str | None = None, unit: str = 'm', gap_tolerance: float = 0.0)
 ```
 
 | parameter | default | |

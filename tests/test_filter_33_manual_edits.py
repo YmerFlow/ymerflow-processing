@@ -47,7 +47,8 @@ def edit_set(soundings, overrides, channel=1, marker=True):
     return XYZ({
         "flightlines": pd.DataFrame({APPLY_INDEX: list(soundings)}),
         "layer_data": {f"InUse_Ch{channel:02d}": pd.DataFrame(array)},
-        "model_info": {"diff_dummy": True} if marker else {},
+        # NaN, as the plot editor writes it: the marker is the diff's sentinel.
+        "model_info": {"diff_dummy": np.nan} if marker else {},
         "file_meta": {},
     })
 
@@ -172,8 +173,10 @@ def test_a_row_count_disagreement_is_refused():
 
 
 def test_a_gate_count_disagreement_is_noted_not_applied():
+    """A column naming a gate this channel does not have: the edit was
+    authored against something else, so none of the channel's edit is used."""
     diff = edit_set([0], {(0, 0): 0})
-    diff.layer_data["InUse_Ch01"] = pd.DataFrame(np.full((1, 4), 0.0))
+    diff.layer_data["InUse_Ch01"] = pd.DataFrame({0: [0.0], GATES + 1: [0.0]})
 
     dataset, report = apply_manual_edits(delivery(), diff)
     assert (mask(dataset) == IN_USE).all()
@@ -270,12 +273,33 @@ def test_it_reads_the_msgpack_the_platform_actually_writes(tmp_path):
     inuse_diff_{dataset}.msgpack and creates a process version with it as a
     parameter, so a path is what arrives — not an object we constructed."""
     path = tmp_path / "inuse_diff_delivery.msgpack"
-    edit_set([2], {(0, 4): 0}).dump(str(path))
+    with open(path, "wb") as f:
+        edit_set([2], {(0, 4): 0}).to_msgpack(f)
 
     dataset, report = apply_manual_edits(delivery(), path)
 
     assert mask(dataset)[2, 4] == CULLED
     assert report.distributions["removed"] == 1
+
+
+def test_only_the_gates_touched_are_written_and_they_land_where_labelled(tmp_path):
+    """The plot editor writes one column per gate someone touched, labelled
+    with that gate's index, rather than every gate."""
+    path = tmp_path / "inuse_diff_delivery.msgpack"
+    sparse = XYZ({
+        "flightlines": pd.DataFrame({APPLY_INDEX: [2.0, 4.0]}),
+        "layer_data": {"InUse_Ch01": pd.DataFrame({3: [0.0, np.nan], 6: [np.nan, 0.0]})},
+        "model_info": {"diff_dummy": np.nan},
+        "file_meta": {},
+    })
+    with open(path, "wb") as f:
+        sparse.to_msgpack(f)
+
+    dataset, report = apply_manual_edits(delivery(), path)
+
+    culled = np.argwhere(mask(dataset) == CULLED).tolist()
+    assert culled == [[2, 3], [4, 6]]
+    assert report.distributions["removed"] == 2
 
 
 def test_an_already_loaded_diff_is_accepted_too():

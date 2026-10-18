@@ -100,7 +100,7 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
             and not is_provenance(key)}
 
 
-def select_channels(dataset, criterion: str, keep, drop_system_blocks: bool = True,
+def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks: bool = True,
                     drop_unclaimed: bool = False):
     """Keep only the channels whose ``criterion`` value is in ``keep``.
 
