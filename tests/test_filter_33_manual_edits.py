@@ -49,7 +49,8 @@ def edit_set(soundings, overrides, channel=1, marker=True):
     return XYZ({
         "flightlines": pd.DataFrame({APPLY_INDEX: list(soundings)}),
         "layer_data": {f"InUse_Ch{channel:02d}": pd.DataFrame(array)},
-        "model_info": {"diff_dummy": True} if marker else {},
+        # NaN, as the plot editor writes it: the marker is the diff's sentinel.
+        "model_info": {"diff_dummy": np.nan} if marker else {},
         "file_meta": {},
     })
 
