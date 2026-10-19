@@ -198,6 +198,52 @@ def test_standard_processing_culls_before_averaging():
     assert culls and max(culls) < ran.index("average_along_line")
 
 
+def noisy(dataset, seed=7):
+    """The fixture with sounding-to-sounding scatter, so a floor can be
+    estimated. standard-processing gets its scatter from correct_tilt acting on
+    a varying attitude; manual-processing applies no such step, and a noiseless
+    delivery correctly yields no noise model."""
+    rng = np.random.default_rng(seed)
+    for channel in dataset.channels:
+        values = dataset.layer_data[channel.data_key]
+        values.iloc[:, :] = values.to_numpy() * (1 + 0.05 * rng.normal(size=values.shape))
+    return dataset
+
+
+def test_manual_processing_declares_before_the_noise_model(delivery):
+    """A supplied floor is converted by what the dataset declares; declared
+    afterwards it has already been applied unconverted."""
+    ran = [name for name, _ in Pipeline.load("manual-processing").steps]
+    assert ran.index("declare_normalization") < ran.index("estimate_noise_model")
+    assert ran.index("estimate_noise_model") < ran.index("assign_uncertainty")
+
+    dataset, report = ProcessingRunner(
+        Pipeline.load("manual-processing")).run(noisy(delivery))
+    assert dataset.normalization == "rx_tx"
+    assert "assign_uncertainty" in [s.step for s in report.steps]
+
+
+def test_manual_processing_removes_nothing_and_averages_nothing(delivery):
+    """The decisions are a person's: no cull, no average, and every sounding
+    still there with every gate still in use."""
+    ran = [name for name, _ in Pipeline.load("manual-processing").steps]
+    assert not any(n.startswith("cull_") for n in ran)
+    assert "average_along_line" not in ran
+
+    delivery = noisy(delivery)
+    n_before = delivery.n_soundings
+    masks_before = {c.key: dataset_mask(delivery, c) for c in delivery.channels}
+    dataset, _ = ProcessingRunner(Pipeline.load("manual-processing")).run(delivery)
+    assert dataset.n_soundings == n_before
+    for channel in dataset.channels:
+        assert np.array_equal(dataset_mask(dataset, channel), masks_before[channel.key])
+
+
+def dataset_mask(dataset, channel):
+    from ymerflow_processing.mask import ensure
+    return ensure(dataset, channel).to_numpy().copy()
+
+
 def test_standard_processing_does_not_list_the_mandate():
     """01: filter_20 is applied automatically, not listed in a pipeline. Listing
     it would suggest it is a judgement someone makes, and it is not."""

@@ -1,0 +1,69 @@
+name: manual-processing
+description: >
+  Processing by hand: declare the convention, give every datum an uncertainty
+  from a noise model, and nothing else. No culling, no averaging. The decisions
+  are a person's, made in the plot and replayed last.
+
+# Manual processing — uncertainties on, everything else by hand
+# ==============================================================
+#
+#   yf-process run manual-processing --xyz DELIVERY.xyz --gex SYSTEM.gex --out processed/
+#
+# For a survey where the automated culls are not wanted yet — a new instrument,
+# a delivery whose noise is not understood, a client who asked that every
+# sounding be kept — this is the shortest chain that still gives the inversion
+# what it needs: a correct statement of what the data is, and an uncertainty
+# per datum. Everything that removes data is left to a person, in the plot,
+# where the platform saves each round of edits and replays them after these
+# steps on every re-run.
+#
+# This is the chain the platform's processing form should open with when the
+# work is manual. Copy it before editing:
+#
+#   yf-process show manual-processing > my-processing.yaml
+#
+# THE ORDER IS THE POINT
+# ----------------------
+#   * the declaration comes first, because a supplied noise floor is converted
+#     by whatever the dataset declares, and declared afterwards it has already
+#     been applied unconverted — wrong by the dipole moment, silently;
+#   * estimation precedes assignment, so there is something to assign from;
+#   * manual edits replay last, so a human decision is never overwritten by an
+#     automated one. The platform appends them; on the command line, add
+#     apply_manual_edits at the end.
+
+kind: filters
+
+steps:
+
+  # ── 1 · What the data is ───────────────────────────────────────────────────
+  # A delivery rarely says which convention its amplitudes are in, and the
+  # loader then assumes rx. Platform imports of SkyTEM and VTEM deliveries are
+  # rx_tx — V/(A·m⁴), normalized by receiver area and transmitter moment. State
+  # it here, once, where it is read and recorded rather than assumed. Change it
+  # only if you know the delivery is in another convention.
+  - declare_normalization:
+      convention: rx_tx
+
+  # ── 2 · Noise and uncertainty ──────────────────────────────────────────────
+  # Estimated from sounding-to-sounding scatter at late gates by default. Where
+  # the noise model is a decision rather than a measurement — settled for the
+  # survey and written down — supply it, and the estimate is still made and
+  # reported beside it, so the two can be compared.
+  #
+  # noise_level_1ms is the instrument's absolute dB/dt floor at 1 ms, BEFORE
+  # moment normalization; with rx_tx declared above it is divided by each
+  # channel's dipole moment when applied. The relative fraction is the
+  # proportional error — the "3 %" of an inversion's error model.
+  - estimate_noise_model:
+      scope: per_dataset
+      # noise_level_1ms: 1.0e-9    # EDIT: the survey's absolute floor at 1 ms
+      # noise_exponent: -0.5       # white noise over gates whose width grows with time
+      # relative_fraction: 0.03    # the proportional part
+
+  - assign_uncertainty: {}
+
+  # ── 3 · Nothing else ───────────────────────────────────────────────────────
+  # No cull_* step and no average_along_line, on purpose. Add them back one at a
+  # time from standard-processing when the survey has earned them; the platform
+  # replays your plot edits after whatever is here.

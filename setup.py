@@ -72,6 +72,7 @@ setup(
             # filter_06-09: geometry, conventions and constants.
             "correct_tilt = ymerflow_processing.filters.attitude:correct_tilt",
             "zero_attitude = ymerflow_processing.filters.attitude:zero_attitude",
+            "declare_normalization = ymerflow_processing.filters.normalize:declare_normalization",
             "convert_normalization = ymerflow_processing.filters.normalize:convert_normalization",
             "apply_nominal_current = ymerflow_processing.filters.normalize:apply_nominal_current",
             "compute_misfit = ymerflow_processing.filters.misfit:compute_misfit",

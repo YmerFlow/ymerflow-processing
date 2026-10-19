@@ -168,6 +168,7 @@ SHAPES = {
     "zero_attitude": GEOMETRY,
 
     # Changes no measurement.
+    "declare_normalization": NOTHING,
     "copy_array": NOTHING,
     "copy_attribute": NOTHING,
     "remove_array": NOTHING,

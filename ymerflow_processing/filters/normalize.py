@@ -91,6 +91,73 @@ def recorded_normalization(dataset) -> str | None:
     return str(value) if value in NORMALIZATIONS else None
 
 
+def declare_normalization(dataset, convention: str, override: bool = False):
+    """State which convention the amplitudes are already in. Changes no value.
+
+    A delivery rarely says. ``load`` then assumes ``rx``, and everything that
+    converts by the convention — a supplied noise floor above all — converts by
+    the wrong one, silently: an absolute floor stated for ``rx_tx`` data is off
+    by the dipole moment, three to four orders of magnitude, with nothing in
+    the data to show it. Declaring it once, as a step, puts the assertion in the
+    pipeline document and the dataset's history where it can be read and
+    argued with, instead of in a loader argument nobody sees.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset whose declaration is set; no array is touched.
+    convention : str
+        ``raw``, ``rx`` or ``rx_tx``. Platform imports of SkyTEM and VTEM
+        deliveries are ``rx_tx`` — V/(A·m⁴), normalized by receiver area and
+        transmitter moment.
+    override : bool
+        Permit contradicting a convention the dataset already records.
+        Refused by default: the record was written by a step that knew, and a
+        declaration that disagrees with it is the undetectable error ``01``
+        names.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+
+    Raises
+    ------
+    ValueError
+        For an unknown convention, or one that contradicts the dataset's own
+        record without ``override``.
+    """
+    report = StepReport(step="declare_normalization")
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    if convention not in NORMALIZATIONS:
+        raise ValueError(
+            f"Unknown normalization {convention!r}. Available: "
+            f"{', '.join(NORMALIZATIONS)}")
+
+    recorded = recorded_normalization(dataset)
+    if recorded is not None and recorded != convention and not override:
+        raise ValueError(
+            f"This dataset records its normalization as {recorded!r}, and the "
+            f"declaration says {convention!r}. One of them is wrong by orders "
+            f"of magnitude. Pass override: true if the record is the wrong one."
+        )
+
+    before = dataset.normalization
+    dataset.normalization = convention
+    dataset.survey.xyz.model_info[REGISTRY] = convention
+    report.distributions = {"declared": convention, "was": before,
+                            "recorded_before": recorded}
+    if recorded == convention:
+        report.notes.append(f"The dataset already records {convention!r}.")
+    elif recorded is not None:
+        report.notes.append(
+            f"Overrode the recorded {recorded!r} with {convention!r}, as asked.")
+    log.info("declare_normalization: %s (was %s)", convention, before)
+    return dataset, report
+
+
 def _receiver_factor(dataset, channel) -> float | None:
     """Receiver area times turns, from the system description."""
     block = getattr(dataset.survey.gex, "gex_dict", {}).get(

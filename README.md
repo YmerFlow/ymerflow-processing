@@ -319,8 +319,8 @@ reads as neither. Free-form rather than an enum, since more kinds will follow.
 
 ## Getting started
 
-Three pipeline documents ship with the package, so the common case does not begin
-with a list of 45 steps:
+Four pipeline documents ship with the package, so the common case does not begin
+with a list of 46 steps:
 
 ```bash
 yf-process pipelines                      # what ships
@@ -330,7 +330,9 @@ yf-process run acquisition-qc --xyz DELIVERY.xyz --gex SYSTEM.gex --out qc/
 
 `acquisition-qc` grades a delivery and changes no measurement.
 `standard-processing` takes delivered data to inversion-ready and **does** change
-it. `synthetic-data` turns a clean forward model into something that behaves like
+it. `manual-processing` declares the convention and assigns uncertainties, and
+leaves every removal to a person in the plot — no culling, no averaging.
+`synthetic-data` turns a clean forward model into something that behaves like
 a real delivery.
 
 To adjust one, copy it rather than editing in place — `yf-process show NAME >
