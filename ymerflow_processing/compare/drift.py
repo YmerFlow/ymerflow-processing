@@ -44,7 +44,6 @@ to the outlier being looked for.
 """
 
 import logging
-from collections.abc import Sequence
 
 import numpy as np
 
@@ -186,14 +185,14 @@ def _ordering(report: dict, index: int):
     return (2, index)
 
 
-def noise_floor_drift(items: Sequence[dict], reference: dict | None = None,
+def noise_floor_drift(items: list[dict], reference: dict | None = None,
                       source_step: str = SOURCE_STEP,
                       max_ratio: float | None = None):
     """Trend the estimated noise floor across a sequence of deliveries.
 
     Parameters
     ----------
-    items : sequence of dict
+    items : list of dict
         Stored run reports, ordered.
     reference : dict | None
         A run to measure everything against. Without one the baseline is the
