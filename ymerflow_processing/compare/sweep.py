@@ -46,7 +46,6 @@ make, and a knee in one response is not a knee in the one they care about.
 """
 
 import logging
-from collections.abc import Sequence
 
 import numpy as np
 
@@ -221,7 +220,7 @@ def _knee(values, responses, flat_fraction):
 
 # ── The check ────────────────────────────────────────────────────────────────
 
-def parameter_sweep(items: Sequence[dict], reference: dict | None = None,
+def parameter_sweep(items: list[dict], reference: dict | None = None,
                     response_column: str | None = None,
                     flat_fraction: float = FLAT_FRACTION,
                     position_tolerance: float = POSITION_TOLERANCE):
@@ -229,7 +228,7 @@ def parameter_sweep(items: Sequence[dict], reference: dict | None = None,
 
     Parameters
     ----------
-    items : sequence of dict
+    items : list of dict
         The runs, **ordered**. ``02`` makes ``items`` ordered and says a check
         may rely on it; a response curve is read in order.
     reference : dict | None

@@ -59,7 +59,6 @@ culled more" belongs.
 """
 
 import logging
-from collections.abc import Sequence
 
 import numpy as np
 
@@ -178,20 +177,20 @@ def _expectation_for(expectations, channel, quantity):
 # ── The check ────────────────────────────────────────────────────────────────
 
 def implementation_equivalence(
-    items: Dataset | Sequence[Dataset],
+    items: Dataset | list[Dataset],
     reference: Dataset | None = None,
     relative: float = 1e-6,
     absolute: float = 0.0,
     justification: str | None = None,
-    expected_differences: Sequence[dict] = (),
-    quantities: Sequence[str] = QUANTITIES,
+    expected_differences: list[dict] = (),
+    quantities: list[str] = QUANTITIES,
     position_tolerance: float = POSITION_TOLERANCE,
 ):
     """Compare a candidate implementation against a baseline, per datum.
 
     Parameters
     ----------
-    items : Dataset | sequence of Dataset
+    items : Dataset | list of Dataset
         The candidate's output — one dataset, or a one-item sequence. Per
         ``02``'s table, the candidate is ``items`` and the baseline is
         ``reference``.
@@ -206,12 +205,12 @@ def implementation_equivalence(
         Why that tolerance is the right one. Carried into the report because a
         tolerance without a reason is a number someone tuned until the
         comparison passed.
-    expected_differences : sequence of dict
+    expected_differences : list of dict
         Declarations of where the two are *meant* to differ. Each is
         ``{quantity, channel?, reason, direction?}``, where ``direction`` is
         ``"smaller"``, ``"larger"`` or ``"any"``. A covered difference is a
         pass; one whose direction is violated is not.
-    quantities : sequence of str
+    quantities : list of str
         Which of ``data``, ``uncertainty``, ``mask`` to compare.
     position_tolerance : float
         How close two soundings must be, in CRS units, to be the same sounding

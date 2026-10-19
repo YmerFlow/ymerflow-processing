@@ -13,7 +13,7 @@ Compare a candidate implementation against a baseline, per datum.
 **Consumes:** datasets
 
 ```python
-implementation_equivalence(reference: ymerflow_processing.dataset.Dataset | None = None, relative: float = 1e-06, absolute: float = 0.0, justification: str | None = None, expected_differences: collections.abc.Sequence[dict] = (), quantities: collections.abc.Sequence[str] = ('data', 'uncertainty', 'mask'), position_tolerance: float = 0.5)
+implementation_equivalence(reference: ymerflow_processing.dataset.Dataset | None = None, relative: float = 1e-06, absolute: float = 0.0, justification: str | None = None, expected_differences: list[dict] = (), quantities: list[str] = ('data', 'uncertainty', 'mask'), position_tolerance: float = 0.5)
 ```
 
 | parameter | default | |
@@ -64,7 +64,7 @@ What changed between two processing versions of the same data.
 **Consumes:** datasets
 
 ```python
-version_diff(reference: ymerflow_processing.dataset.Dataset | None = None, quantities: collections.abc.Sequence[str] = ('data', 'uncertainty', 'mask'), relative: float = 1e-09, absolute: float = 0.0, position_tolerance: float = 0.5)
+version_diff(reference: ymerflow_processing.dataset.Dataset | None = None, quantities: list[str] = ('data', 'uncertainty', 'mask'), relative: float = 1e-09, absolute: float = 0.0, position_tolerance: float = 0.5)
 ```
 
 | parameter | default | |
