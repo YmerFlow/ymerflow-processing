@@ -12,9 +12,9 @@ thresholds. It changes no measurement, no uncertainty and no mask (R6).
 Stability is the question; agreement with nominal is a second, weaker one
 --------------------------------------------------------------------------
 **A steady current that differs from nominal is not a data problem.** The current
-actually flown is recorded per sounding and carried into the normalization, so a
-transmitter holding 105 A against a 110 A nominal produces perfectly
-self-consistent data. What costs data quality is the current *moving*, because
+actually flown is recorded per sounding and carried into the per-unit-moment
+convention, so a transmitter holding 105 A against a 110 A nominal produces
+perfectly self-consistent data. What costs data quality is the current *moving*, because
 then the excitation differs between soundings that are later stacked and compared.
 
 So stability carries the verdict, **alone**. A large offset from nominal earns

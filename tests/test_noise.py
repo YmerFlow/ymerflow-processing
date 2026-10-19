@@ -16,7 +16,6 @@ from conftest import make_dataset
 from ymerflow_processing.filters.cull_noise_floor import (
     STEP_CODE, cull_below_noise_floor,
 )
-from ymerflow_processing.dataset import RAW, RX_TX_NORMALIZED
 from ymerflow_processing.filters.uncertainty import assign_uncertainty
 from ymerflow_processing.mask import CULLED, IN_USE
 from ymerflow_processing.filters.noise import (
@@ -150,72 +149,78 @@ def test_the_floor_follows_the_power_law():
     assert floor[1] == pytest.approx(0.5e-9)          # four times later, half
 
 
-def test_normalization_is_converted_not_assumed():
-    """The floor is stated before division by transmitter moment. Comparing it
-    against moment-normalized data without converting is wrong by three to four
-    orders of magnitude, with nothing to signal it."""
-    model = NoiseModel(level_1ms=1e-9, exponent=-0.5, normalization=RAW)
+def test_a_physical_floor_is_divided_by_the_dipole_moment():
+    """A supplied floor is physical (V/Am², before moment normalization), so it
+    is divided by the transmitter moment — the one amplitude conversion that
+    remains, and the one that is silently catastrophic if skipped."""
+    model = NoiseModel(level_1ms=1e-9, exponent=-0.5, physical=True)
 
-    raw = model.floor([REFERENCE_TIME])[0]
-    normalized = model.floor([REFERENCE_TIME], dipole_moment=3078.0,
-                             normalization=RX_TX_NORMALIZED)[0]
-
-    assert normalized == pytest.approx(raw / 3078.0)
+    assert model.floor([REFERENCE_TIME], dipole_moment=3078.0)[0] == pytest.approx(
+        1e-9 / 3078.0)
 
 
-def test_converting_without_a_moment_is_refused_rather_than_skipped():
-    model = NoiseModel(level_1ms=1e-9, normalization=RAW)
+def test_a_physical_floor_without_a_moment_is_refused_rather_than_skipped():
+    model = NoiseModel(level_1ms=1e-9, physical=True)
     with pytest.raises(ValueError, match="dipole moment"):
-        model.floor([REFERENCE_TIME], normalization=RX_TX_NORMALIZED)
+        model.floor([REFERENCE_TIME])
 
 
-def test_an_estimated_floor_is_labelled_with_the_data_s_normalization():
-    """The scatter is measured from the values as delivered, so the floor is in
-    their units. Labelling it RAW on moment-normalized data would have the
-    consumers divide it by the dipole moment a second time."""
-    dataset = delivery()
-    dataset.normalization = RX_TX_NORMALIZED
-    dataset, _ = estimate_noise_model(dataset)
+def test_an_estimated_floor_is_in_the_raw_array_units_and_needs_no_moment():
+    """The scatter is measured from the raw arrays, so the floor is already in
+    their units: not physical, and `floor()` needs no dipole moment. Marking it
+    physical would have the consumers divide it by the moment a second time."""
+    dataset, _ = estimate_noise_model(delivery())
     model = recorded(dataset)
     channel = dataset.channels[0]
     times = np.asarray(channel.axis.values, dtype=float)
 
-    assert model.normalization == RX_TX_NORMALIZED
-    in_data_units = model.floor(times, dipole_moment=channel.dipole_moment,
-                                normalization=dataset.normalization)
-    assert np.allclose(in_data_units, model.floor(times))
+    assert model.physical is False
+    assert np.allclose(model.floor(times, dipole_moment=channel.dipole_moment),
+                       model.floor(times))
 
 
-def test_a_supplied_floor_reaches_rx_tx_data_divided_by_the_moment():
-    """The platform's deliveries are V/(A·m⁴) and say so nowhere, so the loader
-    assumes rx and a supplied absolute floor would be applied unconverted —
-    wrong by the dipole moment. Declaring the convention first is what makes
-    the division happen."""
-    from ymerflow_processing.filters.normalize import declare_normalization
-    undeclared = delivery()
-    declared, _ = declare_normalization(delivery(), convention=RX_TX_NORMALIZED)
-    for dataset in (undeclared, declared):
-        estimate_noise_model(dataset, noise_level_1ms=1e-9, noise_exponent=0.0)
+def test_a_supplied_floor_is_physical():
+    """The parameter is documented as the floor before moment normalization —
+    physical V/Am², the same number SimPEG takes — so the recorded model marks
+    it physical and divides it by the moment when applied."""
+    dataset, _ = estimate_noise_model(delivery(), noise_level_1ms=1e-9)
 
-    def applied(dataset):
-        channel = dataset.channels[0]
-        return recorded(dataset).floor([REFERENCE_TIME],
-                                       dipole_moment=channel.dipole_moment,
-                                       normalization=dataset.normalization)[0]
-
-    moment = declared.channels[0].dipole_moment
-    assert applied(undeclared) == pytest.approx(1e-9)
-    assert applied(declared) == pytest.approx(1e-9 / moment)
+    assert recorded(dataset).physical is True
 
 
-def test_a_supplied_floor_is_still_stated_raw():
-    """The parameter is documented as the floor before moment normalization,
-    whatever the dataset carries."""
+def test_the_floor_matches_simpegs_uncert_array():
+    """The whole point of the effort: processing culls and weights against the
+    same floor SimPEG weights by at inversion. SimPEG's uncert_array adds an
+    absolute noise term ``noise = (noise_level_1ms / moment) * (t*1e3)**exponent``
+    to the data in physical V/m² — ``dbdt * scalefactor * GateFactor``
+    (simpeg static_instrument base.py uncert_array, dual.py:251). Reproduce that
+    term and check the noise model's floor contribution to the relative std is
+    numerically identical, scalefactor x GateFactor and the moment included."""
+    sf, gf, level, exponent = 1e-12, 2.0, 1e-9, -0.5
     dataset = delivery()
-    dataset.normalization = RX_TX_NORMALIZED
-    dataset, _ = estimate_noise_model(dataset, noise_level_1ms=1e-9)
+    dataset.survey.xyz.model_info["scalefactor"] = sf
+    for channel in dataset.channels:
+        dataset.survey.gex.gex_dict[f"Channel{channel.index}"]["GateFactor"] = gf
 
-    assert recorded(dataset).normalization == RAW
+    # relative_fraction 0 isolates the floor from the proportional component.
+    dataset, _ = estimate_noise_model(dataset, noise_level_1ms=level,
+                                      noise_exponent=exponent, relative_fraction=0.0)
+    model = recorded(dataset)
+
+    for channel in dataset.channels:
+        times = np.asarray(channel.axis.values, dtype=float)
+        data_raw = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
+        moment = channel.dipole_moment
+
+        simpeg_noise = (level / moment) * (times * 1e3) ** exponent    # V/m²
+        data_phys = np.abs(data_raw) * sf * gf                          # V/m²
+        simpeg_floor_relative = simpeg_noise[None, :] / data_phys
+
+        ymerflow_relative = model.relative(
+            data_raw, times, dipole_moment=moment,
+            scalefactor=sf, gate_factor=gf)
+
+        assert np.allclose(ymerflow_relative, simpeg_floor_relative)
 
 
 def test_the_two_components_combine_in_quadrature():

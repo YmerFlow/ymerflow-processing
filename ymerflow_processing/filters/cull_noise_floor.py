@@ -47,7 +47,7 @@ import logging
 import numpy as np
 
 from ..mask import apply_policy, cull, in_use, mark_step
-from .noise import recorded
+from .noise import gate_factor, recorded, scalefactor
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -115,11 +115,16 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
         if times.size != values.shape[1]:
             continue
 
-        # Converted into the data's own normalization. Skipping this is wrong by
-        # the dipole moment and nothing would signal it.
-        floor = model.floor(times,
-                            dipole_moment=getattr(channel, "dipole_moment", None),
-                            normalization=dataset.normalization)
+        # Expressed in the raw array units the values are stored in, so the
+        # magnitude comparison below is like-for-like. For a physical (supplied)
+        # floor this divides by the dipole moment and by scalefactor × GateFactor;
+        # skipping either is wrong by orders of magnitude and nothing would
+        # signal it.
+        floor = model.floor_in_array_units(
+            times,
+            dipole_moment=getattr(channel, "dipole_moment", None),
+            scalefactor=scalefactor(dataset),
+            gate_factor=gate_factor(dataset, channel))
 
         # Magnitude against the floor: a negative datum is below it in the sense
         # that matters, but that is filter_32's finding to make and not this
@@ -155,7 +160,6 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
     report.distributions = {
         "model": model.to_dict(),
         "margin": float(margin),
-        "normalization": dataset.normalization,
         "per_channel": per_channel,
         "removed": removed,
         "policy": {"start_gate": start_gate, "spread_earlier": spread_earlier,

@@ -569,6 +569,18 @@ downstream tilt correction becomes a no-op rather than applying garbage. If the 
 fields are absent entirely, they are created as zero.
 
 ### filter_08
+
+> **SUPERSEDED (fixed-rx-tx-normalization).** This filter and its declare/convert
+> steps are retired. The amplitude convention is no longer mutable metadata: the
+> data on disk is fixed in the SimPEG `static_instrument` format upstream by the
+> importer — raw dB/dt per unit transmitter moment, with `scalefactor` and
+> `GateFactor` kept as metadata and applied at read, never in the arrays. The
+> convert step was commented out of the standard pipeline, the declare step only
+> re-asserted what import wrote, and the one engine that inverts the data ignores
+> such a field and reads the fixed convention directly. The reasoning below is
+> kept for the historical record of why the mutable-field design existed. The
+> canonical spec is now `simpeg/.../static_instrument/data_format.md`.
+
 **Reads:** values, system description · **Writes:** **values**
 
 Takes an input dataset and converts its amplitudes into the normalization convention the

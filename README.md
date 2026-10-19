@@ -184,8 +184,13 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`filters/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
   rescales amplitudes to what a level transmitter would have measured; the other declares there
   is no trustworthy attitude, so the correction becomes exactly one.
-- **`filters/normalize.py`** (filter_08, filter_09) — conversion between normalization conventions,
-  reading what the dataset declares rather than what a caller asserts, and the nominal current.
+- **`filters/normalize.py`** (filter_09) — the nominal current. filter_08's
+  amplitude-convention steps are **retired**: the data on disk is fixed in the
+  SimPEG `static_instrument` convention upstream by the importer (raw dB/dt per
+  unit transmitter moment, with `scalefactor` and `GateFactor` applied at read),
+  so there is no convention left to declare or convert. The noise-floor step
+  alone materializes physical units transiently; see
+  `simpeg/.../static_instrument/data_format.md` for the canonical spec.
 - **`average_along_line`** (filter_10) — the along-line weighted average, which `01` calls the
   most consequential filter in the library. Tapered kernel, widths that grow with gate time,
   validity by effective sample size, and a ratio of convolutions rather than a loop per datum.
@@ -330,8 +335,8 @@ yf-process run acquisition-qc --xyz DELIVERY.xyz --gex SYSTEM.gex --out qc/
 
 `acquisition-qc` grades a delivery and changes no measurement.
 `standard-processing` takes delivered data to inversion-ready and **does** change
-it. `manual-processing` declares the convention and assigns uncertainties, and
-leaves every removal to a person in the plot — no culling, no averaging.
+it. `manual-processing` assigns uncertainties from a noise model and leaves every
+removal to a person in the plot — no culling, no averaging.
 `synthetic-data` turns a clean forward model into something that behaves like
 a real delivery.
 

@@ -27,10 +27,12 @@ relative fraction in quadrature. As the signal decays toward the floor the
 assigned uncertainty grows past one, which is how a gate dies honestly rather
 than looking usable forever.
 
-Normalization is applied here, not assumed: the floor is stated before division
-by transmitter moment, and comparing it against moment-normalized data without
-converting is wrong by three to four orders of magnitude for a high moment, with
-nothing to signal it.
+A supplied floor is physical (V/Am², before moment normalization), so assigning
+divides it by the dipole moment and compares it against the physical form
+``dbdt × scalefactor × GateFactor`` — the same floor SimPEG weights by at
+inversion. Skipping the moment, or ``scalefactor × GateFactor``, is wrong by
+orders of magnitude with nothing to signal it; the noise model carries which the
+floor is and both factors default to 1 when the dataset has no GEX.
 """
 
 import logging
@@ -40,7 +42,7 @@ import pandas as pd
 
 from ..dataset import role_key
 from ..distribution import summarize
-from .noise import recorded
+from .noise import gate_factor, recorded, scalefactor
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -112,7 +114,8 @@ def assign_uncertainty(dataset, stash: bool = True):
         relative = model.relative(
             values.to_numpy(dtype=float), times,
             dipole_moment=getattr(channel, "dipole_moment", None),
-            normalization=dataset.normalization)
+            scalefactor=scalefactor(dataset),
+            gate_factor=gate_factor(dataset, channel))
         dataset.layer_data[std_key] = pd.DataFrame(
             relative, index=values.index, columns=values.columns)
 
@@ -146,7 +149,6 @@ def assign_uncertainty(dataset, stash: bool = True):
 
     report.distributions = {
         "model": model.to_dict(),
-        "normalization": dataset.normalization,
         "per_channel": per_channel,
         "stashed": STASH_SUFFIX if stash else None,
     }

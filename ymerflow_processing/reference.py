@@ -60,9 +60,6 @@ GROUPS = [
 #: plausible-looking wrong pipeline gets wrong. Each is recorded in
 #: ``building_plans/01``; none is discoverable from a signature.
 ORDERING = [
-    ("declare_normalization", "estimate_noise_model",
-     "a supplied floor is converted by the convention the dataset declares; "
-     "declared afterwards, it was applied unconverted"),
     ("estimate_noise_model", "assign_uncertainty",
      "estimation precedes assignment: there is nothing to assign from"),
     ("assign_uncertainty", "perturb_from_uncertainty",

@@ -20,7 +20,6 @@ These are easy to violate silently and cannot be inferred from a signature.
 
 A wrong order here does not fail. It produces plausible nonsense.
 
-- `declare_normalization` before `estimate_noise_model` — a supplied floor is converted by the convention the dataset declares; declared afterwards, it was applied unconverted
 - `estimate_noise_model` before `assign_uncertainty` — estimation precedes assignment: there is nothing to assign from
 - `assign_uncertainty` before `perturb_from_uncertainty` — noise is drawn from the assigned uncertainty, not from a system default
 - `assign_uncertainty` before `average_along_line` — averaging propagates the uncertainty, so it must exist first
@@ -58,10 +57,6 @@ Label flightlines, without removing anything.
 ### compute_misfit
 compute_misfit(result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset, rms_column: str = 'resdata')
 Write misfit between the data and a forward synthetic as columns.
-
-### convert_normalization
-convert_normalization(to: str = 'rx_tx', stash: bool = True)
-Convert amplitudes into ``to``, from whatever the dataset declares.
 
 ### copy_array
 copy_array(source: str, destination: str)
@@ -106,10 +101,6 @@ Disable gates whose measured value is negative.
 ### cull_sparse_soundings
 cull_sparse_soundings(minimum_gates: int)
 Disable soundings whose usable gate count has fallen below ``minimum``.
-
-### declare_normalization
-declare_normalization(convention: str, override: bool = False)
-State which convention the amplitudes are already in. Changes no value.
 
 ### disable_initial_gates
 disable_initial_gates(gates: dict | int | None = None)

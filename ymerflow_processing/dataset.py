@@ -66,16 +66,13 @@ log = logging.getLogger(__name__)
 METHOD_GROUP = "ymerflow.processing.methods"
 
 
-# ── Normalization conventions ────────────────────────────────────────────────
-# Data arrives in one of these and the difference is orders of magnitude. The
-# dataset carries which one it is in so a step can check rather than trust
-# (see filter_08 in building_plans/01).
-
-RAW = "raw"                       # instrument units, receiver response not removed
-RX_NORMALIZED = "rx"              # V/m^2  — divided by receiver area x turns
-RX_TX_NORMALIZED = "rx_tx"        # V/(A m^4) — additionally by transmitter moment
-
-NORMALIZATIONS = (RAW, RX_NORMALIZED, RX_TX_NORMALIZED)
+# ── The amplitude convention is fixed, not metadata ──────────────────────────
+# Data on disk is in exactly the SimPEG static_instrument format: raw dbdt_chNgt
+# per unit transmitter moment, with scalefactor (model_info) and GateFactor (GEX)
+# kept as metadata and applied at read, never baked into the arrays. There is no
+# longer a mutable `normalization` field: the convention is fixed upstream by the
+# importer, which lands every delivery in this one format. See
+# simpeg/.../static_instrument/data_format.md.
 
 
 # ── The second axis of an array family ───────────────────────────────────────
@@ -569,8 +566,6 @@ class Dataset:
     ----------
     survey : libaarhusxyz.Survey
         The data file and its system description, already read.
-    normalization : str
-        The convention the amplitudes are in; one of ``NORMALIZATIONS``.
     crs : str | None
         The coordinate reference system, where known. Left unset, whatever the
         delivery carries is kept.
@@ -579,15 +574,9 @@ class Dataset:
     def __init__(
         self,
         survey: libaarhusxyz.Survey,
-        normalization: str = RX_NORMALIZED,
         crs: str | None = None,
     ):
-        if normalization not in NORMALIZATIONS:
-            raise ValueError(
-                f"normalization must be one of {NORMALIZATIONS}, got {normalization!r}"
-            )
         self.survey = survey
-        self.normalization = normalization
         # Only when stated. Assigning None would clobber a projection the
         # delivery already carries, and a dataset imported through the platform
         # always carries one.
@@ -925,7 +914,7 @@ class Dataset:
         """
         # type(self) rather than Dataset: a subclass must not be silently
         # downgraded to the base class by copying.
-        new = type(self)(_copy_survey(self.survey), self.normalization, self.crs)
+        new = type(self)(_copy_survey(self.survey), self.crs)
         # history is not copied: it lives in model_info, which the survey copy
         # already brought along. Copying it here would work but would give the
         # field two homes, and the one that round-trips should be the only one.
@@ -936,7 +925,6 @@ class Dataset:
         return (
             f"<Dataset {self.n_soundings} soundings, "
             f"method={self.method!r}, {self.n_channels} channel(s), "
-            f"normalization={self.normalization!r}, "
             f"{len(self.history)} steps applied>"
         )
 
@@ -948,8 +936,7 @@ def _plain(value):
 
 # ── Loading ──────────────────────────────────────────────────────────────────
 
-def load(xyz, gex, normalization: str | None = None,
-         crs: str | None = None) -> Dataset:
+def load(xyz, gex, crs: str | None = None) -> Dataset:
     """A dataset read from a survey file and a system description.
 
     Both are paths. That is deliberate and is what keeps the library usable on
@@ -963,10 +950,6 @@ def load(xyz, gex, normalization: str | None = None,
         The survey file.
     gex : str | Path
         The system description.
-    normalization : str | None
-        The convention the data is in. Unset, the one the file declares is
-        used, and ``rx`` if it declares none. Given, it wins over the file —
-        a caller who names one is correcting the record.
     crs : str | None
         The coordinate reference system the positions are in, where known.
 
@@ -1006,20 +989,10 @@ def load(xyz, gex, normalization: str | None = None,
             raise FileNotFoundError(f"No {role} at {path}")
     survey = libaarhusxyz.Survey(str(xyz), str(gex))
 
-    # A convention the file declares beats the caller's default. filter_08 says
-    # 01's fix is to make the convention "an explicit property of the dataset
-    # that travels with it" — an assertion made once at load time does not
-    # survive the file, so a written dataset records what it is and this reads
-    # it back. An explicit argument still wins, since a caller who names one is
-    # correcting the record rather than guessing — which is why the default is
-    # None and not RX_NORMALIZED: with the latter as a sentinel, a caller
-    # explicitly asking for rx on a file declaring rx_tx was overruled.
-    if normalization is None:
-        declared = survey.xyz.model_info.get("normalization")
-        normalization = (declared if declared in NORMALIZATIONS
-                         else RX_NORMALIZED)
-
-    dataset = Dataset(survey, normalization, crs)
+    # No amplitude convention to read or default: the data on disk is always the
+    # SimPEG static_instrument format (raw dbdt per unit transmitter moment, with
+    # scalefactor and GateFactor applied at read), fixed upstream by the importer.
+    dataset = Dataset(survey, crs)
 
     # Imported here rather than at module scope: the culling package imports
     # Dataset, so a top-level import back would be a cycle.

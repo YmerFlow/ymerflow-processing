@@ -30,16 +30,31 @@ Since this format stores uncertainty as a **relative** standard deviation, the
 floor enters as its own relative contribution — ``floor(t) / |value|`` — which
 grows without bound as the signal decays. That is the whole point.
 
-Normalization, which is easy to get wrong silently
---------------------------------------------------
-``01``: the floor is *"expressed before division by transmitter moment, so it
-must be normalized consistently with the data before use."*
+Numerically identical to SimPEG's floor
+---------------------------------------
+The data on disk is the SimPEG static_instrument format: raw ``dbdt`` per unit
+transmitter moment, with ``scalefactor`` (model_info) and ``GateFactor`` (GEX)
+applied at read, never baked into the arrays. So the floor here is SimPEG's
+``uncert_array`` floor exactly — ``N(t) = (noise_level_1ms / dipole_moment) ·
+(t·1000)^exponent`` — with ``noise_level_1ms`` in physical units (V/Am², before
+moment normalization), the ``1e3`` ms reference, the ``−0.5`` default exponent,
+and the per-channel nominal ``ApproxDipoleMoment`` divided out. This is the one
+amplitude conversion that remains, and it is irreducible.
 
-A floor quoted in raw instrument units compared against moment-normalized data is
-wrong by the dipole moment — three to four orders of magnitude for a SkyTEM high
-moment. Nothing errors; the floor simply never bites, or bites everything. So the
-model records the normalization its floor is stated in, and every consumer
-converts before comparing.
+A **supplied** floor is physical, so it is divided by the moment and compared
+against the physical data the step materializes transiently —
+``dbdt × scalefactor × GateFactor`` — then discarded; the step persists only a
+relative fraction / culling mask in the raw-format arrays. An **estimated** floor
+is measured from the raw arrays by ``_scatter``, so it is already in their units:
+``scalefactor`` and ``GateFactor`` cancel in the ratio ``floor / |value|`` and no
+moment division is needed. The ``physical`` flag on the model records which of
+the two it is, and both ``scalefactor`` and ``GateFactor`` default to ``1.0`` when
+the dataset carries no GEX (a synthetic system).
+
+Getting this wrong is silent and catastrophic: a supplied floor (physical V/Am²)
+divided by the raw ``dbdt`` without ``scalefactor × GateFactor`` is off by exactly
+that product — ~10¹² with the usual ``scalefactor = 1e-12``. The cross-check test
+against SimPEG's ``uncert_array`` is what pins it.
 
 Estimated from the scatter, not from the level
 ----------------------------------------------
@@ -80,7 +95,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..dataset import RAW, RX_NORMALIZED, RX_TX_NORMALIZED
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -109,6 +123,30 @@ SCOPES = (PER_LINE, PER_FLIGHT, PER_DATASET)
 REGISTRY = "noise_model"
 
 
+def scalefactor(dataset) -> float:
+    """The model_info ``scalefactor`` (raw → V/m²), or ``1.0`` when absent.
+
+    Not baked into the arrays; read here only to materialize the physical form a
+    supplied floor is compared against. A synthetic dataset carries none, and
+    ``1.0`` is then the identity SimPEG assumes.
+    """
+    value = dataset.survey.xyz.model_info.get("scalefactor", 1.0)
+    return float(value) if value else 1.0
+
+
+def gate_factor(dataset, channel) -> float:
+    """The channel's GEX ``GateFactor`` (receiver geometry), or ``1.0`` when absent.
+
+    A ``SyntheticTEMXYZSystem``-style dataset carries no GEX and behaves as
+    ``GateFactor = 1`` throughout, so a missing GEX or field is tolerated rather
+    than an error — exactly as SimPEG's ``dual.py`` falls back with ``or 1.0``.
+    """
+    gex = getattr(dataset.survey, "gex", None)
+    block = getattr(gex, "gex_dict", {}).get(f"Channel{channel.index}", {}) if gex else {}
+    value = block.get("GateFactor", 1.0) if isinstance(block, dict) else 1.0
+    return float(value) if value else 1.0
+
+
 @dataclass
 class NoiseModel:
     """The floor, its slope, and the relative fraction — with their provenance.
@@ -122,9 +160,13 @@ class NoiseModel:
         The power-law slope of the floor in time; ``-0.5`` is typical.
     relative_fraction : float | None
         Systematic error as a fraction of signal.
-    normalization : str
-        The convention ``level_1ms`` is stated in. Not decoration: a floor in
-        raw units against moment-normalized data is wrong by the dipole moment.
+    physical : bool
+        Whether ``level_1ms`` is in physical units (V/Am², before moment
+        normalization) — ``True`` for a supplied floor, which is then divided by
+        the dipole moment and compared against physical data. ``False`` for an
+        estimated floor, measured from the raw arrays and already in their units.
+        Not decoration: a physical floor compared against raw data without the
+        moment and ``scalefactor × GateFactor`` is wrong by orders of magnitude.
     scope : str
         The grain the floor was estimated over — ``per_line``, ``per_flight``
         or ``per_dataset``.
@@ -138,7 +180,7 @@ class NoiseModel:
     level_1ms: float | None = None
     exponent: float = DEFAULT_EXPONENT
     relative_fraction: float | None = None
-    normalization: str = RAW
+    physical: bool = False
     scope: str = PER_DATASET
     #: Which values were supplied rather than estimated, and what the estimate
     #: said anyway. R9: an override changes what is applied, never what is
@@ -146,22 +188,22 @@ class NoiseModel:
     supplied: tuple = ()
     measured: dict = field(default_factory=dict)
 
-    def floor(self, times, dipole_moment=None, normalization=None):
-        """The absolute floor at each time, in the data's own units.
+    def floor(self, times, dipole_moment=None):
+        """The absolute floor at each time, SimPEG's ``noise`` term exactly.
 
-        Converted from the normalization the floor is stated in to the one the
-        data carries. Moment normalization is the only conversion that changes
-        the number, and it is the one that is silently catastrophic if skipped.
+        For a **physical** (supplied) floor this is ``(level_1ms / dipole_moment)
+        · (t·1e3)^exponent`` — identical to SimPEG's ``uncert_array`` noise, in
+        physical V/m². The moment division is the one amplitude conversion that
+        remains, and it is silently catastrophic if skipped. For an **estimated**
+        floor this is ``level_1ms · (t·1e3)^exponent``, already in the raw array
+        units it was measured from, and no moment is needed.
 
         Parameters
         ----------
         times : array_like
             Gate centre times, in seconds.
         dipole_moment : float | None
-            The channel's transmitter moment, needed only when converting to
-            or from ``rx_tx``.
-        normalization : str | None
-            The convention to state the floor in. The model's own if unset.
+            The channel's transmitter moment, needed only for a physical floor.
 
         Returns
         -------
@@ -171,8 +213,8 @@ class NoiseModel:
         Raises
         ------
         ValueError
-            If the model has no floor, or a moment conversion is needed and no
-            dipole moment is known.
+            If the model has no floor, or the floor is physical and no dipole
+            moment is known.
         """
         if self.level_1ms is None:
             raise ValueError(
@@ -183,41 +225,53 @@ class NoiseModel:
         with np.errstate(divide="ignore", invalid="ignore"):
             level = self.level_1ms * (times / REFERENCE_TIME) ** self.exponent
 
-        target = normalization or self.normalization
-        if target == self.normalization:
+        if not self.physical:
             return level
-        if RX_TX_NORMALIZED in (target, self.normalization):
-            if dipole_moment in (None, 0) or not np.isfinite(dipole_moment):
-                raise ValueError(
-                    f"The floor is stated for {self.normalization!r} data and "
-                    f"this is {target!r}, so it must be scaled by the dipole "
-                    f"moment — but none is known for this channel."
-                )
-            if target == RX_TX_NORMALIZED:
-                return level / dipole_moment
-            return level * dipole_moment
-        # RAW against RX_NORMALIZED differ by receiver area and turns, which the
-        # data object has already applied to both alike.
-        return level
+        if dipole_moment in (None, 0) or not np.isfinite(dipole_moment):
+            raise ValueError(
+                "The floor is stated in physical units (V/Am², before moment "
+                "normalization) and must be divided by the channel's dipole "
+                "moment — but none is known for this channel."
+            )
+        return level / dipole_moment
 
-    def relative(self, values, times, dipole_moment=None, normalization=None):
+    def floor_in_array_units(self, times, dipole_moment=None,
+                             scalefactor=1.0, gate_factor=1.0):
+        """The floor in the raw on-disk array units ``dbdt`` is stored in.
+
+        A physical floor is divided back by ``scalefactor × gate_factor`` so it
+        can be compared against, or divided into, the raw arrays — the transient
+        physical form ``floor()`` returns lives only long enough for this. An
+        estimated floor is already in those units and passes through unchanged,
+        the factors cancelling as the module docstring describes.
+        """
+        floor = self.floor(times, dipole_moment)
+        if self.physical:
+            return floor / (scalefactor * gate_factor)
+        return floor
+
+    def relative(self, values, times, dipole_moment=None,
+                 scalefactor=1.0, gate_factor=1.0):
         """Relative uncertainty per datum: the two components in quadrature.
 
-        The floor's contribution is ``floor / |value|`` because this format
-        stores uncertainty relative to the value — so as the signal decays
-        toward the floor, the assigned uncertainty grows toward one and past it,
-        which is how a gate dies honestly.
+        The floor's contribution is ``floor / |value|`` with both in the raw
+        array units — so as the signal decays toward the floor, the assigned
+        uncertainty grows toward one and past it, which is how a gate dies
+        honestly. For a physical floor the comparison is equivalently
+        ``floor_physical / |data × scalefactor × gate_factor|``, which is what
+        makes it numerically identical to SimPEG's.
 
         Parameters
         ----------
         values : array_like
-            The data, soundings by gates.
+            The raw data arrays, soundings by gates.
         times : array_like
             Gate centre times, one per gate.
         dipole_moment : float | None
-            The channel's transmitter moment, for the floor's conversion.
-        normalization : str | None
-            The convention ``values`` are in. The model's own if unset.
+            The channel's transmitter moment, for a physical floor.
+        scalefactor, gate_factor : float
+            The model_info ``scalefactor`` and the channel's GEX ``GateFactor``,
+            both ``1.0`` when absent. Used only for a physical floor.
 
         Returns
         -------
@@ -225,7 +279,8 @@ class NoiseModel:
             Relative uncertainty, the same shape as ``values``.
         """
         values = np.asarray(values, dtype=float)
-        floor = self.floor(times, dipole_moment, normalization)
+        floor = self.floor_in_array_units(times, dipole_moment,
+                                          scalefactor, gate_factor)
         relative = 0.0 if self.relative_fraction is None else self.relative_fraction
 
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -243,7 +298,7 @@ class NoiseModel:
         """
         return {"level_1ms": self.level_1ms, "exponent": self.exponent,
                 "relative_fraction": self.relative_fraction,
-                "normalization": self.normalization, "scope": self.scope,
+                "physical": self.physical, "scope": self.scope,
                 "supplied": list(self.supplied), "measured": self.measured}
 
 
@@ -252,7 +307,7 @@ def _encode(model: NoiseModel) -> str:
              f"exponent={model.exponent:g}",
              (f"relative_fraction={model.relative_fraction:g}"
               if model.relative_fraction is not None else ""),
-             f"normalization={model.normalization}",
+             f"physical={'true' if model.physical else 'false'}",
              f"scope={model.scope}"]
     return " ".join(p for p in parts if p)
 
@@ -294,8 +349,10 @@ def recorded(dataset) -> NoiseModel | None:
         name, _, value = entry.partition("=")
         if not value:
             continue
-        if name in ("normalization", "scope"):
+        if name == "scope":
             fields[name] = value
+        elif name == "physical":
+            fields[name] = value == "true"
         else:
             try:
                 fields[name] = float(value)
@@ -370,11 +427,12 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
         one, ``Survey`` is already the data object's class, and a campaign may
         map to one dataset, part of one, or several.
     noise_level_1ms : float | None
-        The absolute floor at 1 ms, before moment normalization — the
-        instrument's own dB/dt noise. Applied to the data, it is divided by
-        each channel's dipole moment when the dataset declares ``rx_tx``, and
-        left as it is otherwise; so the dataset's declaration must be right
-        (see ``declare_normalization``). Absent means estimate.
+        The absolute floor at 1 ms in physical units (V/Am², before moment
+        normalization) — the instrument's own dB/dt noise, the same number
+        SimPEG's ``uncertainties__noise_level_1ms`` takes. Applied to the data it
+        is divided by each channel's dipole moment and compared against the
+        physical form ``dbdt × scalefactor × GateFactor``. Absent means estimate,
+        and an estimated floor is in the raw arrays' own units instead.
     noise_exponent : float | None
         The power-law slope. Absent means fit it; ``-0.5`` is the usual value
         and a fitted number far from it usually means the gates involved are
@@ -467,19 +525,19 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
                                  ("relative_fraction", relative_fraction))
         if value is not None)
 
-    # A supplied floor is stated raw, as the parameter documents. An estimated
-    # one is measured from the values as they are, so it is in whatever
-    # normalization the dataset carries — labelling it RAW regardless would
-    # have `floor()` scale it by the dipole moment for moment-normalized data,
-    # a floor three to four orders of magnitude off with nothing to signal it.
+    # A supplied floor is physical (V/Am², pre-moment), as the parameter
+    # documents, so it is divided by the dipole moment and compared against the
+    # physical data. An estimated one is measured from the raw arrays, so it is
+    # already in their units — marking it physical would have `floor()` divide it
+    # by the moment a second time, a floor orders of magnitude off with nothing
+    # to signal it.
     model = NoiseModel(
         level_1ms=noise_level_1ms if noise_level_1ms is not None else measured_level,
         exponent=(noise_exponent if noise_exponent is not None
                   else measured_slope),
         relative_fraction=(relative_fraction if relative_fraction is not None
                            else declared),
-        normalization=(RAW if noise_level_1ms is not None
-                       else dataset.normalization),
+        physical=noise_level_1ms is not None,
         scope=scope,
         supplied=supplied,
         measured={"level_1ms": measured_level, "exponent": measured_slope},

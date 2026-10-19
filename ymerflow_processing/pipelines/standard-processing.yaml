@@ -70,12 +70,13 @@ steps:
   - correct_tilt:
       max_correction: 4.0     # refuse beyond this factor
 
-  # Normalization is where unit confusion concentrates: the conventions differ
-  # by orders of magnitude, so getting it wrong is not subtle in the data but
-  # is entirely silent in the code. Uncomment only if the delivery is not
-  # already in the convention the inversion expects.
+  # The amplitude convention is no longer a step: the data on disk is always the
+  # SimPEG static_instrument format (raw dB/dt per unit transmitter moment, with
+  # scalefactor and GateFactor applied at read), fixed by the importer, so there
+  # is nothing here to convert or declare. Overwrite the per-sounding current
+  # with the system description's nominal only where the measured current is
+  # missing or known to be wrong — qc_04 is what tells you.
   #
-  # - convert_normalization: {to: rx_tx}
   # - apply_nominal_current: {}
 
   # Terrain, if you have a model. Gives elevation (height above the geoid),

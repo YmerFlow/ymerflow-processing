@@ -42,7 +42,7 @@ import logging
 import numpy as np
 
 from .mask import in_use
-from .filters.noise import recorded
+from .filters.noise import gate_factor, recorded, scalefactor
 from .pipeline import FILTER_GROUP, load_steps
 
 log = logging.getLogger(__name__)
@@ -89,22 +89,17 @@ def _draw_transient(ax, times, values, mask, marker, size, label_prefix=""):
     return drawn
 
 
-#: What the y axis is measuring, by the normalization the dataset declares.
-#: The three conventions differ by orders of magnitude and are easy to mistake
-#: for one another, so a figure that just says "response" is one a reader cannot
-#: check — and the convention is a property of the dataset precisely so it does
-#: not have to be asserted.
+#: The unit the arrays are stored in. Data on disk is the SimPEG format — raw
+#: instrument dB/dt per unit transmitter moment, with scalefactor and GateFactor
+#: applied only at read — so the plotted arrays are in instrument units and the
+#: convention is fixed rather than something a figure has to assert.
 #:
 #: TEM-specific: dB/dt is what a time-domain instrument measures. When a second
 #: method registers (#11) this belongs on the method adapter beside the gate-time
 #: axis, which is the same knowledge one level up.
-Y_UNITS = {
-    "raw": "instrument units",
-    "rx": "V/m$^2$",
-    "rx_tx": "V/(A$\\cdot$m$^4$)",
-}
+Y_UNIT = "instrument units"
 
-#: What the instrument measures. TEM-specific, like the units above.
+#: What the instrument measures. TEM-specific, like the unit above.
 Y_QUANTITY = "dB/dt"
 
 
@@ -112,12 +107,11 @@ def _y_label(dataset, absolute: bool = False) -> str:
     """What the vertical axis is: the quantity, then its unit.
 
     Built in two parts rather than one string so the absolute-value bars wrap
-    the quantity alone — ``|dB/dt| [V/m^2]`` rather than ``|dB/dt [V/m^2]|``,
-    which reads as the magnitude of a unit.
+    the quantity alone — ``|dB/dt| [instrument units]`` rather than
+    ``|dB/dt [instrument units]|``, which reads as the magnitude of a unit.
     """
     quantity = f"|{Y_QUANTITY}|" if absolute else Y_QUANTITY
-    unit = Y_UNITS.get(getattr(dataset, "normalization", None))
-    return f"{quantity} [{unit}]" if unit else quantity
+    return f"{quantity} [{Y_UNIT}]"
 
 
 #: What a filter does to a transient, for drawing purposes.
@@ -151,7 +145,6 @@ SHAPES = {
     # Values changed. Before against after, on the same axes.
     "average_along_line": TRANSFORM,
     "correct_tilt": TRANSFORM,
-    "convert_normalization": TRANSFORM,
     "apply_nominal_current": TRANSFORM,
     "perturb_from_uncertainty": TRANSFORM,
     "compute_misfit": TRANSFORM,
@@ -168,7 +161,6 @@ SHAPES = {
     "zero_attitude": GEOMETRY,
 
     # Changes no measurement.
-    "declare_normalization": NOTHING,
     "copy_array": NOTHING,
     "copy_attribute": NOTHING,
     "remove_array": NOTHING,
@@ -420,9 +412,11 @@ def _uncertainty(fig, before, after, channel, sounding, report):
         # squashed into a corner.
         live = np.isfinite(values)
         span = times[live] if live.any() else times
-        floor = model.floor(span,
-                            dipole_moment=getattr(channel, "dipole_moment", None),
-                            normalization=after.normalization)
+        floor = model.floor_in_array_units(
+            span,
+            dipole_moment=getattr(channel, "dipole_moment", None),
+            scalefactor=scalefactor(after),
+            gate_factor=gate_factor(after, channel))
         ax.plot(span, np.abs(floor), "--", color="C3", linewidth=1.4,
                 label="estimated noise floor")
 

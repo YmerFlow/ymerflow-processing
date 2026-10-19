@@ -1,9 +1,11 @@
-"""filter_06 to filter_09 — geometry, conventions and constants.
+"""filter_06, filter_07 and filter_09 — geometry and the nominal current.
 
 These are the first steps in the library that change what a measurement *says*
 rather than which measurements count. Every one of them is silently wrong when
-misapplied — a doubly tilt-corrected sounding, or one converted from the wrong
-convention, is a plausible sounding of a different earth.
+misapplied — a doubly tilt-corrected sounding is a plausible sounding of a
+different earth. (filter_08, the amplitude convention, is gone: the data on disk
+is fixed in the SimPEG format upstream, so there is nothing left to declare or
+convert.)
 """
 
 import json
@@ -17,13 +19,7 @@ from ymerflow_processing.filters.attitude import (
     REGISTRY as TILT_REGISTRY, STASHED_PITCH, STASHED_ROLL, correct_tilt,
     corrected, zero_attitude,
 )
-from ymerflow_processing.dataset import (
-    RAW, RX_NORMALIZED, RX_TX_NORMALIZED, load,
-)
-from ymerflow_processing.filters.normalize import (
-    apply_nominal_current, convert_normalization, declare_normalization,
-    recorded_normalization,
-)
+from ymerflow_processing.filters.normalize import apply_nominal_current
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
 N = 12
@@ -186,157 +182,6 @@ def test_the_stash_names_fit_a_shapefile_field():
         assert len(name) <= 10
 
 
-# ── Declaring the convention ─────────────────────────────────────────────────
-
-def test_declaring_sets_and_records_the_convention_and_changes_no_value():
-    """A delivery rarely says what it is; the loader assumes rx. The declaration
-    is a step so it sits in the pipeline document and the history, not in a
-    loader argument nobody sees."""
-    dataset = delivery()
-    before = data(dataset).copy()
-
-    dataset, report = declare_normalization(dataset, convention=RX_TX_NORMALIZED)
-
-    assert dataset.normalization == RX_TX_NORMALIZED
-    assert recorded_normalization(dataset) == RX_TX_NORMALIZED
-    assert np.array_equal(data(dataset), before)
-    assert report.distributions["was"] == RX_NORMALIZED
-
-
-def test_a_declaration_contradicting_the_record_is_refused():
-    """The record was written by a step that knew. A declaration disagreeing
-    with it is the undetectable, orders-of-magnitude error 01 names."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    with pytest.raises(ValueError, match="records its normalization"):
-        declare_normalization(dataset, convention=RAW)
-    dataset, report = declare_normalization(dataset, convention=RAW, override=True)
-    assert recorded_normalization(dataset) == RAW
-    assert any("Overrode" in n for n in report.notes)
-
-
-def test_a_declaration_survives_a_round_trip(tmp_path):
-    dataset, _ = declare_normalization(delivery(), convention=RX_TX_NORMALIZED)
-    xyz, gex = tmp_path / "d.xyz", tmp_path / "s.gex"
-    dataset.survey.dump(xyzfile=str(xyz), gexfile=str(gex))
-
-    assert load(xyz, gex).normalization == RX_TX_NORMALIZED
-
-
-def test_an_unknown_convention_is_refused():
-    with pytest.raises(ValueError, match="Unknown normalization"):
-        declare_normalization(delivery(), convention="volts")
-
-
-# ── filter_08: normalization ─────────────────────────────────────────────────
-
-def test_it_takes_no_claim_about_the_current_convention():
-    """01 names that assertion as the defect: a wrong one is undetectable and
-    wrong by orders of magnitude."""
-    import inspect
-    assert "from" not in inspect.signature(convert_normalization).parameters
-    assert "current" not in inspect.signature(convert_normalization).parameters
-
-
-def test_converting_to_moment_normalized_divides_by_the_dipole_moment():
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    moment = dataset.channels[0].dipole_moment
-
-    dataset, report = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    assert np.allclose(data(dataset), 1e-9 / moment)
-    assert report.distributions["from"] == RX_NORMALIZED
-    assert report.distributions["to"] == RX_TX_NORMALIZED
-
-
-def test_each_channel_uses_its_own_moment():
-    """A dual-moment system differs between channels by a factor of tens."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    moments = [c.dipole_moment for c in dataset.channels]
-    assert moments[0] != moments[1]
-
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-    assert np.allclose(data(dataset, 0), 1e-9 / moments[0])
-    assert np.allclose(data(dataset, 1), 1e-9 / moments[1])
-
-
-def test_converting_back_recovers_the_values():
-    """Each step is a division by a positive constant, so it is invertible."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-    dataset, _ = convert_normalization(dataset, to=RX_NORMALIZED)
-
-    assert np.allclose(data(dataset), 1e-9)
-
-
-def test_asking_for_the_convention_it_is_already_in_is_a_no_op():
-    dataset = delivery()
-    dataset.normalization = RX_TX_NORMALIZED
-    dataset, report = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    assert np.allclose(data(dataset), 1e-9)
-    assert any("nothing was converted" in n for n in report.notes)
-
-
-def test_the_dataset_declaration_is_updated():
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    assert dataset.normalization == RX_TX_NORMALIZED
-    assert recorded_normalization(dataset) == RX_TX_NORMALIZED
-
-
-def test_the_convention_survives_a_round_trip(tmp_path):
-    """The half a constructor argument cannot provide: an assertion made once at
-    load time does not survive the file."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    xyz, gex = tmp_path / "d.xyz", tmp_path / "s.gex"
-    dataset.survey.dump(xyzfile=str(xyz), gexfile=str(gex))
-
-    assert load(xyz, gex).normalization == RX_TX_NORMALIZED
-
-
-def test_an_explicit_argument_wins_over_the_file_s_declaration(tmp_path):
-    """A caller who names the convention is correcting the record. With `rx`
-    doubling as the default, asking for it explicitly on a file declaring
-    `rx_tx` was overruled by the file."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    dataset, _ = convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-    xyz, gex = tmp_path / "d.xyz", tmp_path / "s.gex"
-    dataset.survey.dump(xyzfile=str(xyz), gexfile=str(gex))
-
-    assert load(xyz, gex, normalization=RX_NORMALIZED).normalization == RX_NORMALIZED
-
-
-def test_a_missing_constant_refuses_rather_than_converting_some():
-    """Converting the rest would leave one dataset in two conventions, which is
-    the failure this filter exists to prevent."""
-    dataset = delivery()
-    dataset.normalization = RX_NORMALIZED
-    del dataset.survey.gex.gex_dict["Channel1"]["ApproxDipoleMoment"]
-    dataset.survey.gex.gex_dict["Channel1"]["TxApproximateCurrent"] = 0.0
-    dataset.survey.gex.gex_dict["General"]["TxLoopArea"] = 0.0
-
-    with pytest.raises(ValueError, match="does not give the constant"):
-        convert_normalization(dataset, to=RX_TX_NORMALIZED)
-
-
-def test_an_unknown_convention_names_the_available_ones():
-    with pytest.raises(ValueError, match="Unknown normalization"):
-        convert_normalization(delivery(), to="per_amp")
-
-
 # ── filter_09: nominal current ───────────────────────────────────────────────
 
 def test_it_writes_the_declared_nominal():
@@ -397,7 +242,6 @@ def test_the_reports_survive_serialization():
 
 
 @pytest.mark.parametrize("name", ["correct_tilt", "zero_attitude",
-                                  "convert_normalization",
                                   "apply_nominal_current"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)

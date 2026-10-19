@@ -210,16 +210,16 @@ def noisy(dataset, seed=7):
     return dataset
 
 
-def test_manual_processing_declares_before_the_noise_model(delivery):
-    """A supplied floor is converted by what the dataset declares; declared
-    afterwards it has already been applied unconverted."""
+def test_manual_processing_estimates_before_it_assigns(delivery):
+    """There is nothing to assign from until the noise model is estimated. There
+    is no declare_normalization step any more — the data on disk is fixed in the
+    SimPEG convention upstream, so the chain opens straight at the noise model."""
     ran = [name for name, _ in Pipeline.load("manual-processing").steps]
-    assert ran.index("declare_normalization") < ran.index("estimate_noise_model")
+    assert "declare_normalization" not in ran
     assert ran.index("estimate_noise_model") < ran.index("assign_uncertainty")
 
     dataset, report = ProcessingRunner(
         Pipeline.load("manual-processing")).run(noisy(delivery))
-    assert dataset.normalization == "rx_tx"
     assert "assign_uncertainty" in [s.step for s in report.steps]
 
 
