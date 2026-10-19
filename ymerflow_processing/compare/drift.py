@@ -44,6 +44,7 @@ to the outlier being looked for.
 """
 
 import logging
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -185,7 +186,8 @@ def _ordering(report: dict, index: int):
     return (2, index)
 
 
-def noise_floor_drift(items, reference=None, source_step: str = SOURCE_STEP,
+def noise_floor_drift(items: Sequence[dict], reference: dict | None = None,
+                      source_step: str = SOURCE_STEP,
                       max_ratio: float | None = None):
     """Trend the estimated noise floor across a sequence of deliveries.
 
