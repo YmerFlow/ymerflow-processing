@@ -13,7 +13,7 @@ Compare a candidate implementation against a baseline, per datum.
 **Consumes:** datasets
 
 ```python
-implementation_equivalence(reference = None, relative: float = 1e-06, absolute: float = 0.0, justification: str | None = None, expected_differences = (), quantities = ('data', 'uncertainty', 'mask'), position_tolerance: float = 0.5)
+implementation_equivalence(reference: ymerflow_processing.dataset.Dataset | None = None, relative: float = 1e-06, absolute: float = 0.0, justification: str | None = None, expected_differences: collections.abc.Sequence[dict] = (), quantities: collections.abc.Sequence[str] = ('data', 'uncertainty', 'mask'), position_tolerance: float = 0.5)
 ```
 
 | parameter | default | |
@@ -31,7 +31,7 @@ implementation_equivalence(reference = None, relative: float = 1e-06, absolute: 
 Trend the estimated noise floor across a sequence of deliveries.
 
 ```python
-noise_floor_drift(reference = None, source_step: str = 'estimate_noise_model', max_ratio: float | None = None)
+noise_floor_drift(reference: dict | None = None, source_step: str = 'estimate_noise_model', max_ratio: float | None = None)
 ```
 
 | parameter | default | |
@@ -47,7 +47,7 @@ Trace how the output responds to one varied parameter.
 **Consumes:** datasets
 
 ```python
-parameter_sweep(reference = None, response_column: str | None = None, flat_fraction: float = 0.1, position_tolerance: float = 0.5)
+parameter_sweep(reference: dict | None = None, response_column: str | None = None, flat_fraction: float = 0.1, position_tolerance: float = 0.5)
 ```
 
 | parameter | default | |
@@ -64,7 +64,7 @@ What changed between two processing versions of the same data.
 **Consumes:** datasets
 
 ```python
-version_diff(reference = None, quantities = ('data', 'uncertainty', 'mask'), relative: float = 1e-09, absolute: float = 0.0, position_tolerance: float = 0.5)
+version_diff(reference: ymerflow_processing.dataset.Dataset | None = None, quantities: collections.abc.Sequence[str] = ('data', 'uncertainty', 'mask'), relative: float = 1e-09, absolute: float = 0.0, position_tolerance: float = 0.5)
 ```
 
 | parameter | default | |

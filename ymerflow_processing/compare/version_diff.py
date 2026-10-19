@@ -43,9 +43,11 @@ the median while pushing a handful of soundings out of spec.
 """
 
 import logging
+from collections.abc import Sequence
 
 import numpy as np
 
+from ..dataset import Dataset
 from ..mask import provenance, provenance_key, step_codes
 from ..pipeline import StepReport
 from ..qc.thresholds import TIER_POINTS, verdict_columns
@@ -185,7 +187,8 @@ def _grade_diff(new, old, rows_n, rows_o):
 
 # ── The check ────────────────────────────────────────────────────────────────
 
-def version_diff(items, reference=None, quantities=QUANTITIES,
+def version_diff(items: Dataset | Sequence[Dataset], reference: Dataset | None = None,
+                 quantities: Sequence[str] = QUANTITIES,
                  relative: float = 1e-9, absolute: float = 0.0,
                  position_tolerance: float = POSITION_TOLERANCE):
     """What changed between two processing versions of the same data.
@@ -198,7 +201,7 @@ def version_diff(items, reference=None, quantities=QUANTITIES,
         The older version. Required: which of two versions is the newer one
         cannot be inferred, and getting it backwards reverses the sign of every
         finding while reporting the same magnitudes.
-    quantities : sequence of str | None
+    quantities : sequence of str
         Which of ``data``, ``uncertainty``, ``mask`` to diff.
     relative : float
         Below this fractional change a value counts as unmoved. Tight by

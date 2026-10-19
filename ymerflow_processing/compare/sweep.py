@@ -46,6 +46,7 @@ make, and a knee in one response is not a knee in the one they care about.
 """
 
 import logging
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -220,7 +221,8 @@ def _knee(values, responses, flat_fraction):
 
 # ── The check ────────────────────────────────────────────────────────────────
 
-def parameter_sweep(items, reference=None, response_column: str | None = None,
+def parameter_sweep(items: Sequence[dict], reference: dict | None = None,
+                    response_column: str | None = None,
                     flat_fraction: float = FLAT_FRACTION,
                     position_tolerance: float = POSITION_TOLERANCE):
     """Trace how the output responds to one varied parameter.
