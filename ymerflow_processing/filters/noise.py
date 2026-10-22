@@ -139,7 +139,7 @@ def scalefactor(dataset) -> float:
 
 
 def gate_factor(dataset, channel) -> float:
-    """The channel's GEX ``GateFactor`` (receiver geometry), or ``1.0`` when absent.
+    """The channel's GEX ``GateFactor`` — the Aarhus calibration amplitude factor — or ``1.0`` when absent.
 
     A ``SyntheticTEMXYZSystem``-style dataset carries no GEX and behaves as
     ``GateFactor = 1`` throughout, so a missing GEX or field is tolerated rather
