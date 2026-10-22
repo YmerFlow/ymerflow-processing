@@ -70,7 +70,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
+from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column, stash_key
 from ..distribution import summarize
 from ..pipeline import MISSING, StepReport
 from . import aggregate
@@ -200,6 +200,16 @@ def system_attitude(
                 )
             axes[label] = (named, output)
         elif discovered is not None and discovered in frame.columns:
+            # After correct_tilt_1d the live column is zero for every corrected
+            # sounding and the measured attitude sits under orig_. This check
+            # grades how the aircraft was flown, so it reads the measurement.
+            measured = stash_key(discovered)
+            if measured in frame.columns:
+                report.notes.append(
+                    f"{label} read from {measured!r}: the live column "
+                    f"{discovered!r} has been zeroed by a tilt correction, and "
+                    f"this check grades what was flown.")
+                discovered = measured
             axes[label] = (discovered, output)
 
     if not axes:

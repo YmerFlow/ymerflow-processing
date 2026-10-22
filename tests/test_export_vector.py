@@ -8,9 +8,7 @@ pytest.importorskip("geopandas")
 import geopandas as gpd
 
 from conftest import make_dataset
-from ymerflow_processing.filters.export_vector import (
-    export_vector, truncation_collisions,
-)
+from ymerflow_processing.filters.export_vector import export_vector
 from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, QCRunner, load_steps,
 )
@@ -75,79 +73,41 @@ def test_lines_can_be_declined(tmp_path):
     assert report.distributions["layers"] == {"soundings": 60}
 
 
-# ── Shapefile, only when a contract names it ─────────────────────────────────
+# ── No shapefile ─────────────────────────────────────────────────────────────
 
-def test_a_shapefile_holds_one_geometry_type_so_lines_go_beside(tmp_path):
-    out = tmp_path / "qc.shp"
-    _, report = export_vector(classified(), out, crs=UTM)
+def test_a_shapefile_path_is_refused_and_says_why(tmp_path):
+    """Dropped 2026-10-22 (Ben): its ten-character field names had become a
+    constraint on every column name in the library."""
+    with pytest.raises(ValueError, match="Shapefile is not written"):
+        export_vector(classified(), tmp_path / "qc.shp", crs=UTM)
+    with pytest.raises(ValueError, match="Shapefile is not written"):
+        export_vector(classified(), tmp_path / "qc.gpkg", crs=UTM, format="shp")
 
-    assert (tmp_path / "qc.shp").exists()
-    assert (tmp_path / "qc_lines.shp").exists()
+
+def test_geojson_holds_one_layer_so_lines_go_beside(tmp_path):
+    out = tmp_path / "qc.geojson"
+    _, report = export_vector(classified(), out, crs=WGS84)
+
+    assert (tmp_path / "qc.geojson").exists()
+    assert (tmp_path / "qc_lines.geojson").exists()
     assert any("one layer per file" in n for n in report.notes)
-
-
-def test_a_shapefile_declares_its_encoding(tmp_path):
-    """DBF's encoding is ambiguous and readers guess differently."""
-    out = tmp_path / "qc.shp"
-    export_vector(classified(), out, crs=UTM)
-
-    assert (tmp_path / "qc.cpg").read_text() == "UTF-8"
-    assert (tmp_path / "qc_lines.cpg").read_text() == "UTF-8"
-
-
-def test_a_shapefile_carries_a_projection_file(tmp_path):
-    out = tmp_path / "qc.shp"
-    export_vector(classified(), out, crs=UTM)
-    assert "UTM_Zone_13N" in (tmp_path / "qc.prj").read_text()
 
 
 # ── Field names ──────────────────────────────────────────────────────────────
 
-def test_colliding_field_names_are_refused_rather_than_silently_merged(tmp_path):
-    """A shapefile truncates to ten and one column simply replaces the other."""
+def test_long_and_similar_field_names_are_written_as_they_are(tmp_path):
+    """No ten-character limit, no truncation, no collision: GeoPackage keeps
+    the names the library gave."""
     dataset = classified(n=6, n_lines=1, bad=slice(0, 0))
     dataset.flightlines["qs_verdict_a"] = 1
     dataset.flightlines["qs_verdict_b"] = 2
-
-    with pytest.raises(ValueError, match="would collide"):
-        export_vector(dataset, tmp_path / "qc.shp", crs=UTM)
-
-
-def test_the_collision_check_directly():
-    assert truncation_collisions(["qs_verdict_a", "qs_verdict_b", "qs_height"]) == {
-        "qs_verdict": ["qs_verdict_a", "qs_verdict_b"]}
-    assert truncation_collisions(["qs_height", "qs_speed"]) == {}
-
-
-def test_names_that_merely_truncate_are_noted_not_refused(tmp_path):
-    """A long name colliding with nothing loses only its tail — worth saying,
-    not worth refusing."""
-    dataset = classified(n=6, n_lines=1, bad=slice(0, 0))
     dataset.flightlines["measured_conductance"] = 1.0
 
-    _, report = export_vector(dataset, tmp_path / "qc.shp", crs=UTM)
-
-    assert any("measured_conductance" in n and "truncated" in n
-               for n in report.notes)
-
-
-def test_the_fixture_needs_no_truncation_at_all(tmp_path):
-    """The ten-character discipline, checked end to end: a full QC run exports
-    to a shapefile with nothing shortened and nothing colliding."""
-    _, report = export_vector(classified(), tmp_path / "qc.shp", crs=UTM)
-    assert not any("truncated" in n for n in report.notes)
-    assert all(len(f) <= 10 for f in report.distributions["fields"])
-
-
-def test_geopackage_has_no_such_limit(tmp_path):
-    dataset = classified(n=6, n_lines=1, bad=slice(0, 0))
-    dataset.flightlines["qs_verdict_a"] = 1
-    dataset.flightlines["qs_verdict_b"] = 2
-
     out = tmp_path / "qc.gpkg"
-    export_vector(dataset, out, crs=UTM)          # no complaint
+    _, report = export_vector(dataset, out, crs=UTM)
     written = gpd.read_file(out, layer="soundings")
-    assert {"qs_verdict_a", "qs_verdict_b"} <= set(written.columns)
+    assert {"qs_verdict_a", "qs_verdict_b", "measured_conductance"} <= set(written.columns)
+    assert not any("truncated" in n for n in report.notes)
 
 
 # ── The output CRS is explicit, always ───────────────────────────────────────
@@ -184,8 +144,8 @@ def test_no_reprojection_when_the_two_match(tmp_path):
 # ── Unclassified survives ────────────────────────────────────────────────────
 
 def test_unclassified_is_written_as_a_label_not_a_blank(tmp_path):
-    """03 gives a metric with no threshold no classification at all. A
-    shapefile cannot express that, so it must not arrive as 'Good'."""
+    """03 gives a metric with no threshold no classification at all, and it
+    must not arrive at a client reading as 'Good' or as an empty cell."""
     dataset = classified(n=6, n_lines=1, bad=slice(0, 0))
     dataset.flightlines.loc[0, "qs_height"] = None
 
@@ -210,8 +170,7 @@ def test_the_label_is_settable(tmp_path):
 # ── Format, selection, and absent inputs ─────────────────────────────────────
 
 def test_the_format_comes_from_the_extension(tmp_path):
-    for name, driver in (("a.gpkg", "GPKG"), ("b.shp", "ESRI Shapefile"),
-                         ("c.geojson", "GeoJSON")):
+    for name, driver in (("a.gpkg", "GPKG"), ("c.geojson", "GeoJSON")):
         _, report = export_vector(classified(n=6, n_lines=1, bad=slice(0, 0)),
                                   tmp_path / name, crs=WGS84)
         assert report.distributions["driver"] == driver
@@ -281,11 +240,11 @@ def test_one_build_can_serve_several_formats(tmp_path):
     import geopandas as gpd
 
     dataset = classified()
-    for name in ("gpkg", "shp", "geojson"):
+    for name in ("gpkg", "geojson"):
         out = tmp_path / f"qc.{name}"
         export_vector(dataset, out, crs=UTM)
         assert out.exists()
-    assert len(gpd.read_file(tmp_path / "qc.shp")) == 60
+    assert len(gpd.read_file(tmp_path / "qc.geojson")) == 60
 
 
 def test_a_stated_format_beats_the_extension(tmp_path):

@@ -55,8 +55,13 @@ jobs:
           # suite passes either way, but pip reports a conflict and a resolver
           # error in CI is a red build for a dependency's constraint rather
           # than for anything this library did.
+          #
+          # pandas 3.1 (2026-10-22) is numpy>=2 only, and its wheel does not
+          # import once numpy is downgraded beneath it ("C extension: None not
+          # built") — so the numpy-1 cell went red the morning it was released
+          # with no change to this library. pandas 3.0 still supports 1.26.
           if [ "${{ matrix.numpy }}" = "<2" ]; then
-            pip install "numpy<2" "rasterio<1.5"
+            pip install "numpy<2" "rasterio<1.5" "pandas<3.1"
           else
             pip install "numpy>=2"
           fi

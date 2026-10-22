@@ -69,7 +69,8 @@ nothing marking which is which — and a later check grading that column would b
 comparing against a datum it cannot know. NaN is unclassified, which every check
 already handles, and the count is reported.
 
-The originals are stashed either way, so nothing is lost.
+The originals are stashed either way, under ``orig_`` + the column name, so
+nothing is lost.
 
 Sources
 -------
@@ -86,6 +87,7 @@ import rasterio
 from rasterio.io import DatasetReader
 from rasterio.warp import transform as warp_transform
 
+from ..dataset import STASH_PREFIX, stash_key
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -93,11 +95,6 @@ log = logging.getLogger(__name__)
 CATEGORY = "corrections"
 
 STEP = "apply_terrain_model"
-
-#: Where the delivered values are kept. Ten characters and eight, so both
-#: survive a shapefile field name intact.
-STASHED_ALTITUDE = "tx_alt_raw"
-STASHED_ELEVATION = "topo_raw"
 
 #: Scales a median absolute deviation so its spread reads in units comparable to
 #: a standard deviation for normally distributed values.
@@ -192,12 +189,21 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
     elevation_column : str | None
         Which holds ground elevation. Discovered if unset.
     stash : bool
-        Keep the delivered values under ``tx_alt_raw`` and ``topo_raw``.
+        Keep the delivered values under the same column names with ``orig_``
+        in front.
 
     Returns
     -------
     tuple
         ``(dataset, StepReport)``.
+
+    Notes
+    -----
+    A delivery with no altitude or no ground-elevation column is **skipped
+    with a note**, not failed: a shipped pipeline has to run on a delivery that
+    lacks the input. A column the caller *named* and that is absent is still an
+    error, since that is a mistake about this dataset rather than a dataset
+    without the input.
     """
     report = StepReport(step=STEP)
     frame = dataset.flightlines
@@ -212,15 +218,24 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
         return dataset, report
 
     xyz = dataset.survey.xyz
-    altitude_column = altitude_column or xyz.alt_column
-    elevation_column = elevation_column or xyz.z_column
-    for role, name in (("altitude", altitude_column),
-                       ("elevation", elevation_column)):
-        if name is None or name not in frame.columns:
+    for role, named in (("altitude", altitude_column),
+                        ("elevation", elevation_column)):
+        if named is not None and named not in frame.columns:
             raise KeyError(
-                f"No {role} column {name!r} in flightlines. "
+                f"No {role} column {named!r} in flightlines. "
                 f"Present: {', '.join(map(str, frame.columns))}"
             )
+    altitude_column = altitude_column or xyz.alt_column
+    elevation_column = elevation_column or xyz.z_column
+    absent = [role for role, name in (("altitude", altitude_column),
+                                      ("elevation", elevation_column))
+              if name is None or name not in frame.columns]
+    if absent:
+        report.notes.append(
+            f"No {' or '.join(absent)} column in this delivery; the terrain "
+            f"model was not applied. Name the column with altitude_column: / "
+            f"elevation_column: if it is present under an unusual name.")
+        return dataset, report
     if xyz.x_column not in frame.columns or xyz.y_column not in frame.columns:
         raise KeyError("No position columns; the terrain cannot be sampled.")
 
@@ -243,9 +258,11 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
         )
 
     missing = ~np.isfinite(ground)
+    stashed_altitude = stash_key(altitude_column)
+    stashed_elevation = stash_key(elevation_column)
     if stash:
-        frame[STASHED_ALTITUDE] = altitude
-        frame[STASHED_ELEVATION] = elevation
+        frame[stashed_altitude] = altitude
+        frame[stashed_elevation] = elevation
 
     if preserve == PRESERVE_ELEVATION:
         new_elevation = ground
@@ -290,8 +307,8 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
                 "filter is for."
             ),
         },
-        "stashed": {"altitude": STASHED_ALTITUDE,
-                    "elevation": STASHED_ELEVATION} if stash else None,
+        "stashed": {"altitude": stashed_altitude,
+                    "elevation": stashed_elevation} if stash else None,
     }
 
     if missing.any():
@@ -299,7 +316,7 @@ def apply_terrain_model(dataset, terrain: str | DatasetReader, crs: str | None =
             f"{int(missing.sum())} sounding(s) fall outside the terrain model or "
             f"on nodata; their altitude and elevation are unset rather than "
             f"left at delivered values. The originals are in "
-            f"{STASHED_ALTITUDE!r} and {STASHED_ELEVATION!r}."
+            f"{stashed_altitude!r} and {stashed_elevation!r}."
             if stash else
             f"{int(missing.sum())} sounding(s) fall outside the terrain model "
             f"or on nodata; their altitude and elevation are unset."

@@ -476,6 +476,52 @@ def role_key(channel, role: str) -> str:
     return f"{data}_{role}"
 
 
+#: Where a step keeps what it overwrote. A **prefix**, because every discovery
+#: pattern is anchored at the start of a key — ``^dbdt_ch(\d+)`` — so a suffixed
+#: copy like ``dbdt_ch1gt_untilted`` still matched the data pattern and discovery
+#: found two data arrays for one channel. ``orig_dbdt_ch1gt`` matches nothing.
+#: One spelling for every step (Ben, 2026-10-21) rather than ``_raw``,
+#: ``_untilted``, ``_clean`` and ``_unaveraged``, so a reader of the file knows
+#: what ``orig_`` means without knowing which step wrote it.
+STASH_PREFIX = "orig_"
+
+
+def stash_key(key: str) -> str:
+    """Where a step keeps the delivered version of ``key`` before overwriting it.
+
+    Parameters
+    ----------
+    key : str
+        A ``layer_data`` key or a ``flightlines`` column name.
+
+    Returns
+    -------
+    str
+        The same name with :data:`STASH_PREFIX` in front.
+    """
+    return f"{STASH_PREFIX}{key}"
+
+
+def is_stash(key: str) -> bool:
+    """Whether ``key`` is a stashed original this library wrote.
+
+    A stashed array is gate-shaped and claimed by no channel, so anything
+    detecting undeclared data by shape would report it as something the
+    delivery carried — the same trap as provenance, answered the same way.
+
+    Parameters
+    ----------
+    key : str
+        A ``layer_data`` key or a column name.
+
+    Returns
+    -------
+    bool
+        ``True`` for a stashed original.
+    """
+    return str(key).lower().startswith(STASH_PREFIX)
+
+
 def find_column(frame, spellings) -> str | None:
     """The first of ``spellings`` present in ``frame``, matched case-insensitively.
 

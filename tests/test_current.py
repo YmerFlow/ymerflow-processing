@@ -251,19 +251,11 @@ def test_changes_no_measurement_uncertainty_or_mask():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
 
 
-def test_the_per_sounding_verdict_columns_fit_a_shapefile_field():
-    """The columns a client reads. DBF allows ten characters for a field name.
-
-    Deliberately not asserting this of *every* qc_ column: the denormalized
-    per-line verdicts exceed ten across several checks and collide on
-    truncation (qs_tilt and ql_tilt both become qc_attitud). That
-    is a naming problem for the vector export to resolve centrally, not one for
-    each check to work around.
-    """
+def test_the_per_sounding_verdict_columns_are_written():
+    """The columns a client reads."""
     dataset, _ = transmitter_stability(currents([9.0] * 3), **SPEC, **NOMINAL)
     for name in ("qs_cur", "qs_nom", "qs_cur_ch1", "nom_ch1"):
         assert name in dataset.flightlines.columns
-        assert len(name) <= 10
 
 
 def test_the_report_survives_serialization():

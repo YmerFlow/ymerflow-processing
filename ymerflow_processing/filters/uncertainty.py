@@ -47,7 +47,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from ..dataset import role_key
+from ..dataset import STASH_PREFIX, role_key, stash_key
 from ..distribution import summarize
 from .noise import gate_factor, recorded, scalefactor
 from ..pipeline import StepReport
@@ -56,10 +56,6 @@ log = logging.getLogger(__name__)
 
 STEP = "assign_uncertainty"
 CATEGORY = "noise"
-
-#: Suffix for the stashed originals. This is the first step that overwrites
-#: something an inversion weights by, so what was delivered is kept.
-STASH_SUFFIX = "_raw"
 
 
 def declared_fraction(dataset, channel) -> float | None:
@@ -103,7 +99,8 @@ def assign_uncertainty(dataset, relative_fraction: float | None = None,
         measurement's authority.
     stash : bool
         Keep the delivered uncertainties alongside, under the same key with
-        ``_raw`` appended.
+        ``orig_`` in front. This is the first step that overwrites something an
+        inversion weights by, so what was delivered is kept.
 
     Returns
     -------
@@ -160,7 +157,7 @@ def assign_uncertainty(dataset, relative_fraction: float | None = None,
         else:
             before = dataset.layer_data[std_key]
             if stash:
-                dataset.layer_data[f"{std_key}{STASH_SUFFIX}"] = before.copy()
+                dataset.layer_data[stash_key(std_key)] = before.copy()
 
         relative = model.relative(
             values.to_numpy(dtype=float), times,
@@ -210,7 +207,7 @@ def assign_uncertainty(dataset, relative_fraction: float | None = None,
         "model": model.to_dict(),
         "relative_fraction": relative_fraction,
         "per_channel": per_channel,
-        "stashed": STASH_SUFFIX if stash else None,
+        "stashed": STASH_PREFIX if stash else None,
     }
     log.info("%s: assigned from a floor of %.3g at 1 ms across %d channel(s)",
              STEP, model.level_1ms, len(per_channel))

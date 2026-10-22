@@ -13,9 +13,9 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
+from ymerflow_processing.dataset import stash_key
 from ymerflow_processing.filters.average import (
-    BOXCAR, GAUSSIAN, HANN, STASH_SUFFIX, STEP_CODE, average_along_line,
-    gate_widths, kernel,
+    BOXCAR, GAUSSIAN, HANN, STEP_CODE, average_along_line, gate_widths, kernel,
 )
 from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
@@ -287,7 +287,7 @@ def test_the_originals_are_stashed():
     dataset, _ = average_along_line(dataset, width_first=5,
                                     min_valid_fraction=0.1)
 
-    key = f"{dataset.channels[0].data_key}{STASH_SUFFIX}"
+    key = stash_key(dataset.channels[0].data_key)
     pd.testing.assert_frame_equal(dataset.layer_data[key], before)
 
 

@@ -349,7 +349,7 @@ def test_the_delivered_uncertainties_are_stashed():
 
     dataset, _ = assign_uncertainty(dataset)
 
-    pd.testing.assert_frame_equal(dataset.layer_data[f"{key}_raw"], before)
+    pd.testing.assert_frame_equal(dataset.layer_data[f"orig_{key}"], before)
     assert not dataset.layer_data[key].equals(before)
 
 

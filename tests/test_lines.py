@@ -220,10 +220,6 @@ def test_the_pair_composes_from_one_pipeline():
     assert set(dataset.flightlines[LINE_TYPE_COLUMN]) == {DEFAULT_LINE_TYPE}
 
 
-def test_the_column_fits_a_shapefile_field():
-    assert len(LINE_TYPE_COLUMN) <= 10
-
-
 @pytest.mark.parametrize("name", ["classify_lines", "select_lines"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)
