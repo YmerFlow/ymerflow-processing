@@ -14,9 +14,8 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing.filters.inflate import inflate_uncertainty
-from ymerflow_processing.filters.add_noise import (
-    DEFAULT_SEED, STASH_SUFFIX, applied, add_noise,
-)
+from ymerflow_processing.dataset import stash_key
+from ymerflow_processing.filters.add_noise import DEFAULT_SEED, applied, add_noise
 from ymerflow_processing.filters.uncertainty import assign_uncertainty
 from ymerflow_processing.filters.noise import set_noise_floor, REFERENCE_TIME
 from ymerflow_processing.pipeline import (
@@ -173,8 +172,7 @@ def test_the_noise_free_values_are_stashed():
 
     dataset, _ = add_noise(dataset, seed=1)
 
-    pd.testing.assert_frame_equal(
-        dataset.layer_data[f"{key}{STASH_SUFFIX}"], before)
+    pd.testing.assert_frame_equal(dataset.layer_data[stash_key(key)], before)
 
 
 def test_it_changes_no_uncertainty_or_mask():
@@ -381,16 +379,14 @@ def test_creation_reports_no_before_distribution():
 
 def test_an_existing_array_is_still_stashed_and_overwritten():
     """The ordinary path is unchanged."""
-    from ymerflow_processing.filters.uncertainty import (
-        STASH_SUFFIX, assign_uncertainty,
-    )
+    from ymerflow_processing.filters.uncertainty import assign_uncertainty
     from conftest import make_dataset
 
     dataset = _with_model(make_dataset(n=8, n_lines=1, n_gates=5))
     key = dataset.channels[0].std_key
     dataset, report = assign_uncertainty(dataset)
 
-    assert f"{key}{STASH_SUFFIX}" in dataset.layer_data
+    assert stash_key(key) in dataset.layer_data
     entry = report.distributions["per_channel"][str(dataset.channels[0])]
     assert entry["created"] is False and entry["before"] is not None
 

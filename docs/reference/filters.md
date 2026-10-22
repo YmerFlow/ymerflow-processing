@@ -69,7 +69,7 @@ apply_nominal_current(columns: str | dict[str, str] | None = None, stash: bool =
 | parameter | default | |
 |---|---|---|
 | `columns` | `None` | Which ``flightlines`` column holds each channel's current, per channel key or moment name. Discovered if unset. |
-| `stash` | `True` | Keep the measured values alongside. |
+| `stash` | `True` | Keep the measured values alongside, under the column's name with ``orig_`` in front. |
 
 ### `apply_terrain_model`
 
@@ -87,11 +87,11 @@ apply_terrain_model(terrain: str | rasterio.io.DatasetReader, crs: str | None = 
 | `preserve` | `'elevation'` | ``elevation`` — hold the instrument's elevation and recompute altitude, which is the default and almost always right; or ``altitude`` — trust the altimeter and move the instrument instead. |
 | `altitude_column` | `None` | Which column holds altitude. Discovered if unset. |
 | `elevation_column` | `None` | Which holds ground elevation. Discovered if unset. |
-| `stash` | `True` | Keep the delivered values under ``tx_alt_raw`` and ``topo_raw``. |
+| `stash` | `True` | Keep the delivered values under the same column names with ``orig_`` in front. |
 
 ### `correct_tilt_1d`
 
-Rescale amplitudes to what a horizontal transmitter would have measured.
+Rescale amplitudes to what a horizontal transmitter would have measured, by 1/cos².
 
 ```python
 correct_tilt_1d(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
@@ -99,11 +99,11 @@ correct_tilt_1d(pitch_column: str | None = None, roll_column: str | None = None,
 
 | parameter | default | |
 |---|---|---|
-| `pitch_column` | `None` | Which column holds pitch, along the flight direction. |
-| `roll_column` | `None` | Which holds roll, across it. |
-| `max_correction` | `4.0` | Largest factor to apply. Beyond this the first-order treatment has stopped being defensible, so the sounding is left uncorrected and reported rather than scaled by a number the physics does not support. ``4.0`` corresponds to about 45° of total tilt. |
+| `pitch_column` | `None` | Which column holds pitch, along the flight direction. Discovered if unset; a delivery with none is skipped with a note. |
+| `roll_column` | `None` | Which holds roll, across it. Likewise. |
+| `max_correction` | `4.0` | Largest factor to apply. Beyond this the first-order treatment has stopped being defensible, so the sounding is left uncorrected and reported rather than scaled by a number the physics does not support. ``4.0`` is 60° of total tilt (``1/cos² 60° = 4``). |
 | `again` | `False` | Permit correcting a dataset that already carries a correction. |
-| `stash` | `True` | Keep the delivered values alongside. |
+| `stash` | `True` | Keep the delivered values and the measured attitude alongside, under their own names with ``orig_`` in front. |
 
 ### `zero_attitude`
 
@@ -117,7 +117,7 @@ zero_attitude(pitch_column: str | None = None, roll_column: str | None = None, s
 |---|---|---|
 | `pitch_column` | `None` | Which column holds pitch. Discovered if unset; created under the canonical spelling if absent. |
 | `roll_column` | `None` | Which holds roll. Likewise. |
-| `stash` | `True` | Keep the delivered attitude alongside. Where the columns did not exist there is nothing to keep, and that is reported. |
+| `stash` | `True` | Keep the delivered attitude alongside, under the column names with ``orig_`` in front. Where the columns did not exist there is nothing to keep, and that is reported. |
 
 ## noise
 
@@ -132,7 +132,7 @@ assign_uncertainty(relative_fraction: float | None = None, stash: bool = True)
 | parameter | default | |
 |---|---|---|
 | `relative_fraction` | `None` | The proportional error as a fraction of signal — the "3 %" of an inversion's error model, combined with the floor in quadrature. Absent takes each channel's ``UniformDataSTD`` from the system description, and a description that declares none gives a floor-only uncertainty, which is reported. **Never estimated** — it has no separable signature in the data, and estimating it would invent a number with a measurement's authority. |
-| `stash` | `True` | Keep the delivered uncertainties alongside, under the same key with ``_raw`` appended. |
+| `stash` | `True` | Keep the delivered uncertainties alongside, under the same key with ``orig_`` in front. This is the first step that overwrites something an inversion weights by, so what was delivered is kept. |
 
 ### `compute_misfit`
 
@@ -481,4 +481,4 @@ add_noise(seed: int = 42, channels: list[str] | None = None, again: bool = False
 | `seed` | `42` | The draw to make. Defaults to 42, which is a legible marker for "not chosen" rather than a better number — no seed is. **Independent realizations need different seeds**; the default gives every one of them the same noise. |
 | `channels` | `None` | Which channels to perturb, by key or moment name. All of them if unset. |
 | `again` | `False` | Permit perturbing a dataset that already carries noise. Off by default, because doing it unknowingly is the silent error this filter is written to prevent. |
-| `stash` | `True` | Keep the noise-free values under the same key with ``_clean`` appended. |
+| `stash` | `True` | Keep the noise-free values under the same key with ``orig_`` in front. |
