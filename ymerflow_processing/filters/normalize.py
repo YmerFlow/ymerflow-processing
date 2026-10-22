@@ -34,6 +34,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "corrections"
+
 
 def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, stash: bool = True):
     """Overwrite the per-sounding transmitter current with the declared nominal.

@@ -26,7 +26,7 @@ steps:
 FILTERS = """
 kind: filters
 steps:
-  - select_channels: {criterion: moment, keep: [LM]}
+  - select_moments: {criterion: moment, keep: [LM]}
 """
 
 
@@ -185,7 +185,7 @@ def test_the_stowaway_is_reported_before_anything_acts_on_the_data():
     _, report = ProcessingRunner(Pipeline.parse(FILTERS)).run(with_stowaway())
 
     order = named(report)
-    assert order.index("inventory") < order.index("select_channels")
+    assert order.index("inventory") < order.index("select_moments")
 
 
 def test_it_can_be_switched_off():

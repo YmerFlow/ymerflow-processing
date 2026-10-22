@@ -22,8 +22,8 @@ from ymerflow_processing.pipeline import (
 
 
 def stored(level, identity="d", flights=None, when=None, supplied=(),
-           step="estimate_noise_model"):
-    """A stored run report of the shape estimate_noise_model produces."""
+           step="set_noise_floor"):
+    """A stored run report of the shape set_noise_floor produces."""
     return {
         "identity": identity,
         "flights": flights,

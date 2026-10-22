@@ -56,6 +56,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "cull gates"
+
 STEP = "cull_negatives"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.

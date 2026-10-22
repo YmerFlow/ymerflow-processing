@@ -90,6 +90,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "corrections"
+
 STEP = "apply_terrain_model"
 
 #: Where the delivered values are kept. Ten characters and eight, so both

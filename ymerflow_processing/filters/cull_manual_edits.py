@@ -81,6 +81,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "cull gates"
+
 STEP = "apply_manual_edits"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.

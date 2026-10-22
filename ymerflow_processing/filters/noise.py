@@ -13,22 +13,27 @@ values around ``5e-10`` to ``1.5e-9`` for the same instrument. So uncertainty
 could be assigned with one floor and data culled with another, and the run would
 complete with nothing detecting it. One definition makes that unrepresentable.
 
-Two components, combining in quadrature
----------------------------------------
-**An absolute floor.** Ambient environmental noise, independent of signal
-strength, decaying with time as a power law. This is what makes late gates fail
-*honestly*.
+The floor, and only the floor
+-----------------------------
+The model is **an absolute floor**: ambient environmental noise, independent of
+signal strength, decaying with time as a power law. This is what makes late gates
+fail *honestly*.
 
-**A relative fraction.** Calibration, geometry, primary-field removal — error
-proportional to signal.
-
-``01`` is emphatic about why both are needed: *"A relative-only model never lets
+``01`` is emphatic about why it is needed: *"A relative-only model never lets
 data die — the fractional uncertainty stays flat forever and every gate looks
 usable, including gates that are pure noise."*
 
 Since this format stores uncertainty as a **relative** standard deviation, the
 floor enters as its own relative contribution — ``floor(t) / |value|`` — which
 grows without bound as the signal decays. That is the whole point.
+
+The proportional part of the error — calibration, geometry, primary-field
+removal — is **not** part of the noise floor and is not set here. It belongs to
+``assign_uncertainty``, which combines it with the floor in quadrature when it
+writes the uncertainty arrays. Setting the noise floor is a statement about the
+instrument and the environment; the fraction is a statement about how much to
+trust the data, and the two were separated (Ben, 2026-10-21) so that one step
+sets one thing.
 
 Numerically identical to SimPEG's floor
 ---------------------------------------
@@ -70,24 +75,22 @@ variances. Median absolute deviation rather than a standard deviation, for the
 usual reason — a few spikes would inflate σ and raise the floor that is supposed
 to detect them.
 
-The relative fraction is never estimated
-----------------------------------------
-R9 is explicit. It is systematic — calibration, geometry, primary-field removal —
-and has no separable signature in the data the way the ambient floor does at late
-gates. Estimating it would be inventing a number with a measurement's authority.
-It comes from the system description's ``UniformDataSTD``, or is supplied.
-
 An override changes what is applied, never what is measured
 -----------------------------------------------------------
-R9 again, and it shapes the interface: a supplied value is used, **and the
+R9 again, and it shapes the interface: a supplied floor is used, **and the
 estimate is made anyway and reported beside it**. *"You set 1e-9; the data
 suggests 3e-9"* is itself a finding — either the number came from a different
-survey, or something is noisier than expected. A fitted slope far from −0.5
-usually means the late gates are not ambient noise at all.
+survey, or something is noisier than expected.
 
-That is also why these are optional parameters rather than a mode switch: absent
-means estimate, supplied means use, and the common middle case — estimate the
-floor, hold the slope — cannot be expressed by an either/or.
+The exponent is held at −0.5 unless asked to fit
+------------------------------------------------
+The slope is a property of ambient noise, not of a survey, and −0.5 is what it
+is for every airborne TEM system in use. So the slope is a fixed number with a
+``fit_exponent`` switch, not an estimate: a fitted slope far from −0.5 almost
+always means the gates it was fitted over are not ambient noise at all, and a
+pipeline that fitted it by default would quietly encode that mistake in every
+uncertainty downstream. Fitting is for *checking* the assumption, and the fitted
+value is reported under ``measured`` either way.
 """
 
 import logging
@@ -99,7 +102,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
-STEP = "estimate_noise_model"
+STEP = "set_noise_floor"
+CATEGORY = "noise"
 
 #: The floor is quoted at this time, so a number is comparable between surveys
 #: and instruments. One millisecond is late enough to be ambient for every
@@ -149,7 +153,7 @@ def gate_factor(dataset, channel) -> float:
 
 @dataclass
 class NoiseModel:
-    """The floor, its slope, and the relative fraction — with their provenance.
+    """The floor and its slope, with their provenance.
 
     Parameters
     ----------
@@ -158,8 +162,6 @@ class NoiseModel:
         it has not been estimated or supplied.
     exponent : float
         The power-law slope of the floor in time; ``-0.5`` is typical.
-    relative_fraction : float | None
-        Systematic error as a fraction of signal.
     physical : bool
         Whether ``level_1ms`` is in physical units (V/Am², before moment
         normalization) — ``True`` for a supplied floor, which is then divided by
@@ -179,7 +181,6 @@ class NoiseModel:
 
     level_1ms: float | None = None
     exponent: float = DEFAULT_EXPONENT
-    relative_fraction: float | None = None
     physical: bool = False
     scope: str = PER_DATASET
     #: Which values were supplied rather than estimated, and what the estimate
@@ -218,7 +219,7 @@ class NoiseModel:
         """
         if self.level_1ms is None:
             raise ValueError(
-                "This noise model has no floor. Run estimate_noise_model, or "
+                "This noise model has no floor. Run set_noise_floor, or "
                 "supply noise_level_1ms."
             )
         times = np.asarray(times, dtype=float)
@@ -251,8 +252,8 @@ class NoiseModel:
         return floor
 
     def relative(self, values, times, dipole_moment=None,
-                 scalefactor=1.0, gate_factor=1.0):
-        """Relative uncertainty per datum: the two components in quadrature.
+                 scalefactor=1.0, gate_factor=1.0, relative_fraction=0.0):
+        """Relative uncertainty per datum: floor and fraction in quadrature.
 
         The floor's contribution is ``floor / |value|`` with both in the raw
         array units — so as the signal decays toward the floor, the assigned
@@ -272,6 +273,9 @@ class NoiseModel:
         scalefactor, gate_factor : float
             The model_info ``scalefactor`` and the channel's GEX ``GateFactor``,
             both ``1.0`` when absent. Used only for a physical floor.
+        relative_fraction : float
+            The proportional error, as a fraction of signal. Not part of the
+            model — the caller (``assign_uncertainty``) decides it.
 
         Returns
         -------
@@ -281,12 +285,11 @@ class NoiseModel:
         values = np.asarray(values, dtype=float)
         floor = self.floor_in_array_units(times, dipole_moment,
                                           scalefactor, gate_factor)
-        relative = 0.0 if self.relative_fraction is None else self.relative_fraction
 
         with np.errstate(divide="ignore", invalid="ignore"):
             from_floor = np.abs(floor)[None, :] / np.abs(values)
         from_floor = np.where(np.isfinite(from_floor), from_floor, np.inf)
-        return np.sqrt(relative ** 2 + from_floor ** 2)
+        return np.sqrt(float(relative_fraction) ** 2 + from_floor ** 2)
 
     def to_dict(self) -> dict:
         """The model as plain data, for a report or the dataset's metadata.
@@ -297,7 +300,6 @@ class NoiseModel:
             Every field, with ``supplied`` as a list.
         """
         return {"level_1ms": self.level_1ms, "exponent": self.exponent,
-                "relative_fraction": self.relative_fraction,
                 "physical": self.physical, "scope": self.scope,
                 "supplied": list(self.supplied), "measured": self.measured}
 
@@ -305,8 +307,6 @@ class NoiseModel:
 def _encode(model: NoiseModel) -> str:
     parts = [f"level_1ms={model.level_1ms:g}" if model.level_1ms is not None else "",
              f"exponent={model.exponent:g}",
-             (f"relative_fraction={model.relative_fraction:g}"
-              if model.relative_fraction is not None else ""),
              f"physical={'true' if model.physical else 'false'}",
              f"scope={model.scope}"]
     return " ".join(p for p in parts if p)
@@ -353,11 +353,14 @@ def recorded(dataset) -> NoiseModel | None:
             fields[name] = value
         elif name == "physical":
             fields[name] = value == "true"
-        else:
+        elif name in ("level_1ms", "exponent"):
             try:
                 fields[name] = float(value)
             except ValueError:
                 continue
+        # Anything else — a `relative_fraction=` written by a version that kept
+        # the fraction in the model — is read past rather than refused, so a
+        # dataset processed before the split still opens.
     return NoiseModel(**fields) if fields else None
 
 
@@ -392,12 +395,12 @@ def _scatter(values, groups) -> np.ndarray:
 
 
 def _fit(times, noise, exponent=None):
-    """Fit ``level_1ms`` and, unless supplied, the exponent, in log-log space."""
+    """Fit ``level_1ms`` and, unless held, the exponent, in log-log space."""
     times = np.asarray(times, dtype=float)
     noise = np.asarray(noise, dtype=float)
     usable = np.isfinite(times) & np.isfinite(noise) & (times > 0) & (noise > 0)
     if usable.sum() < 2:
-        return None, exponent if exponent is not None else DEFAULT_EXPONENT
+        return None, exponent
 
     x = np.log(times[usable] / REFERENCE_TIME)
     y = np.log(noise[usable])
@@ -409,20 +412,20 @@ def _fit(times, noise, exponent=None):
     return float(np.exp(intercept)), float(slope)
 
 
-def estimate_noise_model(dataset, scope: str = PER_DATASET,
-                         noise_level_1ms: float | None = None,
-                         noise_exponent: float | None = None,
-                         relative_fraction: float | None = None,
-                         late_gates: int | None = None):
-    """Estimate the dataset's noise model, and record it for every consumer.
+def set_noise_floor(dataset, scope: str = PER_DATASET,
+                    noise_level_1ms: float | None = None,
+                    noise_exponent: float = DEFAULT_EXPONENT,
+                    fit_exponent: bool = False,
+                    late_gates: int | None = None):
+    """Set the dataset's noise floor — supplied or estimated — for every consumer.
 
     Parameters
     ----------
     dataset : Dataset
-        The dataset to estimate from; the model is recorded on it and no
+        The dataset to set the floor on; the model is recorded on it and no
         measurement is changed.
     scope : str
-        ``per_line``, ``per_flight`` or ``per_dataset`` — the grain the
+        ``per_line``, ``per_flight`` or ``per_dataset`` — the grain an
         estimate is made over. Not "per survey": this library has no concept of
         one, ``Survey`` is already the data object's class, and a campaign may
         map to one dataset, part of one, or several.
@@ -431,17 +434,18 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
         normalization) — the instrument's own dB/dt noise, the same number
         SimPEG's ``uncertainties__noise_level_1ms`` takes. Applied to the data it
         is divided by each channel's dipole moment and compared against the
-        physical form ``dbdt × scalefactor × GateFactor``. Absent means estimate,
-        and an estimated floor is in the raw arrays' own units instead.
-    noise_exponent : float | None
-        The power-law slope. Absent means fit it; ``-0.5`` is the usual value
-        and a fitted number far from it usually means the gates involved are
-        not ambient noise.
-    relative_fraction : float | None
-        Systematic error as a fraction of signal. Absent takes it from the
-        system description's ``UniformDataSTD``. **Never estimated** — it has
-        no separable signature in the data, and estimating it would invent a
-        number with a measurement's authority.
+        physical form ``dbdt × scalefactor × GateFactor``. Absent means estimate
+        it from the late-gate scatter, and an estimated floor is in the raw
+        arrays' own units instead.
+    noise_exponent : float
+        The power-law slope of the floor in time. ``-0.5`` is what ambient
+        noise does for every airborne TEM system in use, so it is a fixed
+        number rather than an estimate.
+    fit_exponent : bool
+        Fit the slope from the data instead of using ``noise_exponent``. For
+        checking the assumption: a fitted value far from ``-0.5`` usually means
+        the gates fitted over are not ambient noise. The fitted value is
+        reported under ``measured`` whether or not it is applied.
     late_gates : int | None
         How many trailing gates to estimate from. Enough to fit a slope, few
         enough to be noise-dominated; the last third by default. The per-gate
@@ -454,7 +458,8 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
 
     Notes
     -----
-    A supplied value is used *and* the estimate is made anyway and reported
+    The proportional error is not set here; ``assign_uncertainty`` takes it.
+    A supplied floor is used *and* the estimate is made anyway and reported
     beside it.
     """
     report = StepReport(step=STEP)
@@ -494,36 +499,31 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
         first = max(0, values.shape[1] - int(trailing))
         noise = _scatter(values, groups)
 
-        level, slope = _fit(times[first:], noise[first:], noise_exponent)
+        # Two fits: the level with the slope that will be applied, and the
+        # slope left free — the measurement, reported whether or not it is
+        # used, so the −0.5 assumption is checkable from the report.
+        level, _ = _fit(times[first:], noise[first:],
+                        None if fit_exponent else noise_exponent)
+        _, free_slope = _fit(times[first:], noise[first:], None)
         per_channel[str(channel)] = {
             "estimated_level_1ms": level,
-            "estimated_exponent": slope,
+            "estimated_exponent": free_slope,
             "gates_used": list(range(first, values.shape[1])),
             "per_gate_noise": [None if not np.isfinite(v) else float(v)
                                for v in noise],
         }
         if level is not None:
             levels.append(level)
-            slopes.append(slope)
+        if free_slope is not None:
+            slopes.append(free_slope)
 
     measured_level = float(np.median(levels)) if levels else None
-    measured_slope = float(np.median(slopes)) if slopes else DEFAULT_EXPONENT
-
-    # The system description's own figure, which R9 says is where the relative
-    # fraction comes from and which is never estimated.
-    declared = None
-    gex = dataset.survey.gex
-    for channel in channels:
-        block = getattr(gex, "gex_dict", {}).get(f"Channel{channel.index}", {})
-        if isinstance(block, dict) and block.get("UniformDataSTD") is not None:
-            declared = float(block["UniformDataSTD"])
-            break
+    measured_slope = float(np.median(slopes)) if slopes else None
 
     supplied = tuple(
-        name for name, value in (("level_1ms", noise_level_1ms),
-                                 ("exponent", noise_exponent),
-                                 ("relative_fraction", relative_fraction))
-        if value is not None)
+        name for name, given in (("level_1ms", noise_level_1ms is not None),
+                                 ("exponent", not fit_exponent))
+        if given)
 
     # A supplied floor is physical (V/Am², pre-moment), as the parameter
     # documents, so it is divided by the dipole moment and compared against the
@@ -533,10 +533,9 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
     # to signal it.
     model = NoiseModel(
         level_1ms=noise_level_1ms if noise_level_1ms is not None else measured_level,
-        exponent=(noise_exponent if noise_exponent is not None
-                  else measured_slope),
-        relative_fraction=(relative_fraction if relative_fraction is not None
-                           else declared),
+        exponent=(float(noise_exponent) if not fit_exponent
+                  else (measured_slope if measured_slope is not None
+                        else float(noise_exponent))),
         physical=noise_level_1ms is not None,
         scope=scope,
         supplied=supplied,
@@ -551,27 +550,28 @@ def estimate_noise_model(dataset, scope: str = PER_DATASET,
 
     store(dataset, model)
 
-    for name, applied, seen in (("level_1ms", model.level_1ms, measured_level),
-                                ("exponent", model.exponent, measured_slope)):
-        if name in supplied and seen is not None:
-            report.notes.append(
-                f"{name} was supplied as {applied:g}; the data suggests "
-                f"{seen:g}. Either the number came from a different survey, or "
-                f"something is not as expected."
-            )
-    if relative_fraction is None and declared is None:
+    if "level_1ms" in supplied and measured_level is not None:
         report.notes.append(
-            "No relative fraction was supplied and the system description "
-            "declares no UniformDataSTD, so the model carries a floor only.")
+            f"level_1ms was supplied as {model.level_1ms:g}; the data suggests "
+            f"{measured_level:g}. Either the number came from a different "
+            f"survey, or something is not as expected."
+        )
+    if fit_exponent and measured_slope is None:
+        report.notes.append(
+            f"The exponent could not be fitted — too few usable gates — so "
+            f"{noise_exponent:g} was applied.")
+    elif fit_exponent and abs(measured_slope - DEFAULT_EXPONENT) > 0.25:
+        report.notes.append(
+            f"The fitted exponent is {measured_slope:.3g}, well away from the "
+            f"{DEFAULT_EXPONENT:g} of ambient noise. The gates it was fitted "
+            f"over are probably not noise-dominated; consider fewer late_gates, "
+            f"or hold the exponent.")
 
     report.distributions = {
         "model": model.to_dict(),
         "per_channel": per_channel,
-        "relative_fraction_source": (
-            "supplied" if relative_fraction is not None
-            else "system description" if declared is not None else None),
     }
-    log.info("%s: floor %s at 1 ms, exponent %.3g, relative %s (scope %s)",
+    log.info("%s: floor %s at 1 ms, exponent %.3g (scope %s)",
              STEP, "n/a" if model.level_1ms is None else f"{model.level_1ms:.3g}",
-             model.exponent, model.relative_fraction, scope)
+             model.exponent, scope)
     return dataset, report

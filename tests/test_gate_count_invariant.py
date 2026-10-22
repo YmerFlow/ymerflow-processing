@@ -12,7 +12,7 @@ description would produce a dataset that looks fine here and refuses to invert
 downstream — the failure appearing a long way from its cause.
 
 Nothing should do that: QC writes columns on ``flightlines``, culling writes the
-in-use mask, and ``select_channels`` removes whole channels rather than gates.
+in-use mask, and ``select_moments`` removes whole channels rather than gates.
 This pins that as a property rather than an assumption, so a future step that
 breaks it fails here instead of in an inversion.
 
@@ -26,7 +26,7 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing.pipeline import Pipeline, ProcessingRunner, QCRunner
-from ymerflow_processing.filters.select_channels import select_channels
+from ymerflow_processing.filters.select_moments import select_moments
 
 
 def gate_count_mismatches(dataset) -> list[str]:
@@ -68,7 +68,7 @@ def test_selecting_channels_preserves_it():
     """Whole channels leave; the survivors keep their gates and their times."""
     dataset = make_dataset(moments=("LM", "LM", "LM", "HM", "HM", "HM"),
                            components=list("XYZXYZ"))
-    dataset, _ = select_channels(dataset, criterion="component", keep=["z"])
+    dataset, _ = select_moments(dataset, criterion="component", keep=["z"])
 
     assert dataset.n_channels == 2
     assert gate_count_mismatches(dataset) == []
@@ -76,7 +76,7 @@ def test_selecting_channels_preserves_it():
 
 def test_selecting_a_single_moment_preserves_it():
     dataset = make_dataset(moments=("LM", "MM", "HM"))
-    dataset, _ = select_channels(dataset, criterion="moment", keep=["HM"])
+    dataset, _ = select_moments(dataset, criterion="moment", keep=["HM"])
     assert gate_count_mismatches(dataset) == []
 
 
@@ -100,7 +100,7 @@ def test_a_processing_pipeline_preserves_it():
     dataset, _ = ProcessingRunner(Pipeline.parse("""
         kind: filters
         steps:
-          - select_channels: {criterion: component, keep: [z]}
+          - select_moments: {criterion: component, keep: [z]}
     """)).run(dataset)
 
     assert gate_count_mismatches(dataset) == []

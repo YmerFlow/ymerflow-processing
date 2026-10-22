@@ -67,6 +67,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "noise"
+
 STEP = "compute_misfit"
 
 #: How a result names its gatewise residual. Matched on a captured channel index

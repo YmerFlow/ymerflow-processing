@@ -19,7 +19,7 @@ from ymerflow_processing.filters.cull_noise_floor import (
 from ymerflow_processing.filters.uncertainty import assign_uncertainty
 from ymerflow_processing.mask import CULLED, IN_USE
 from ymerflow_processing.filters.noise import (
-    DEFAULT_EXPONENT, NoiseModel, REFERENCE_TIME, estimate_noise_model,
+    DEFAULT_EXPONENT, NoiseModel, REFERENCE_TIME, set_noise_floor,
     recorded, store,
 )
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
@@ -53,7 +53,7 @@ def mask(dataset, which=0):
 def test_it_recovers_a_known_floor_and_slope():
     """From the sounding-to-sounding scatter, not the signal level — geology
     varies smoothly along a line and noise does not."""
-    _, report = estimate_noise_model(delivery())
+    _, report = set_noise_floor(delivery())
     model = report.distributions["model"]
 
     assert model["level_1ms"] == pytest.approx(TRUE_FLOOR, rel=0.35)
@@ -61,8 +61,8 @@ def test_it_recovers_a_known_floor_and_slope():
 
 
 def test_a_noisier_survey_estimates_a_higher_floor():
-    quiet, _ = estimate_noise_model(delivery(floor=5e-10))
-    loud, _ = estimate_noise_model(delivery(floor=5e-9))
+    quiet, _ = set_noise_floor(delivery(floor=5e-10))
+    loud, _ = set_noise_floor(delivery(floor=5e-9))
 
     assert recorded(loud).level_1ms > 5 * recorded(quiet).level_1ms
 
@@ -70,27 +70,28 @@ def test_a_noisier_survey_estimates_a_higher_floor():
 def test_the_signal_level_does_not_set_the_floor():
     """The estimate is of scatter. A hundredfold stronger response over the same
     ambient noise must not move it."""
-    weak, _ = estimate_noise_model(delivery(signal=1e-8))
-    strong, _ = estimate_noise_model(delivery(signal=1e-6))
+    weak, _ = set_noise_floor(delivery(signal=1e-8))
+    strong, _ = set_noise_floor(delivery(signal=1e-6))
 
     assert recorded(strong).level_1ms == pytest.approx(
         recorded(weak).level_1ms, rel=0.2)
 
 
-def test_the_relative_fraction_comes_from_the_system_description():
-    """R9: never estimated. It is systematic and has no separable signature in
-    the data, so estimating it would invent a number with a measurement's
-    authority."""
-    _, report = estimate_noise_model(delivery())
+def test_the_floor_carries_no_relative_fraction():
+    """The proportional error is not a property of the noise floor. It belongs
+    to assign_uncertainty (Ben, 2026-10-21), so the model has no slot for it
+    and the step takes no such parameter."""
+    _, report = set_noise_floor(delivery())
 
-    assert report.distributions["model"]["relative_fraction"] == pytest.approx(0.03)
-    assert report.distributions["relative_fraction_source"] == "system description"
+    assert "relative_fraction" not in report.distributions["model"]
+    with pytest.raises(TypeError):
+        set_noise_floor(delivery(), relative_fraction=0.03)
 
 
 def test_a_supplied_value_is_used_and_the_estimate_reported_anyway():
     """R9: an override changes what is applied, never what is measured. "You set
     1e-9; the data suggests 3e-9" is itself a finding."""
-    _, report = estimate_noise_model(delivery(), noise_level_1ms=1e-7)
+    _, report = set_noise_floor(delivery(), noise_level_1ms=1e-7)
     model = report.distributions["model"]
 
     assert model["level_1ms"] == 1e-7
@@ -99,32 +100,44 @@ def test_a_supplied_value_is_used_and_the_estimate_reported_anyway():
     assert any("the data suggests" in n for n in report.notes)
 
 
-def test_the_slope_can_be_held_while_the_floor_is_estimated():
-    """The common middle case, and why these are optional parameters rather
-    than a mode switch — an either/or cannot express it."""
-    _, report = estimate_noise_model(delivery(), noise_exponent=-0.5)
-    model = report.distributions["model"]
+def test_the_slope_is_held_at_minus_a_half_unless_asked_to_fit():
+    """The slope is a property of ambient noise, not of a survey, so it is a
+    fixed number with a switch rather than an estimate — a fitted slope far
+    from -0.5 means the gates are not noise, and fitting by default would
+    bake that mistake into every uncertainty downstream."""
+    _, held = set_noise_floor(delivery(exponent=-0.9))
+    _, fitted = set_noise_floor(delivery(exponent=-0.9), fit_exponent=True)
 
-    assert model["exponent"] == -0.5
-    assert model["level_1ms"] is not None
-    assert model["level_1ms"] != model["measured"]["level_1ms"] or True
+    assert held.distributions["model"]["exponent"] == -0.5
+    assert "exponent" in held.distributions["model"]["supplied"]
+    # Measured either way, so the assumption is checkable.
+    assert held.distributions["model"]["measured"]["exponent"] == pytest.approx(
+        -0.9, abs=0.2)
+    assert fitted.distributions["model"]["exponent"] == pytest.approx(-0.9, abs=0.2)
+    assert "exponent" not in fitted.distributions["model"]["supplied"]
+    assert any("well away from" in n for n in fitted.notes)
+
+
+def test_a_different_fixed_slope_may_be_given():
+    _, report = set_noise_floor(delivery(), noise_exponent=-0.7)
+    assert report.distributions["model"]["exponent"] == -0.7
 
 
 @pytest.mark.parametrize("scope", ["per_line", "per_flight", "per_dataset"])
 def test_every_scope_estimates(scope):
-    _, report = estimate_noise_model(delivery(n_flights=2), scope=scope)
+    _, report = set_noise_floor(delivery(n_flights=2), scope=scope)
     assert report.distributions["model"]["scope"] == scope
 
 
 def test_an_unknown_scope_is_refused():
     with pytest.raises(ValueError, match="Unknown scope"):
-        estimate_noise_model(delivery(), scope="per_survey")
+        set_noise_floor(delivery(), scope="per_survey")
 
 
 def test_the_per_gate_scatter_is_reported():
     """So the choice of which gates to estimate from is checkable rather than
     trusted."""
-    _, report = estimate_noise_model(delivery())
+    _, report = set_noise_floor(delivery())
     channel = report.distributions["per_channel"]["ch1 (LM/z)"]
 
     assert len(channel["per_gate_noise"]) == GATES
@@ -132,11 +145,24 @@ def test_the_per_gate_scatter_is_reported():
 
 
 def test_the_model_round_trips_on_the_dataset():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     again = recorded(dataset)
 
     assert again.level_1ms == pytest.approx(recorded(dataset).level_1ms)
-    assert again.relative_fraction == pytest.approx(0.03)
+    assert again.exponent == -0.5
+
+
+def test_a_model_written_before_the_split_still_reads():
+    """A dataset processed when the fraction lived in the model carries
+    `relative_fraction=` in model_info. It is read past, not refused."""
+    dataset = delivery()
+    dataset.survey.xyz.model_info["noise_model"] = (
+        "level_1ms=1e-09 exponent=-0.5 relative_fraction=0.03 physical=true "
+        "scope=per_dataset")
+    model = recorded(dataset)
+
+    assert model.level_1ms == pytest.approx(1e-9)
+    assert model.physical is True
 
 
 # ── The model itself ─────────────────────────────────────────────────────────
@@ -169,7 +195,7 @@ def test_an_estimated_floor_is_in_the_raw_array_units_and_needs_no_moment():
     """The scatter is measured from the raw arrays, so the floor is already in
     their units: not physical, and `floor()` needs no dipole moment. Marking it
     physical would have the consumers divide it by the moment a second time."""
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     model = recorded(dataset)
     channel = dataset.channels[0]
     times = np.asarray(channel.axis.values, dtype=float)
@@ -183,7 +209,7 @@ def test_a_supplied_floor_is_physical():
     """The parameter is documented as the floor before moment normalization —
     physical V/Am², the same number SimPEG takes — so the recorded model marks
     it physical and divides it by the moment when applied."""
-    dataset, _ = estimate_noise_model(delivery(), noise_level_1ms=1e-9)
+    dataset, _ = set_noise_floor(delivery(), noise_level_1ms=1e-9)
 
     assert recorded(dataset).physical is True
 
@@ -202,9 +228,10 @@ def test_the_floor_matches_simpegs_uncert_array():
     for channel in dataset.channels:
         dataset.survey.gex.gex_dict[f"Channel{channel.index}"]["GateFactor"] = gf
 
-    # relative_fraction 0 isolates the floor from the proportional component.
-    dataset, _ = estimate_noise_model(dataset, noise_level_1ms=level,
-                                      noise_exponent=exponent, relative_fraction=0.0)
+    # No relative fraction (the default) isolates the floor from the
+    # proportional component.
+    dataset, _ = set_noise_floor(dataset, noise_level_1ms=level,
+                                 noise_exponent=exponent)
     model = recorded(dataset)
 
     for channel in dataset.channels:
@@ -224,9 +251,10 @@ def test_the_floor_matches_simpegs_uncert_array():
 
 
 def test_the_two_components_combine_in_quadrature():
-    model = NoiseModel(level_1ms=1e-9, exponent=0.0, relative_fraction=0.03)
+    model = NoiseModel(level_1ms=1e-9, exponent=0.0)
     # A value where the floor contributes exactly 0.04 relative.
-    relative = model.relative(np.array([[2.5e-8]]), [REFERENCE_TIME])
+    relative = model.relative(np.array([[2.5e-8]]), [REFERENCE_TIME],
+                              relative_fraction=0.03)
 
     assert relative[0, 0] == pytest.approx(np.hypot(0.03, 0.04))
 
@@ -235,21 +263,20 @@ def test_a_relative_only_model_never_lets_data_die():
     """01's argument for why the absolute floor is needed at all: the fractional
     uncertainty stays flat forever and every gate looks usable, including gates
     that are pure noise."""
-    relative_only = NoiseModel(level_1ms=0.0, exponent=-0.5,
-                               relative_fraction=0.03)
+    no_floor = NoiseModel(level_1ms=0.0, exponent=-0.5)
     decaying = np.array([[1e-6, 1e-9, 1e-12]])
     times = np.array([1e-5, 1e-4, 1e-3])
 
-    assert np.allclose(relative_only.relative(decaying, times), 0.03)
+    assert np.allclose(no_floor.relative(decaying, times, relative_fraction=0.03),
+                       0.03)
 
 
 def test_the_floor_makes_late_gates_fail_honestly():
-    with_floor = NoiseModel(level_1ms=1e-9, exponent=-0.5,
-                            relative_fraction=0.03)
+    with_floor = NoiseModel(level_1ms=1e-9, exponent=-0.5)
     decaying = np.array([[1e-6, 1e-9, 1e-12]])
     times = np.array([1e-5, 1e-4, 1e-3])
 
-    relative = with_floor.relative(decaying, times)
+    relative = with_floor.relative(decaying, times, relative_fraction=0.03)
     assert relative[0, 0] < 0.05           # signal-dominated
     assert relative[0, 2] > 100            # past unity: this gate is noise
 
@@ -262,7 +289,7 @@ def test_a_model_with_no_floor_refuses_to_produce_one():
 # ── filter_12 ────────────────────────────────────────────────────────────────
 
 def test_assigning_uses_the_dataset_model():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     dataset, report = assign_uncertainty(dataset)
     channel = report.distributions["per_channel"]["ch1 (LM/z)"]
 
@@ -273,12 +300,50 @@ def test_assigning_uses_the_dataset_model():
 def test_it_carries_no_model_of_its_own():
     """R9's whole point. The defect being designed out is assigning uncertainty
     with one floor and culling with another."""
-    with pytest.raises(ValueError, match="no noise model"):
+    with pytest.raises(ValueError, match="no noise floor"):
         assign_uncertainty(delivery())
 
 
+def test_the_relative_fraction_defaults_to_the_system_description():
+    """Never estimated — it is systematic and has no separable signature in the
+    data. Unset, each channel's UniformDataSTD is used."""
+    dataset, _ = set_noise_floor(delivery())
+    _, report = assign_uncertainty(dataset)
+    channel = report.distributions["per_channel"]["ch1 (LM/z)"]
+
+    assert channel["relative_fraction"] == pytest.approx(0.03)
+    assert channel["relative_fraction_source"] == "system description"
+
+
+def test_a_given_relative_fraction_wins_over_the_system_description():
+    dataset, _ = set_noise_floor(delivery())
+    _, report = assign_uncertainty(dataset, relative_fraction=0.05)
+    channel = report.distributions["per_channel"]["ch1 (LM/z)"]
+
+    assert channel["relative_fraction"] == 0.05
+    assert channel["relative_fraction_source"] == "supplied"
+
+
+def test_no_fraction_anywhere_is_a_floor_only_assignment_and_says_so():
+    dataset, _ = set_noise_floor(delivery())
+    for channel in dataset.channels:
+        del dataset.survey.gex.gex_dict[f"Channel{channel.index}"]["UniformDataSTD"]
+    _, report = assign_uncertainty(dataset)
+
+    for entry in report.distributions["per_channel"].values():
+        assert entry["relative_fraction"] == 0.0
+        assert entry["relative_fraction_source"] == "floor only"
+    assert any("floor alone" in n for n in report.notes)
+
+
+def test_a_negative_relative_fraction_is_refused():
+    dataset, _ = set_noise_floor(delivery())
+    with pytest.raises(ValueError, match="cannot be negative"):
+        assign_uncertainty(dataset, relative_fraction=-0.03)
+
+
 def test_the_delivered_uncertainties_are_stashed():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     key = dataset.channels[0].std_key
     before = dataset.layer_data[key].copy()
 
@@ -289,7 +354,7 @@ def test_the_delivered_uncertainties_are_stashed():
 
 
 def test_it_changes_no_measurement_or_mask():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     values = {c.data_key: dataset.layer_data[c.data_key].copy()
               for c in dataset.channels}
     masks = {c.inuse_key: dataset.layer_data[c.inuse_key].copy()
@@ -304,7 +369,7 @@ def test_it_changes_no_measurement_or_mask():
 # ── filter_29 ────────────────────────────────────────────────────────────────
 
 def test_culling_uses_the_same_model():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     dataset, report = cull_below_noise_floor(dataset)
 
     assert report.distributions["model"]["level_1ms"] == pytest.approx(
@@ -313,14 +378,14 @@ def test_culling_uses_the_same_model():
 
 
 def test_it_carries_no_floor_of_its_own_either():
-    with pytest.raises(ValueError, match="no noise model"):
+    with pytest.raises(ValueError, match="no noise"):
         cull_below_noise_floor(delivery())
 
 
 def test_the_two_consumers_read_one_definition():
     """The assertion R9 exists for: what filter_12 assigned uncertainty from and
     what filter_29 culled against are the same numbers, not two that agree."""
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     dataset, assigned = assign_uncertainty(dataset)
     dataset, culled = cull_below_noise_floor(dataset)
 
@@ -329,29 +394,29 @@ def test_the_two_consumers_read_one_definition():
 
 def test_margin_demands_more_than_the_floor():
     _, at_floor = cull_below_noise_floor(
-        estimate_noise_model(delivery())[0], margin=1.0)
+        set_noise_floor(delivery())[0], margin=1.0)
     _, generous = cull_below_noise_floor(
-        estimate_noise_model(delivery())[0], margin=10.0)
+        set_noise_floor(delivery())[0], margin=10.0)
 
     assert (generous.distributions["removed"]
             > at_floor.distributions["removed"])
 
 
 def test_a_non_positive_margin_is_refused():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     with pytest.raises(ValueError, match="must be positive"):
         cull_below_noise_floor(dataset, margin=0)
 
 
 def test_a_strong_transient_keeps_its_early_gates():
-    dataset, _ = estimate_noise_model(delivery(signal=1e-4))
+    dataset, _ = set_noise_floor(delivery(signal=1e-4))
     dataset, _ = cull_below_noise_floor(dataset)
 
     assert (mask(dataset)[:, 0] == IN_USE).all()
 
 
 def test_the_policy_applies_here_too():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     dataset, report = cull_below_noise_floor(dataset, disable_tail=True)
 
     assert report.distributions["policy"]["disable_tail"] is True
@@ -359,7 +424,7 @@ def test_the_policy_applies_here_too():
 
 
 def test_it_changes_no_measurement_or_uncertainty():
-    dataset, _ = estimate_noise_model(delivery())
+    dataset, _ = set_noise_floor(delivery())
     arrays = {k: v.copy() for k, v in dataset.layer_data.items()
               if "inuse" not in k.lower()}
 
@@ -372,7 +437,7 @@ def test_it_changes_no_measurement_or_uncertainty():
 # ── Plumbing ─────────────────────────────────────────────────────────────────
 
 def test_the_reports_survive_serialization():
-    dataset, estimate = estimate_noise_model(delivery())
+    dataset, estimate = set_noise_floor(delivery())
     dataset, assigned = assign_uncertainty(dataset)
     dataset, culled = cull_below_noise_floor(dataset)
 
@@ -381,7 +446,7 @@ def test_the_reports_survive_serialization():
         assert restored["distributions"]["model"]["exponent"] is not None
 
 
-@pytest.mark.parametrize("name", ["estimate_noise_model", "assign_uncertainty",
+@pytest.mark.parametrize("name", ["set_noise_floor", "assign_uncertainty",
                                   "cull_below_noise_floor"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)

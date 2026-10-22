@@ -21,8 +21,8 @@ different attribute, and R7 says that is exactly when to use a ``criterion``:
 
 .. code-block:: yaml
 
-    - Select channels: {criterion: component, keep: [z]}    # Z only
-    - Select channels: {criterion: moment,    keep: [HM]}    # high moment only
+    - select_moments: {criterion: component, keep: [z]}    # Z only
+    - select_moments: {criterion: moment,    keep: [HM]}    # high moment only
 
 Chaining them narrows on both, and each criterion carries only its own
 parameters, so nothing is dead depending on a flag.
@@ -58,14 +58,17 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
-STEP = "select_channels"
+STEP = "select_moments"
+CATEGORY = "selection"
 
-#: What each criterion reads off a channel. Adding one is a line here plus a
-#: line of documentation, not a new step.
+#: What each criterion reads off a channel. Moment and component only: a
+#: channel's ``ch1`` key is a position in the file, not a physical thing, and a
+#: pipeline that says "keep ch2" means something different on every instrument.
+#: Selection by what the channel *is* travels between surveys; selection by
+#: where it sat in the file does not (Ben, 2026-10-21).
 CRITERIA = {
     "component": lambda channel: channel.component,
     "moment": lambda channel: channel.name,
-    "key": lambda channel: channel.key,
 }
 
 
@@ -111,7 +114,7 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
             and not is_provenance(key)}
 
 
-def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks: bool = True,
+def select_moments(dataset, criterion: str, keep: list[str], drop_system_blocks: bool = True,
                     drop_unclaimed: bool = False):
     """Keep only the channels whose ``criterion`` value is in ``keep``.
 
@@ -120,9 +123,10 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
     dataset : Dataset
         The dataset to reduce; discarded channels' arrays leave ``layer_data``.
     criterion : str
-        How channels are chosen — ``component`` (``x``/``y``/``z``, from the
-        receiver polarization), ``moment`` (the transmitter moment name, such
-        as ``LM``), or ``key`` (``ch1``, always available).
+        How channels are chosen — ``moment`` (the transmitter moment name,
+        such as ``LM`` or ``HM``) or ``component`` (``x``/``y``/``z``, from
+        the receiver polarization). Both are read from the system description,
+        so a dataset without one cannot be selected on.
     keep : str | list[str]
         Which values to keep. Matched case-insensitively, so ``Z`` and ``z``
         are the same request.
@@ -237,8 +241,8 @@ def select_channels(dataset, criterion: str, keep: list[str], drop_system_blocks
             if block in getattr(dataset.system, "gex_dict", {}):
                 del dataset.system.gex_dict[block]
 
-    report.points_total = len(channels)
-    report.points_affected = len(discarded)
+    report.gates_total = len(channels)
+    report.gates_affected = len(discarded)
     report.distributions["arrays_removed"] = removed
     report.notes.append(
         f"Removed {len(discarded)} channel(s): "

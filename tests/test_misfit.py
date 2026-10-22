@@ -242,11 +242,11 @@ def test_the_whole_chain_runs_from_one_pipeline(tmp_path):
         kind: filters
         steps:
           - compute_misfit: {{result: {path}}}
-          - cull_by_external_evidence: {{criterion: misfit, max_misfit: 3.0}}
+          - cull_by_misfit: {{max_misfit: 3.0}}
     """)).run(dataset)
 
     ran = [s.step for s in report.steps]
-    assert ran[-2:] == ["compute_misfit", "cull_by_external_evidence"]
+    assert ran[-2:] == ["compute_misfit", "cull_by_misfit"]
     assert (dataset.layer_data[dataset.channels[0].inuse_key].to_numpy()[:, 4:]
             == CULLED).all()
 

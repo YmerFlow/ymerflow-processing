@@ -70,7 +70,9 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
-STEP = "perturb_from_uncertainty"
+CATEGORY = "synthetic"
+
+STEP = "add_noise"
 
 #: Suffix for the stashed originals — the noise-free values this was drawn onto.
 STASH_SUFFIX = "_clean"
@@ -100,7 +102,7 @@ def applied(dataset) -> str | None:
     return str(value) if value else None
 
 
-def perturb_from_uncertainty(dataset, seed: int = DEFAULT_SEED,
+def add_noise(dataset, seed: int = DEFAULT_SEED,
                              channels: list[str] | None = None,
                              again: bool = False, stash: bool = True):
     """Add noise drawn from each datum's assigned uncertainty.

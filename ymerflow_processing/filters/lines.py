@@ -61,6 +61,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "selection"
+
 #: Where a flightline's classification lives. Nine characters, so it survives a
 #: shapefile field name intact.
 LINE_TYPE_COLUMN = "line_type"
@@ -252,7 +254,7 @@ def select_lines(dataset, criterion: str, line_types: list[str] | None = None,
     ------
     ValueError
         If the selection would remove every line — the same refusal as
-        ``select_channels``. A selection matching no line is almost always a
+        ``select_moments``. A selection matching no line is almost always a
         typo, and an empty dataset fails much later and much less clearly.
     """
     report = StepReport(step="select_lines")

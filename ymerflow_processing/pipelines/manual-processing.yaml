@@ -46,15 +46,19 @@ steps:
   # noise_level_1ms is the instrument's absolute dB/dt floor at 1 ms in physical
   # units (V/Am², BEFORE moment normalization) — the same number SimPEG takes.
   # It is divided by each channel's dipole moment and compared against the
-  # physical form dbdt × scalefactor × GateFactor when applied. The relative
-  # fraction is the proportional error — the "3 %" of an inversion's error model.
-  - estimate_noise_model:
+  # physical form dbdt × scalefactor × GateFactor when applied. The slope is
+  # held at -0.5 unless fit_exponent is set.
+  - set_noise_floor:
       scope: per_dataset
       # noise_level_1ms: 1.0e-9    # EDIT: the survey's absolute floor at 1 ms
       # noise_exponent: -0.5       # white noise over gates whose width grows with time
-      # relative_fraction: 0.03    # the proportional part
 
+  # The relative fraction is the proportional error — the "3 %" of an
+  # inversion's error model — combined with the floor in quadrature. It is the
+  # assignment's parameter, not the floor's; unset, the system description's
+  # UniformDataSTD is used.
   - assign_uncertainty: {}
+      # relative_fraction: 0.03    # the proportional part
 
   # ── 2 · Nothing else ───────────────────────────────────────────────────────
   # No cull_* step and no average_along_line, on purpose. Add them back one at a

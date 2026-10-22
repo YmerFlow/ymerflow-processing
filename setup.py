@@ -55,42 +55,50 @@ setup(
     entry_points={
         # Three runners, three groups — see building_plans/02.
         # dataset -> dataset
+        # Grouped by category (pipeline.CATEGORIES); each module declares its own.
+        # disable_initial_gates is deliberately NOT registered: it is applied
+        # automatically when a survey meets its system description, and a step
+        # nobody decides on is not a step anyone should be able to forget.
         "ymerflow.processing.filters": [
-            "select_channels = ymerflow_processing.filters.select_channels:select_channels",
-            "export_vector = ymerflow_processing.filters.export_vector:export_vector",
-            "disable_initial_gates = ymerflow_processing.filters.cull_initial_gates:disable_initial_gates",
-            "cull_by_geometry = ymerflow_processing.filters.cull_geometry:cull_by_geometry",
-            "cull_by_uncertainty = ymerflow_processing.filters.cull_uncertainty:cull_by_uncertainty",
-            "cull_by_external_evidence = ymerflow_processing.filters.cull_evidence:cull_by_external_evidence",
-            "cull_by_decay_rate = ymerflow_processing.filters.cull_decay_rate:cull_by_decay_rate",
-            "cull_by_curvature = ymerflow_processing.filters.cull_curvature:cull_by_curvature",
-            "cull_negatives = ymerflow_processing.filters.cull_negatives:cull_negatives",
-            "apply_manual_edits = ymerflow_processing.filters.cull_manual_edits:apply_manual_edits",
-            "apply_terrain_model = ymerflow_processing.filters.terrain:apply_terrain_model",
-            # R9: one noise model on the dataset; filter_12 and filter_29 read it.
-            "estimate_noise_model = ymerflow_processing.filters.noise:estimate_noise_model",
-            # filter_06-09: geometry, conventions and constants.
-            "correct_tilt = ymerflow_processing.filters.attitude:correct_tilt",
-            "zero_attitude = ymerflow_processing.filters.attitude:zero_attitude",
-            "apply_nominal_current = ymerflow_processing.filters.normalize:apply_nominal_current",
-            "compute_misfit = ymerflow_processing.filters.misfit:compute_misfit",
-            "average_along_line = ymerflow_processing.filters.average:average_along_line",
-            "inflate_uncertainty = ymerflow_processing.filters.inflate:inflate_uncertainty",
-            "perturb_from_uncertainty = ymerflow_processing.filters.perturb:perturb_from_uncertainty",
-            "assign_uncertainty = ymerflow_processing.filters.uncertainty:assign_uncertainty",
-            "cull_below_noise_floor = ymerflow_processing.filters.cull_noise_floor:cull_below_noise_floor",
-            # filter_01-04: line selection, collapsed to two by 01's decision.
+            # selection
             "classify_lines = ymerflow_processing.filters.lines:classify_lines",
             "select_lines = ymerflow_processing.filters.lines:select_lines",
-            # filter_14-19: data management, one entry point each.
+            "select_moments = ymerflow_processing.filters.select_moments:select_moments",
+            # corrections
+            "correct_tilt_1d = ymerflow_processing.filters.attitude:correct_tilt_1d",
+            "zero_attitude = ymerflow_processing.filters.attitude:zero_attitude",
+            "apply_terrain_model = ymerflow_processing.filters.terrain:apply_terrain_model",
+            "apply_nominal_current = ymerflow_processing.filters.normalize:apply_nominal_current",
+            # noise — R9: one noise floor on the dataset; the consumers read it.
+            "set_noise_floor = ymerflow_processing.filters.noise:set_noise_floor",
+            "assign_uncertainty = ymerflow_processing.filters.uncertainty:assign_uncertainty",
+            "inflate_uncertainty = ymerflow_processing.filters.inflate:inflate_uncertainty",
+            "compute_misfit = ymerflow_processing.filters.misfit:compute_misfit",
+            # cull soundings
+            "cull_by_altitude_tilt = ymerflow_processing.filters.cull_altitude_tilt:cull_by_altitude_tilt",
+            "cull_sparse_soundings = ymerflow_processing.filters.cull_sparse_soundings:cull_sparse_soundings",
+            # cull gates
+            "cull_negatives = ymerflow_processing.filters.cull_negatives:cull_negatives",
+            "cull_by_slope = ymerflow_processing.filters.cull_slope:cull_by_slope",
+            "cull_by_curvature = ymerflow_processing.filters.cull_curvature:cull_by_curvature",
+            "cull_below_noise_floor = ymerflow_processing.filters.cull_noise_floor:cull_below_noise_floor",
+            "cull_by_uncertainty = ymerflow_processing.filters.cull_uncertainty:cull_by_uncertainty",
+            "cull_near_infrastructure = ymerflow_processing.filters.cull_evidence:cull_near_infrastructure",
+            "cull_by_misfit = ymerflow_processing.filters.cull_evidence:cull_by_misfit",
+            "set_inuse_gates = ymerflow_processing.filters.inuse_gates:set_inuse_gates",
+            "apply_manual_edits = ymerflow_processing.filters.cull_manual_edits:apply_manual_edits",
+            # averaging
+            "average_along_line = ymerflow_processing.filters.average:average_along_line",
+            # housekeeping
             "copy_attribute = ymerflow_processing.filters.manage:copy_attribute",
             "copy_array = ymerflow_processing.filters.manage:copy_array",
             "rename_attribute = ymerflow_processing.filters.manage:rename_attribute",
             "rename_array = ymerflow_processing.filters.manage:rename_array",
             "remove_attribute = ymerflow_processing.filters.manage:remove_attribute",
             "remove_array = ymerflow_processing.filters.manage:remove_array",
-            "nominate_gates = ymerflow_processing.filters.cull_nominate_gates:nominate_gates",
-            "cull_sparse_soundings = ymerflow_processing.filters.cull_sparse_soundings:cull_sparse_soundings",
+            "export_vector = ymerflow_processing.filters.export_vector:export_vector",
+            # synthetic
+            "add_noise = ymerflow_processing.filters.add_noise:add_noise",
         ],
         # N reports (or N datasets) -> one report
         "ymerflow.processing.compare": [

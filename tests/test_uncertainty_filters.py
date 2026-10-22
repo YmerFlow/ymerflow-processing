@@ -14,11 +14,11 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing.filters.inflate import inflate_uncertainty
-from ymerflow_processing.filters.perturb import (
-    DEFAULT_SEED, STASH_SUFFIX, applied, perturb_from_uncertainty,
+from ymerflow_processing.filters.add_noise import (
+    DEFAULT_SEED, STASH_SUFFIX, applied, add_noise,
 )
 from ymerflow_processing.filters.uncertainty import assign_uncertainty
-from ymerflow_processing.filters.noise import estimate_noise_model, REFERENCE_TIME
+from ymerflow_processing.filters.noise import set_noise_floor, REFERENCE_TIME
 from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
@@ -126,7 +126,7 @@ def test_it_perturbs_the_values():
     dataset = delivery()
     before = dataset.layer_data[dataset.channels[0].data_key].to_numpy().copy()
 
-    dataset, _ = perturb_from_uncertainty(dataset, seed=1)
+    dataset, _ = add_noise(dataset, seed=1)
     after = dataset.layer_data[dataset.channels[0].data_key].to_numpy()
 
     # atol=0: the default 1e-8 swamps a response of order 1e-9, so every
@@ -140,7 +140,7 @@ def test_the_spread_scales_with_the_value_not_the_relative_figure():
     dataset = delivery()
     key = dataset.channels[0].data_key
     dataset.layer_data[key].iloc[:, :] = 1e-6            # a strong response
-    dataset, _ = perturb_from_uncertainty(dataset, seed=1)
+    dataset, _ = add_noise(dataset, seed=1)
 
     residual = dataset.layer_data[key].to_numpy() - 1e-6
     # 3% of 1e-6 is 3e-8; the scatter should be of that order, not of order 0.03.
@@ -149,8 +149,8 @@ def test_the_spread_scales_with_the_value_not_the_relative_figure():
 
 def test_the_same_seed_repeats_exactly():
     """"A fair test" is not a fair test if it cannot be repeated."""
-    one, _ = perturb_from_uncertainty(delivery(), seed=7)
-    two, _ = perturb_from_uncertainty(delivery(), seed=7)
+    one, _ = add_noise(delivery(), seed=7)
+    two, _ = add_noise(delivery(), seed=7)
 
     np.testing.assert_array_equal(
         one.layer_data[one.channels[0].data_key].to_numpy(),
@@ -158,8 +158,8 @@ def test_the_same_seed_repeats_exactly():
 
 
 def test_a_different_seed_gives_different_noise():
-    one, _ = perturb_from_uncertainty(delivery(), seed=7)
-    two, _ = perturb_from_uncertainty(delivery(), seed=8)
+    one, _ = add_noise(delivery(), seed=7)
+    two, _ = add_noise(delivery(), seed=8)
 
     assert not np.allclose(
         one.layer_data[one.channels[0].data_key].to_numpy(),
@@ -171,7 +171,7 @@ def test_the_noise_free_values_are_stashed():
     key = dataset.channels[0].data_key
     before = dataset.layer_data[key].copy()
 
-    dataset, _ = perturb_from_uncertainty(dataset, seed=1)
+    dataset, _ = add_noise(dataset, seed=1)
 
     pd.testing.assert_frame_equal(
         dataset.layer_data[f"{key}{STASH_SUFFIX}"], before)
@@ -182,7 +182,7 @@ def test_it_changes_no_uncertainty_or_mask():
     keep = {k: v.copy() for k, v in dataset.layer_data.items()
             if "std" in k.lower() or "inuse" in k.lower()}
 
-    dataset, _ = perturb_from_uncertainty(dataset, seed=1)
+    dataset, _ = add_noise(dataset, seed=1)
 
     for key, array in keep.items():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
@@ -193,21 +193,21 @@ def test_it_changes_no_uncertainty_or_mask():
 def test_it_refuses_to_run_twice():
     """The classic silent error: the result is noisier by sqrt(2) and looks
     exactly like data."""
-    dataset, _ = perturb_from_uncertainty(delivery(), seed=1)
+    dataset, _ = add_noise(delivery(), seed=1)
 
     with pytest.raises(ValueError, match="already carries synthetic noise"):
-        perturb_from_uncertainty(dataset, seed=2)
+        add_noise(dataset, seed=2)
 
 
 def test_a_second_pass_can_be_asked_for_explicitly():
-    dataset, _ = perturb_from_uncertainty(delivery(), seed=1)
-    dataset, report = perturb_from_uncertainty(dataset, seed=2, again=True)
+    dataset, _ = add_noise(delivery(), seed=1)
+    dataset, report = add_noise(dataset, seed=2, again=True)
 
     assert report.distributions["repeated"] is True
 
 
 def test_the_application_is_recorded_with_its_seed():
-    dataset, _ = perturb_from_uncertainty(delivery(), seed=42)
+    dataset, _ = add_noise(delivery(), seed=42)
     assert applied(dataset) == "seed=42"
 
 
@@ -215,7 +215,7 @@ def test_uniform_uncertainties_are_called_out():
     """The signature of a default from the system description rather than an
     assigned model — noise drawn from it is flat in relative terms, so late
     gates come out as clean as early ones."""
-    _, report = perturb_from_uncertainty(delivery(), seed=1)
+    _, report = add_noise(delivery(), seed=1)
 
     assert any("uniform default" in n for n in report.notes)
     assert report.distributions["per_channel"]["ch1 (LM/z)"][
@@ -224,9 +224,9 @@ def test_uniform_uncertainties_are_called_out():
 
 def test_an_assigned_model_is_not_called_out():
     """A warning that fires on correct use is worse than none."""
-    dataset, _ = estimate_noise_model(realistic())
+    dataset, _ = set_noise_floor(realistic())
     dataset, _ = assign_uncertainty(dataset)
-    _, report = perturb_from_uncertainty(dataset, seed=1)
+    _, report = add_noise(dataset, seed=1)
 
     assert not any("uniform default" in n for n in report.notes)
 
@@ -235,7 +235,7 @@ def test_the_seed_defaults_to_a_legible_marker():
     """42 is not a better number — no seed is. It is the right default because
     it reads as "nobody chose this", where an arbitrary-looking number reads as
     though someone did and had a reason."""
-    _, report = perturb_from_uncertainty(delivery())
+    _, report = add_noise(delivery())
 
     assert DEFAULT_SEED == 42
     assert report.distributions["seed"] == 42
@@ -245,7 +245,7 @@ def test_the_seed_defaults_to_a_legible_marker():
 
 def test_a_given_seed_is_recorded_as_given():
     """So "seed=42" in a file is distinguishable from a deliberate 42."""
-    _, report = perturb_from_uncertainty(delivery(), seed=7)
+    _, report = add_noise(delivery(), seed=7)
 
     assert report.distributions["seed_source"] == "given"
     assert not any("need their own seed" in n for n in report.notes)
@@ -254,20 +254,20 @@ def test_a_given_seed_is_recorded_as_given():
 def test_naming_channels_does_not_disturb_the_seed_source():
     """A name collision here would have made every channel-limited run report
     its seed as defaulted."""
-    _, report = perturb_from_uncertainty(delivery(), seed=7, channels=["ch1"])
+    _, report = add_noise(delivery(), seed=7, channels=["ch1"])
     assert report.distributions["seed_source"] == "given"
 
 
 def test_an_explicit_none_seed_is_still_an_error():
     with pytest.raises(ValueError, match="cannot be None"):
-        perturb_from_uncertainty(delivery(), seed=None)
+        add_noise(delivery(), seed=None)
 
 
 def test_the_default_gives_every_realization_the_same_noise():
     """What a default cannot do is make two realizations independent. Detectable
     rather than silent, but the reason anything wanting independence must ask."""
-    one, _ = perturb_from_uncertainty(delivery())
-    two, _ = perturb_from_uncertainty(delivery())
+    one, _ = add_noise(delivery())
+    two, _ = add_noise(delivery())
 
     np.testing.assert_array_equal(
         one.layer_data[one.channels[0].data_key].to_numpy(),
@@ -281,26 +281,26 @@ def test_the_whole_synthetic_chain_runs_in_order():
     dataset, report = ProcessingRunner(Pipeline.parse("""
         kind: filters
         steps:
-          - estimate_noise_model: {}
+          - set_noise_floor: {}
           - inflate_uncertainty: {fraction: 0.01}
-          - perturb_from_uncertainty: {seed: 11}
+          - add_noise: {seed: 11}
     """)).run(realistic())
 
     ran = [s.step for s in report.steps]
-    assert ran[-3:] == ["estimate_noise_model", "inflate_uncertainty",
-                        "perturb_from_uncertainty"]
+    assert ran[-3:] == ["set_noise_floor", "inflate_uncertainty",
+                        "add_noise"]
     assert applied(dataset) == "seed=11"
 
 
 def test_late_gates_get_noise_larger_than_the_datum():
     """Correct, and what makes the synthetic look like real late-time data: the
     floor has overtaken the signal, so the assigned uncertainty passed one."""
-    dataset, _ = estimate_noise_model(realistic())
+    dataset, _ = set_noise_floor(realistic())
     dataset, _ = assign_uncertainty(dataset)
     key = dataset.channels[0].data_key
     clean = dataset.layer_data[key].to_numpy().copy()
 
-    dataset, _ = perturb_from_uncertainty(dataset, seed=5)
+    dataset, _ = add_noise(dataset, seed=5)
     residual = np.abs(dataset.layer_data[key].to_numpy() - clean)
 
     assert np.median(residual[:, -1] / np.abs(clean[:, -1])) > 1.0
@@ -309,7 +309,7 @@ def test_late_gates_get_noise_larger_than_the_datum():
 
 def test_the_reports_survive_serialization():
     dataset, inflated = inflate_uncertainty(delivery(), fraction=0.02)
-    dataset, perturbed = perturb_from_uncertainty(dataset, seed=1)
+    dataset, perturbed = add_noise(dataset, seed=1)
 
     for report in (inflated, perturbed):
         restored = json.loads(json.dumps(report.to_dict(), default=str))
@@ -317,7 +317,7 @@ def test_the_reports_survive_serialization():
 
 
 @pytest.mark.parametrize("name", ["inflate_uncertainty",
-                                  "perturb_from_uncertainty"])
+                                  "add_noise"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)
 
@@ -337,10 +337,9 @@ def _raw(n=8, gates=5):
 
 
 def _with_model(dataset):
-    from ymerflow_processing.filters.noise import estimate_noise_model
-    dataset, _ = estimate_noise_model(
-        dataset, noise_level_1ms=5.0e-10, noise_exponent=-0.5,
-        relative_fraction=0.03)
+    from ymerflow_processing.filters.noise import set_noise_floor
+    dataset, _ = set_noise_floor(
+        dataset, noise_level_1ms=5.0e-10, noise_exponent=-0.5)
     return dataset
 
 

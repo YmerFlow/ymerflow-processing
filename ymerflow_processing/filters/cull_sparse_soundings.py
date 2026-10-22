@@ -54,6 +54,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "cull soundings"
+
 STEP = "cull_sparse_soundings"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.

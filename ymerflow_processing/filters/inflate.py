@@ -37,7 +37,7 @@ downstream to be squared by something.
 Gate ranges use filter_21's idiom
 ---------------------------------
 A single index, a list, or a ``"first-last"`` range, inclusive — the same forms
-``nominate_gates`` takes, so the idiom is learned once and works everywhere (R7).
+``set_inuse_gates`` takes, so the idiom is learned once and works everywhere (R7).
 """
 
 import logging
@@ -45,11 +45,13 @@ import logging
 import numpy as np
 import pandas as pd
 
-from .cull_nominate_gates import parse_gates
+from .inuse_gates import parse_gates
 from ..distribution import summarize
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
+
+CATEGORY = "noise"
 
 STEP = "inflate_uncertainty"
 

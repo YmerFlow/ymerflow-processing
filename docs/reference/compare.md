@@ -31,13 +31,13 @@ implementation_equivalence(reference: ymerflow_processing.dataset.Dataset | None
 Trend the estimated noise floor across a sequence of deliveries.
 
 ```python
-noise_floor_drift(reference: dict | None = None, source_step: str = 'estimate_noise_model', max_ratio: float | None = None)
+noise_floor_drift(reference: dict | None = None, source_step: str = 'set_noise_floor', max_ratio: float | None = None)
 ```
 
 | parameter | default | |
 |---|---|---|
 | `reference` | `None` | A run to measure everything against. Without one the baseline is the series median, which is robust to the outlier being looked for. |
-| `source_step` | `'estimate_noise_model'` | Which step's report carries the model. |
+| `source_step` | `'set_noise_floor'` | Which step's report carries the model. |
 | `max_ratio` | `None` | Largest acceptable factor between a delivery's floor and the baseline. **Unset, this measures and says nothing** — what counts as too much drift depends on the instrument and the survey. |
 
 ## `parameter_sweep`

@@ -226,8 +226,10 @@ def test_the_report_survives_serialization():
     assert restored["distributions"]["provenance_code"] == STEP_CODE
 
 
-def test_registered():
-    assert "disable_initial_gates" in load_steps(FILTER_GROUP)
+def test_not_registered_as_a_step():
+    """A step that is not a decision has no place in a form or a pipeline
+    document. It is applied automatically; the function stays callable."""
+    assert "disable_initial_gates" not in load_steps(FILTER_GROUP)
 
 
 # ── A mandate, not a step someone remembers ──────────────────────────────────
@@ -253,7 +255,7 @@ def test_a_filter_run_applies_it_before_any_step():
 
     dataset = delivery(remove=(3, 3), n=20)
     dataset, _ = ProcessingRunner(Pipeline.parse(
-        "kind: filters\nsteps: [{select_channels: "
+        "kind: filters\nsteps: [{select_moments: "
         "{criterion: moment, keep: [LM]}}]")).run(dataset)
 
     assert (mask(dataset, 0)[:, :3] == CULLED).all()

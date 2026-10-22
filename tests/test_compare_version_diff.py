@@ -135,7 +135,7 @@ def test_collateral_culling_is_attributed_to_the_same_step():
     spread from it. Attribution is by step, so the sign is not a second step."""
     new, old = pair()
     channel = new.channels[0]
-    mark_step(new, 25, "cull_by_decay_rate")
+    mark_step(new, 25, "cull_by_slope")
     trigger = np.zeros((N, GATES), dtype=bool)
     trigger[:, 4] = True
     cull(new, channel, apply_policy(trigger, spread_earlier=1),
@@ -143,7 +143,7 @@ def test_collateral_culling_is_attributed_to_the_same_step():
 
     mask = channel_entry(diff(new, old), MASK)
     assert sum(mask["culled_by_step"].values()) == N * 2
-    assert list(mask["culled_by_step"]) == ["cull_by_decay_rate"]
+    assert list(mask["culled_by_step"]) == ["cull_by_slope"]
 
 
 # ── The value half ───────────────────────────────────────────────────────────

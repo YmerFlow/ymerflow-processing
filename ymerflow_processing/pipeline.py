@@ -100,6 +100,41 @@ def describe_bundled() -> dict[str, str]:
     return out
 
 
+#: What kind of thing a filter does, in the order a processing chain usually
+#: runs them. The reference groups the filters by this and the platform's form
+#: shows it beside each step, so a person choosing a step sees "cull gates"
+#: rather than an alphabetical list of forty names. Each filter module declares
+#: its own as a ``CATEGORY`` attribute, the way a comparison declares
+#: ``CONSUMES``; a test checks every registered filter names one of these.
+CATEGORIES = (
+    "selection",        # which lines, which moments
+    "corrections",      # make the data physically right before deriving from it
+    "noise",            # the floor, the uncertainties, the misfit
+    "cull soundings",   # whole soundings, every gate of every channel
+    "cull gates",       # individual gates, through the policy
+    "averaging",
+    "housekeeping",     # copy, rename, remove, export
+    "synthetic",        # for building test cases, never for real data
+)
+
+
+def category(function) -> str | None:
+    """The category a step's module declares, or ``None`` if it declares none.
+
+    Parameters
+    ----------
+    function : Callable
+        A registered step.
+
+    Returns
+    -------
+    str | None
+        One of :data:`CATEGORIES`, or ``None`` for a QC check or a comparison.
+    """
+    module = sys.modules.get(getattr(function, "__module__", ""), None)
+    return getattr(module, "CATEGORY", None)
+
+
 def load_steps(group: str) -> dict[str, Callable]:
     """Every step registered under an entry-point group.
 
@@ -139,7 +174,7 @@ class StepReport:
         The parameters it ran with.
     soundings_total, soundings_affected : int | None
         How many soundings there were, and how many this step touched.
-    points_total, points_affected : int | None
+    gates_total, gates_affected : int | None
         The same per gate-sample, for a step that works below the sounding.
     verdict_column : str | None
         Which column holds this step's per-sounding verdict, if it wrote one.
@@ -160,8 +195,8 @@ class StepReport:
 
     soundings_total: int | None = None
     soundings_affected: int | None = None
-    points_total: int | None = None
-    points_affected: int | None = None
+    gates_total: int | None = None
+    gates_affected: int | None = None
 
     #: Which column this step wrote its per-sounding verdict to, if it wrote
     #: one. Declared rather than discovered, so a caller can tell one check's
@@ -228,8 +263,8 @@ class StepReport:
             "finding": self.finding,
             "soundings": {"total": self.soundings_total,
                           "affected": self.soundings_affected},
-            "points": {"total": self.points_total,
-                       "affected": self.points_affected},
+            "gates": {"total": self.gates_total,
+                      "affected": self.gates_affected},
             "distributions": self.distributions,
             "notes": self.notes,
         }

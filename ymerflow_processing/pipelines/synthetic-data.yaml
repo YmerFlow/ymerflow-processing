@@ -29,7 +29,7 @@ description: >
 #
 # Three things make that detectable rather than silent:
 #
-#   * perturb_from_uncertainty REFUSES TO RUN TWICE. Perturbing an already
+#   * add_noise REFUSES TO RUN TWICE. Perturbing an already
 #     perturbed dataset makes it noisier by roughly the square root of two, and
 #     the result looks exactly like data. Pass `again: true` if you mean it.
 #   * It SAYS SO if every uncertainty in a channel is identical — the signature
@@ -50,20 +50,20 @@ steps:
   # Take these numbers from a real survey flown with the same system, which is
   # what makes the synthetic representative rather than merely noisy.
 
-  - estimate_noise_model:
+  - set_noise_floor:
       noise_level_1ms: 5.0e-10   # EDIT: the absolute floor at 1 ms in physical
                                  # units (V/Am², before moment normalization);
                                  # divided by each channel's dipole moment when
                                  # applied, exactly as SimPEG does
       noise_exponent: -0.5       # how the floor falls with time
-      relative_fraction: 0.03    # the proportional part, 3%
 
   # ── 2 · Assignment ─────────────────────────────────────────────────────────
-  # Turns the model into a per-datum uncertainty: the larger of the relative
-  # fraction and the absolute floor at that gate time. That combination is what
+  # Turns the floor into a per-datum uncertainty: the relative fraction and the
+  # floor's share at that gate time, in quadrature. That combination is what
   # makes late gates behave like late gates.
 
-  - assign_uncertainty: {}
+  - assign_uncertainty:
+      relative_fraction: 0.03    # the proportional part, 3%
 
   # ── 3 · Drawing from it ────────────────────────────────────────────────────
   # The spread is uncertainty x |value|, because the stored uncertainty is
@@ -72,7 +72,7 @@ steps:
   # a synthetic look like real late-time data rather than a clean curve with a
   # little fuzz on it.
 
-  - perturb_from_uncertainty:
+  - add_noise:
       seed: 42                   # recorded on the dataset; change it per realization
 
   # ── 4 · Optional: process it like a real delivery ──────────────────────────

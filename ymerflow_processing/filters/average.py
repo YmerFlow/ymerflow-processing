@@ -102,6 +102,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "averaging"
+
 STEP = "average_along_line"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.
