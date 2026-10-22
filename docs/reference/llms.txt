@@ -14,14 +14,14 @@ These are easy to violate silently and cannot be inferred from a signature.
 - A step returns (result, StepReport) and never prints.
 - The number of channels comes from the data. No default may name a specific moment.
 - One noise model per dataset, so uncertainty cannot be assigned with one floor and data culled with another.
-- disable_initial_gates is applied automatically when a survey and its system description meet. Do not list it in a pipeline.
+- The system description's RemoveInitialGates is applied automatically when a survey and its description meet. It is not a step and cannot be listed.
 
 ## Ordering
 
 A wrong order here does not fail. It produces plausible nonsense.
 
-- `estimate_noise_model` before `assign_uncertainty` — estimation precedes assignment: there is nothing to assign from
-- `assign_uncertainty` before `perturb_from_uncertainty` — noise is drawn from the assigned uncertainty, not from a system default
+- `set_noise_floor` before `assign_uncertainty` — estimation precedes assignment: there is nothing to assign from
+- `assign_uncertainty` before `add_noise` — noise is drawn from the assigned uncertainty, not from a system default
 - `assign_uncertainty` before `average_along_line` — averaging propagates the uncertainty, so it must exist first
 - `cull_negatives` before `average_along_line` — cull before averaging, or a bad gate is smeared into its neighbours
 - `apply_manual_edits` last — replays last, so a human decision is never overwritten by an automated one
@@ -30,127 +30,127 @@ A wrong order here does not fail. It produces plausible nonsense.
 
 dataset in, dataset out. These change the data.
 
-### apply_manual_edits
+### add_noise  [synthetic]
+add_noise(seed: int = 42, channels: list[str] | None = None, again: bool = False, stash: bool = True)
+Add noise drawn from each datum's assigned uncertainty.
+
+### apply_manual_edits  [cull gates]
 apply_manual_edits(diff: str | libaarhusxyz.xyz.XYZ, checkpoint: str | None = None)
 Apply a hand-authored in-use diff at the soundings it names.
 
-### apply_nominal_current
+### apply_nominal_current  [corrections]
 apply_nominal_current(columns: str | dict[str, str] | None = None, stash: bool = True)
 Overwrite the per-sounding transmitter current with the declared nominal.
 
-### apply_terrain_model
+### apply_terrain_model  [corrections]
 apply_terrain_model(terrain: str | rasterio.io.DatasetReader, crs: str | None = None, band: int = 1, preserve: str = 'elevation', altitude_column: str | None = None, elevation_column: str | None = None, stash: bool = True)
 Re-express altitude against a terrain model.
 
-### assign_uncertainty
-assign_uncertainty(stash: bool = True)
-Replace uncertainties with the dataset's recorded noise model.
+### assign_uncertainty  [noise]
+assign_uncertainty(relative_fraction: float | None = None, stash: bool = True)
+Replace uncertainties with the noise floor and a proportional error.
 
-### average_along_line
+### average_along_line  [averaging]
 average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True)
 Average each sounding with its along-line neighbours.
 
-### classify_lines
+### classify_lines  [selection]
 classify_lines(criterion: str, line_type: str, threshold: float | None = None, lines: list[int | str] | None = None, altitude_column: str | None = None, line_column: str | None = None, default_line_type: str = 'Production')
 Label flightlines, without removing anything.
 
-### compute_misfit
+### compute_misfit  [noise]
 compute_misfit(result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset, rms_column: str = 'resdata')
 Write misfit between the data and a forward synthetic as columns.
 
-### copy_array
+### copy_array  [housekeeping]
 copy_array(source: str, destination: str)
 Copy a per-gate array, leaving the original (filter_15).
 
-### copy_attribute
+### copy_attribute  [housekeeping]
 copy_attribute(source: str, destination: str)
 Copy a per-sounding attribute, leaving the original (filter_14).
 
-### correct_tilt
-correct_tilt(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
+### correct_tilt_1d  [corrections]
+correct_tilt_1d(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
 Rescale amplitudes to what a horizontal transmitter would have measured.
 
-### cull_below_noise_floor
+### cull_below_noise_floor  [cull gates]
 cull_below_noise_floor(margin: float = 1.0, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 Disable gates at or below the dataset's noise floor.
 
-### cull_by_curvature
+### cull_by_altitude_tilt  [cull soundings]
+cull_by_altitude_tilt(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
+Disable soundings flown outside the geometry the forward model assumes.
+
+### cull_by_curvature  [cull gates]
 cull_by_curvature(max_curvature: float | None = None, min_curvature: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 Disable data whose local curvature is implausible.
 
-### cull_by_decay_rate
-cull_by_decay_rate(shallowest: float | None = None, steepest: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+### cull_by_misfit  [cull gates]
+cull_by_misfit(max_misfit: float, result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset | None = None, within: str | geopandas.geodataframe.GeoDataFrame | None = None, distance_first: float | dict[str, float] | None = None, distance_last: float | dict[str, float] | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable gates a previous inversion fit poorly, optionally only near mapped features.
+
+### cull_by_slope  [cull gates]
+cull_by_slope(shallowest: float | None = None, steepest: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 Disable data whose local decay rate is implausible.
 
-### cull_by_external_evidence
-cull_by_external_evidence(criterion: str, infrastructure: str | geopandas.geodataframe.GeoDataFrame | None = None, distance_first: float | dict[str, float] | None = None, distance_last: float | dict[str, float] | None = None, result: str | libaarhusxyz.xyz.XYZ | ymerflow_processing.dataset.Dataset | None = None, max_misfit: float | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
-Disable data that evidence from outside the transient says is suspect.
-
-### cull_by_geometry
-cull_by_geometry(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
-Disable soundings flown outside the geometry the forward model assumes.
-
-### cull_by_uncertainty
+### cull_by_uncertainty  [cull gates]
 cull_by_uncertainty(max_uncertainty: float, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
 
-### cull_negatives
+### cull_near_infrastructure  [cull gates]
+cull_near_infrastructure(infrastructure: str | geopandas.geodataframe.GeoDataFrame, distance_first: float | dict[str, float], distance_last: float | dict[str, float] | None = None, crs: str | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+Disable gates whose sounding lies within an exclusion distance of a mapped feature.
+
+### cull_negatives  [cull gates]
 cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
 Disable gates whose measured value is negative.
 
-### cull_sparse_soundings
+### cull_sparse_soundings  [cull soundings]
 cull_sparse_soundings(minimum_gates: int)
 Disable soundings whose usable gate count has fallen below ``minimum``.
 
-### disable_initial_gates
-disable_initial_gates(gates: dict | int | None = None)
-Disable each channel's declared initial gates in the in-use mask.
-
-### estimate_noise_model
-estimate_noise_model(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float | None = None, relative_fraction: float | None = None, late_gates: int | None = None)
-Estimate the dataset's noise model, and record it for every consumer.
-
-### export_vector
+### export_vector  [housekeeping]
 export_vector(path: str, crs: str, source_crs: str | None = None, columns: list[str] | None = None, lines: bool = True, unclassified: str = 'Unclassified', format: str | None = None)
 Write the dataset's per-sounding attributes out as vector geometry.
 
-### inflate_uncertainty
+### inflate_uncertainty  [noise]
 inflate_uncertainty(fraction: float | dict[str, float], gates: int | str | list[int | str] | dict | None = None)
 Add ``fraction`` to the uncertainty of the nominated gates.
 
-### nominate_gates
-nominate_gates(enable_gates: int | str | list[int | str] | dict | None = None, disable_gates: int | str | list[int | str] | dict | None = None)
-Set named gates in the mask, either direction, per channel.
-
-### perturb_from_uncertainty
-perturb_from_uncertainty(seed: int = 42, channels: list[str] | None = None, again: bool = False, stash: bool = True)
-Add noise drawn from each datum's assigned uncertainty.
-
-### remove_array
+### remove_array  [housekeeping]
 remove_array(name: str)
 Remove a per-gate array (filter_19).
 
-### remove_attribute
+### remove_attribute  [housekeeping]
 remove_attribute(name: str)
 Remove a per-sounding attribute (filter_18).
 
-### rename_array
+### rename_array  [housekeeping]
 rename_array(source: str, destination: str)
 Rename a per-gate array (filter_17).
 
-### rename_attribute
+### rename_attribute  [housekeeping]
 rename_attribute(source: str, destination: str)
 Rename a per-sounding attribute (filter_16).
 
-### select_channels
-select_channels(criterion: str, keep: list[str], drop_system_blocks: bool = True, drop_unclaimed: bool = False)
-Keep only the channels whose ``criterion`` value is in ``keep``.
-
-### select_lines
+### select_lines  [selection]
 select_lines(criterion: str, line_types: list[str] | None = None, lines: list[int | str] | None = None, line_column: str | None = None)
 Reduce the dataset to the flightlines wanted. **Drops soundings.**
 
-### zero_attitude
+### select_moments  [selection]
+select_moments(criterion: str, keep: list[str], drop_system_blocks: bool = True, drop_unclaimed: bool = False)
+Keep only the channels whose ``criterion`` value is in ``keep``.
+
+### set_inuse_gates  [cull gates]
+set_inuse_gates(enable_gates: int | str | list[int | str] | dict | None = None, disable_gates: int | str | list[int | str] | dict | None = None)
+Set named gates in the mask, either direction, per channel.
+
+### set_noise_floor  [noise]
+set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float = -0.5, fit_exponent: bool = False, late_gates: int | None = None)
+Set the dataset's noise floor — supplied or estimated — for every consumer.
+
+### zero_attitude  [corrections]
 zero_attitude(pitch_column: str | None = None, roll_column: str | None = None, stash: bool = True)
 Force the recorded attitude to zero, keeping the originals.
 
@@ -205,7 +205,7 @@ implementation_equivalence(reference: ymerflow_processing.dataset.Dataset | None
 Compare a candidate implementation against a baseline, per datum.
 
 ### noise_floor_drift
-noise_floor_drift(reference: dict | None = None, source_step: str = 'estimate_noise_model', max_ratio: float | None = None)
+noise_floor_drift(reference: dict | None = None, source_step: str = 'set_noise_floor', max_ratio: float | None = None)
 Trend the estimated noise floor across a sequence of deliveries.
 
 ### parameter_sweep  [consumes: datasets]

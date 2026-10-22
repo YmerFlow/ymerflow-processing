@@ -272,13 +272,13 @@ def test_a_processed_delivery_says_how_it_was_processed(tmp_path):
     dataset, _ = ProcessingRunner(Pipeline.parse("""
         kind: filters
         steps:
-          - disable_initial_gates: {}
+          - set_inuse_gates: {disable_gates: {ch1: 0}}
     """)).run(make_dataset(n=6, n_lines=1, n_gates=6))
 
     dataset.survey.dump(xyzfile=str(tmp_path / "b.xyz"),
                         gexfile=str(tmp_path / "b.gex"))
     text = (tmp_path / "b.xyz").read_text()
-    assert "disable_initial_gates" in text
+    assert "set_inuse_gates" in text
 
 
 def test_a_copy_carries_the_history():

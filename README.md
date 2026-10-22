@@ -35,7 +35,7 @@ Where a method genuinely has one obvious implementation, that is fine.
 ```
 ymerflow_processing/
 ├── dataset.py pipeline.py mask.py …   the data model, the runners, the in-use mask
-├── filters/       dataset in, dataset out — all 32, flat; cull_* write the mask
+├── filters/       dataset in, dataset out — flat, tagged by category; cull_* write the mask
 ├── qc/            dataset in, dataset plus verdicts out
 ├── compare/       N reports or datasets in, one report out
 └── methods/       one adapter per measurement method — tem.py today
@@ -127,12 +127,16 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   predicate shares: start gate, spread-earlier, tail disabling, applied once rather than
   thirteen times. Per-datum provenance rides alongside, recording which step removed each
   point and whether it was a direct hit or collateral.
-- **Filters**: `select_channels`, which reduces a delivery to the channels an inversion
-  accepts by the R7 `criterion` idiom; `export_vector`; and `disable_initial_gates`
-  (filter_20), which is **applied automatically** by `load()` and at the top of every run
-  rather than listed in a pipeline — it reads the instrument's own statement about which of its
-  samples can be inverted, which is part of reading the file correctly rather than a judgement.
-- **`cull_by_geometry`** (filter_22) — the first real predicate through the mask. Disables
+- **Filters**: `select_moments`, which reduces a delivery to the moments or components an
+  inversion accepts by the R7 `criterion` idiom — never by channel number, which is a position
+  in a file rather than a physical thing; `export_vector`; and the system description's
+  `RemoveInitialGates` (filter_20), which is **not a step**: it is applied automatically by
+  `load()` and at the top of every run — the instrument's own statement about which of its
+  samples can be inverted is part of reading the file correctly rather than a judgement.
+- **Every filter declares a category** — `selection`, `corrections`, `noise`, `cull soundings`,
+  `cull gates`, `averaging`, `housekeeping`, `synthetic` (`pipeline.CATEGORIES`). The generated
+  reference groups by it and the platform's form shows it beside each step.
+- **`cull_by_altitude_tilt`** (filter_22) — the first real predicate through the mask. Disables
   whole soundings whose attitude or altitude broke the forward model's geometry assumption.
   Its limits are restated rather than shared with QC, because a contract limit and a physical
   one are different numbers — but each defaults to the corresponding QC out-of-spec boundary
@@ -140,19 +144,23 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`cull_sparse_soundings`** (filter_23) — disables soundings left with too few usable gates
   to constrain a model. The first step whose *answer* depends on pipeline order, so it belongs
   last: run first it has nothing to find.
-- **`nominate_gates`** (filter_21) — sets named gates either direction, per channel. One of
+- **`set_inuse_gates`** (filter_21) — sets named gates either direction, per channel. One of
   only two steps permitted to turn data back on, which is what gives the early gates back to
   anyone doing full primary-field modelling.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
-- **`filters/noise.py`** (R9) — one noise model, estimated from the sounding-to-sounding scatter
-  at late gates, held by the dataset and read by both consumers. `assign_uncertainty`
-  (filter_12) and `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse
-  to run without one, which is what makes the defect R9 exists for unrepresentable.
-- **`cull_by_external_evidence`** (filter_30 + filter_31) — one filter, three criteria:
-  `proximity` to mapped features, gatewise `misfit` against a previous inversion, or `both`,
-  which `01` says is more selective than either.
+- **`filters/noise.py`** (R9) — one noise floor, supplied or estimated from the
+  sounding-to-sounding scatter at late gates, held by the dataset and read by both consumers.
+  `set_noise_floor` sets the floor and its slope (held at −0.5 unless `fit_exponent`) and
+  nothing else; the proportional error is `assign_uncertainty`'s parameter, defaulting to the
+  system description's `UniformDataSTD`. `assign_uncertainty` (filter_12) and
+  `cull_below_noise_floor` (filter_29) carry no floor of their own and refuse to run without
+  one, which is what makes the defect R9 exists for unrepresentable.
+- **`cull_near_infrastructure`** (filter_30) and **`cull_by_misfit`** (filter_31) — one engine,
+  two steps: proximity to mapped features, and gatewise misfit against a previous inversion,
+  which takes an optional `within:` geometry so that poorly fit *and* near a feature — more
+  selective than either, per `01` — is a parameter rather than a third step.
 - **`filters/misfit.py`** (filter, per `01`'s resolution of filter_31) — writes measured-minus-
   synthetic as a column, gatewise and per sounding, in standard deviations. Once it is a column
   misfit is plottable, exportable and thresholdable by an ordinary culling filter.
@@ -178,7 +186,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   in reverse: the layers are the product, a file is one delivery of them, and one build can
   serve several formats.
 - **`transient.py`** — local slope and curvature in log-log space, measured over the gates
-  that are still in use, at their real times. Shared by `cull_by_decay_rate` (filter_25/26) and
+  that are still in use, at their real times. Shared by `cull_by_slope` (filter_25/26) and
   `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbour and getting that
   wrong yields a plausible number rather than an error.
 - **`filters/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
@@ -194,7 +202,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
 - **`average_along_line`** (filter_10) — the along-line weighted average, which `01` calls the
   most consequential filter in the library. Tapered kernel, widths that grow with gate time,
   validity by effective sample size, and a ratio of convolutions rather than a loop per datum.
-- **`inflate_uncertainty`** (filter_11) and **`perturb_from_uncertainty`** (filter_13) — the
+- **`inflate_uncertainty`** (filter_11) and **`add_noise`** (filter_13) — the
   operator's knob on uncertainty, and drawing synthetic noise from it. The second enforces its
   own ordering hazard: it refuses to perturb twice and calls out uncertainties that look like
   an untouched default.

@@ -75,7 +75,7 @@ def _by_moment_and_component(groups, system) -> int | None:
     that is correct rather than a gap. SkyTEM's data files carry a horizontal
     component, but the system description and the alias file are built for the
     Z component only. An
-    array nothing claims is exactly what ``select_channels.unclaimed_arrays``
+    array nothing claims is exactly what ``select_moments.unclaimed_arrays``
     exists to report — and it must not reach an inversion, since
     ``DualMomentTEMXYZSystem`` hardcodes ``rx_orientation = 'z'`` and never reads
     the declared polarization, so a three-component delivery presented as

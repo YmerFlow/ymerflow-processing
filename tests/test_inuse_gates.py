@@ -15,8 +15,8 @@ from conftest import make_dataset
 from ymerflow_processing.filters.cull_initial_gates import (
     disable_initial_gates,
 )
-from ymerflow_processing.filters.cull_nominate_gates import (
-    STEP_CODE, nominate_gates, parse_gates,
+from ymerflow_processing.filters.inuse_gates import (
+    STEP_CODE, set_inuse_gates, parse_gates,
 )
 from ymerflow_processing.mask import (
     CULLED, IN_USE, provenance_key, step_codes,
@@ -92,7 +92,7 @@ def test_an_unreadable_nomination_is_an_error():
 def test_nominated_gates_are_disabled_for_the_whole_channel():
     """A gate is nominated for the channel, not for particular soundings.
     Per-sounding judgement is filter_33's."""
-    dataset, report = nominate_gates(delivery(), disable_gates={"ch1": "0-2"})
+    dataset, report = set_inuse_gates(delivery(), disable_gates={"ch1": "0-2"})
 
     assert (mask(dataset)[:, :3] == CULLED).all()
     assert (mask(dataset)[:, 3:] == IN_USE).all()
@@ -100,18 +100,18 @@ def test_nominated_gates_are_disabled_for_the_whole_channel():
 
 
 def test_only_the_nominated_channel_is_touched():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": 0})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": 0})
     assert (mask(dataset, 1) == IN_USE).all()
 
 
 def test_a_channel_may_be_named_by_moment():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"HM": 0})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"HM": 0})
     assert (mask(dataset, 0) == IN_USE).all()
     assert (mask(dataset, 1)[:, 0] == CULLED).all()
 
 
 def test_one_nomination_can_apply_to_every_channel():
-    dataset, _ = nominate_gates(delivery(), disable_gates="0-1")
+    dataset, _ = set_inuse_gates(delivery(), disable_gates="0-1")
     for which in (0, 1):
         assert (mask(dataset, which)[:, :2] == CULLED).all()
 
@@ -122,7 +122,7 @@ def test_it_changes_no_measurement_or_attribute():
               if "inuse" not in k.lower()}
     flightlines = dataset.flightlines.copy()
 
-    dataset, _ = nominate_gates(dataset, disable_gates={"ch1": "0-2"})
+    dataset, _ = set_inuse_gates(dataset, disable_gates={"ch1": "0-2"})
 
     for key, array in arrays.items():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
@@ -140,14 +140,14 @@ def test_it_gives_back_the_gates_the_mandate_took():
     dataset, _ = disable_initial_gates(dataset)
     assert (mask(dataset)[:, :4] == CULLED).all()
 
-    dataset, report = nominate_gates(dataset, enable_gates={"ch1": "0-3"})
+    dataset, report = set_inuse_gates(dataset, enable_gates={"ch1": "0-3"})
 
     assert (mask(dataset)[:, :4] == IN_USE).all()
     assert report.distributions["restored"] == N * 4
 
 
 def test_enabling_a_gate_that_was_never_off_changes_nothing():
-    dataset, report = nominate_gates(delivery(), enable_gates={"ch1": "0-2"})
+    dataset, report = set_inuse_gates(delivery(), enable_gates={"ch1": "0-2"})
 
     assert (mask(dataset) == IN_USE).all()
     assert report.distributions["restored"] == 0
@@ -160,7 +160,7 @@ def test_restoring_is_recorded_and_distinguishable_from_culling():
     dataset = delivery()
     dataset.survey.gex.gex_dict["Channel1"]["RemoveInitialGates"] = 3.0
     dataset, _ = disable_initial_gates(dataset)
-    dataset, _ = nominate_gates(dataset, enable_gates={"ch1": "0-1"})
+    dataset, _ = set_inuse_gates(dataset, enable_gates={"ch1": "0-1"})
 
     codes, live = why(dataset), mask(dataset)
     assert codes[0, 0] == STEP_CODE and live[0, 0] == IN_USE     # restored
@@ -169,7 +169,7 @@ def test_restoring_is_recorded_and_distinguishable_from_culling():
 
 
 def test_both_directions_in_one_step():
-    dataset, report = nominate_gates(delivery(), disable_gates={"ch1": "0-1"},
+    dataset, report = set_inuse_gates(delivery(), disable_gates={"ch1": "0-1"},
                                      enable_gates={"ch2": 0})
 
     assert (mask(dataset, 0)[:, :2] == CULLED).all()
@@ -182,8 +182,8 @@ def test_a_later_cull_can_take_a_restored_gate_again():
     dataset = delivery()
     dataset.survey.gex.gex_dict["Channel1"]["RemoveInitialGates"] = 2.0
     dataset, _ = disable_initial_gates(dataset)
-    dataset, _ = nominate_gates(dataset, enable_gates={"ch1": "0-1"})
-    dataset, _ = nominate_gates(dataset, disable_gates={"ch1": 0})
+    dataset, _ = set_inuse_gates(dataset, enable_gates={"ch1": "0-1"})
+    dataset, _ = set_inuse_gates(dataset, disable_gates={"ch1": 0})
 
     assert mask(dataset)[0, 0] == CULLED
     assert mask(dataset)[0, 1] == IN_USE
@@ -193,19 +193,19 @@ def test_a_later_cull_can_take_a_restored_gate_again():
 
 def test_neither_direction_is_an_error():
     with pytest.raises(ValueError, match="needs enable_gates or disable_gates"):
-        nominate_gates(delivery())
+        set_inuse_gates(delivery())
 
 
 def test_the_dataset_records_what_the_code_means():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": 0})
-    assert step_codes(dataset)[STEP_CODE] == "nominate_gates"
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": 0})
+    assert step_codes(dataset)[STEP_CODE] == "set_inuse_gates"
     assert STEP_CODE == 21
 
 
 def test_it_is_idempotent():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": "0-2"})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": "0-2"})
     snapshot = {k: v.copy() for k, v in dataset.layer_data.items()}
-    dataset, second = nominate_gates(dataset, disable_gates={"ch1": "0-2"})
+    dataset, second = set_inuse_gates(dataset, disable_gates={"ch1": "0-2"})
 
     for key, array in snapshot.items():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
@@ -213,12 +213,12 @@ def test_it_is_idempotent():
 
 
 def test_the_report_survives_serialization():
-    _, report = nominate_gates(delivery(), disable_gates={"ch1": "0-2"})
+    _, report = set_inuse_gates(delivery(), disable_gates={"ch1": "0-2"})
     restored = json.loads(json.dumps(report.to_dict(), default=str))
 
-    assert restored["step"] == "nominate_gates"
+    assert restored["step"] == "set_inuse_gates"
     assert restored["distributions"]["removed"] == N * 3
 
 
 def test_registered():
-    assert "nominate_gates" in load_steps(FILTER_GROUP)
+    assert "set_inuse_gates" in load_steps(FILTER_GROUP)

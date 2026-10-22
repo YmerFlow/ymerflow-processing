@@ -14,7 +14,7 @@ import pytest
 from libaarhusxyz.xyz import XYZ
 
 from conftest import make_dataset
-from ymerflow_processing.filters.cull_nominate_gates import nominate_gates
+from ymerflow_processing.filters.inuse_gates import set_inuse_gates
 from ymerflow_processing.filters.cull_manual_edits import (
     APPLY_INDEX, STEP_CODE, apply_manual_edits,
 )
@@ -88,7 +88,7 @@ def test_a_hand_disabled_gate_is_disabled():
 def test_a_hand_enabled_gate_is_restored():
     """A person overruling an automated cull is the clearest case there is for
     turning data back on."""
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": "0-3"})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": "0-3"})
     diff = edit_set([1], {(0, 0): 1, (0, 1): 1})
 
     dataset, report = apply_manual_edits(dataset, diff)
@@ -101,7 +101,7 @@ def test_a_hand_enabled_gate_is_restored():
 
 
 def test_both_directions_in_one_edit():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": 0})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": 0})
     diff = edit_set([3], {(0, 0): 1, (0, 5): 0})
 
     dataset, report = apply_manual_edits(dataset, diff)
@@ -114,7 +114,7 @@ def test_both_directions_in_one_edit():
 
 def test_nan_means_no_override():
     """Only non-NaN entries say anything; everything else is left as found."""
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": "0-2"})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": "0-2"})
     diff = edit_set([0], {(0, 0): 1})           # the rest of the row is NaN
 
     dataset, _ = apply_manual_edits(dataset, diff)
@@ -222,7 +222,7 @@ def test_re_running_the_pipeline_does_not_undo_the_edit():
     document = """
         kind: filters
         steps:
-          - nominate_gates: {disable_gates: {ch1: "0-1"}}
+          - set_inuse_gates: {disable_gates: {ch1: "0-1"}}
     """
     dataset, _ = apply_manual_edits(delivery(), diff)
     dataset, _ = ProcessingRunner(Pipeline.parse(document)).run(dataset)
@@ -268,7 +268,7 @@ def test_the_edit_is_attributed_to_this_filter():
 
 
 def test_a_restored_gate_reads_as_restored_not_culled():
-    dataset, _ = nominate_gates(delivery(), disable_gates={"ch1": 0})
+    dataset, _ = set_inuse_gates(delivery(), disable_gates={"ch1": 0})
     dataset, _ = apply_manual_edits(dataset, edit_set([1], {(0, 0): 1}))
 
     codes = dataset.layer_data[

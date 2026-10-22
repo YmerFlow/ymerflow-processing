@@ -34,13 +34,12 @@ description: >
 #
 # WHAT IS NOT LISTED HERE
 # -----------------------
-# disable_initial_gates does not appear, and its absence is deliberate. The
-# system description's own statement about which samples are contaminated by
-# transmitter turn-off is applied automatically when the survey and the
-# description become one thing, and again at the top of every run. It is not a
-# judgement anyone makes, so it is not a step anyone can forget. It stays
-# registered for the one case the automatic pass cannot serve — a delivery whose
-# description is known to be wrong.
+# The system description's RemoveInitialGates — its own statement about which
+# samples are contaminated by transmitter turn-off — is not a step. It is
+# applied automatically when the survey and the description become one thing,
+# and again at the top of every run. It is not a judgement anyone makes, so it
+# is not a step anyone can forget. For a description known to be wrong,
+# set_inuse_gates names the gates to turn on or off.
 
 kind: filters
 
@@ -57,7 +56,7 @@ steps:
   # ── 2 · Geometry and corrections ───────────────────────────────────────────
   # Making the data physically correct before anything is derived from it.
   #
-  # correct_tilt projects the response onto the vertical. It is FIRST ORDER —
+  # correct_tilt_1d projects the response onto the vertical. It is FIRST ORDER —
   # it accounts for the projection of a vertical-dipole response, not for the
   # full geometry — so max_correction refuses corrections beyond the angle
   # where that approximation stops holding, rather than applying a large and
@@ -67,7 +66,7 @@ steps:
   # override the discovery and raise on any delivery spelling them differently
   # — which is what a shipped default must never do. Add `pitch_column:` /
   # `roll_column:` only if yours are under a name discovery misses.
-  - correct_tilt:
+  - correct_tilt_1d:
       max_correction: 4.0     # refuse beyond this factor
 
   # The amplitude convention is no longer a step: the data on disk is always the
@@ -85,15 +84,20 @@ steps:
   # - apply_terrain_model: {terrain: /path/to/dem.tif, crs: EPSG:32633}
 
   # ── 3 · Noise and uncertainty ──────────────────────────────────────────────
-  # Estimation before assignment. The floor is measured from sounding-to-
-  # sounding scatter at late gates, where the signal is gone and what remains
-  # is noise — so it is a property of this survey and this instrument rather
-  # than a number from a table.
+  # The floor before the assignment. Here the floor is measured from sounding-
+  # to-sounding scatter at late gates, where the signal is gone and what
+  # remains is noise — so it is a property of this survey and this instrument
+  # rather than a number from a table. The slope is held at -0.5, which is
+  # what ambient noise does; fit_exponent: true is for checking that.
+  #
+  # The proportional error is assign_uncertainty's, not the floor's. Left out
+  # it comes from the system description's UniformDataSTD.
 
-  - estimate_noise_model:
+  - set_noise_floor:
       scope: per_dataset      # per_flight if conditions changed across flights
 
   - assign_uncertainty: {}
+      # relative_fraction: 0.03   # the proportional part; the GEX's if unset
 
   # ── 4 · Culling ────────────────────────────────────────────────────────────
   # Every step here is subtractive: data already culled stays culled, and the
@@ -110,7 +114,7 @@ steps:
       spread_earlier: 1
       disable_tail: true      # a transient does not recover once it has gone bad
 
-  - cull_by_decay_rate:
+  - cull_by_slope:
       shallowest: -0.5        # a decay flatter than this is not a transient
       steepest: -4.0          # steeper than this is not earth
       start_gate: 5

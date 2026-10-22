@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset, tier_names
-from ymerflow_processing.filters.cull_nominate_gates import nominate_gates
+from ymerflow_processing.filters.inuse_gates import set_inuse_gates
 from ymerflow_processing.filters.cull_negatives import cull_negatives
 from ymerflow_processing.mask import CULLED
 from ymerflow_processing.pipeline import (
@@ -31,7 +31,7 @@ def delivery(**kw):
 
 
 def culled(dataset, gates="0-3", channel="ch1"):
-    dataset, _ = nominate_gates(dataset, disable_gates={channel: gates})
+    dataset, _ = set_inuse_gates(dataset, disable_gates={channel: gates})
     return dataset
 
 
@@ -173,14 +173,14 @@ def test_it_names_the_steps_that_did_the_culling():
     dataset = culled(dataset, gates="0-1")
 
     _, report = culled_fraction(dataset)
-    assert report.distributions["by_step"] == {21: "nominate_gates",
+    assert report.distributions["by_step"] == {21: "set_inuse_gates",
                                                32: "cull_negatives"}
 
 
 def test_a_restored_gate_is_not_counted_as_culled():
     """It carries a provenance code but is in use — the mask disambiguates."""
     dataset = culled(delivery(), gates="0-3")
-    dataset, _ = nominate_gates(dataset, enable_gates={"ch1": "0-3"})
+    dataset, _ = set_inuse_gates(dataset, enable_gates={"ch1": "0-3"})
 
     dataset, report = culled_fraction(dataset)
     assert (dataset.flightlines["cull_frac"] == 0.0).all()

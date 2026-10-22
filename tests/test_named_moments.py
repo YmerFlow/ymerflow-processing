@@ -16,8 +16,8 @@ import pytest
 
 from conftest import make_dataset
 from ymerflow_processing.dataset import ChannelNaming, discover_by_naming
-from ymerflow_processing.filters.select_channels import (
-    select_channels, unclaimed_arrays,
+from ymerflow_processing.filters.select_moments import (
+    select_moments, unclaimed_arrays,
 )
 from ymerflow_processing.methods.tem import (
     NAMED_MOMENT, NAMED_MOMENT_INUSE, TEM_NAMING, _by_moment_and_component,
@@ -131,7 +131,7 @@ def test_the_undeclared_component_is_unclaimed_rather_than_a_channel():
 
 def test_the_unclaimed_component_can_be_dropped_when_asked():
     dataset = delivery()
-    dataset, report = select_channels(dataset, criterion="component",
+    dataset, report = select_moments(dataset, criterion="component",
                                       keep=["z"], drop_unclaimed=True)
     assert "HM_X_G01" not in dataset.layer_data
 
@@ -140,7 +140,7 @@ def test_it_is_kept_by_default():
     """Undeclared rather than empty, and at least one of them is real coherent
     signal the incumbent toolchain merely discards."""
     dataset = delivery()
-    dataset, _ = select_channels(dataset, criterion="component", keep=["z"])
+    dataset, _ = select_moments(dataset, criterion="component", keep=["z"])
     assert "HM_X_G01" in dataset.layer_data
 
 
@@ -239,7 +239,7 @@ def test_our_own_provenance_is_not_reported_as_an_undeclared_component():
     assert not [k for k in unclaimed if k.startswith("why_")]   # ours, not
 
 
-def test_the_inventory_and_select_channels_agree_on_what_is_unclaimed():
+def test_the_inventory_and_select_moments_agree_on_what_is_unclaimed():
     """They had two implementations of the same idea, and the second had not
     learned what the first knew."""
     from ymerflow_processing.inventory import take

@@ -1,8 +1,17 @@
 """filter_30 and filter_31 — data that outside evidence says is suspect.
 
-**What it does to the dataset:** disables gates whose sounding sits within an
-exclusion distance of a mapped feature, plus whatever the culling policy widens
-that to. It changes no measurement, no uncertainty and no array shape (R6).
+Two steps over one engine: ``cull_near_infrastructure`` (filter_30) disables
+gates whose sounding sits within an exclusion distance of a mapped feature, and
+``cull_by_misfit`` (filter_31) disables gates a previous inversion fit poorly —
+optionally only ``within`` that same distance of a feature, which is the
+conjunction ``01`` describes as more selective than either. Both add whatever the
+culling policy widens a hit to. Neither changes a measurement, an uncertainty or
+an array shape (R6).
+
+They were one step with a three-valued ``criterion`` until 2026-10-21. Split
+because a person choosing a step in a form should see "cull near infrastructure"
+and "cull by misfit", not a mode switch inside "external evidence" — and because
+the two have almost no parameters in common.
 
 ``01``: *"Cultural conductors couple into the receiver and produce anomalies that
 are real measurements of the wrong thing."*
@@ -73,14 +82,16 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
-STEP = "cull_by_external_evidence"
+CATEGORY = "cull gates"
 
-#: Provenance codes, by criterion. Two rather than one so a per-datum
-#: attribution still says *which* evidence removed a point — the report records
-#: the criterion, but the array is what someone reads six months later.
-PROXIMITY, MISFIT, BOTH = "proximity", "misfit", "both"
-CRITERIA = (PROXIMITY, MISFIT, BOTH)
-STEP_CODES = {PROXIMITY: 30, MISFIT: 31, BOTH: 31}
+INFRASTRUCTURE = "cull_near_infrastructure"
+MISFIT = "cull_by_misfit"
+
+#: Provenance codes, one per step, so a per-datum attribution still says
+#: *which* evidence removed a point — the report records it, but the array is
+#: what someone reads six months later. A misfit cull restricted to ``within``
+#: a feature is still a misfit cull.
+STEP_CODES = {INFRASTRUCTURE: 30, MISFIT: 31}
 
 #: How an inversion result names its gatewise residual, already divided by
 #: uncertainty — ``(dobs - dpred) * W.diagonal()`` — so a threshold reads in
@@ -171,43 +182,27 @@ def gate_distances(first: float, last: float, times) -> np.ndarray:
     return float(first) + span * (float(last) - float(first))
 
 
-def cull_by_external_evidence(dataset, criterion: str,
-                              infrastructure: str | GeoDataFrame | None = None,
-                              distance_first: float | dict[str, float] | None = None,
-                              distance_last: float | dict[str, float] | None = None,
-                              result: str | XYZ | Dataset | None = None,
-                              max_misfit: float | None = None,
-                              crs: str | None = None, start_gate: int = 0,
-                              spread_earlier: int = 0,
-                              disable_tail: bool = False):
-    """Disable data that evidence from outside the transient says is suspect.
+def cull_near_infrastructure(dataset, infrastructure: str | GeoDataFrame,
+                             distance_first: float | dict[str, float],
+                             distance_last: float | dict[str, float] | None = None,
+                             crs: str | None = None, start_gate: int = 0,
+                             spread_earlier: int = 0,
+                             disable_tail: bool = False):
+    """Disable gates whose sounding lies within an exclusion distance of a mapped feature.
 
     Parameters
     ----------
     dataset : Dataset
-        The dataset to cull; its in-use masks are written, and a misfit column
-        may be added.
-    criterion : str
-        ``proximity`` — near a mapped feature (filter_30); ``misfit`` — poorly
-        fit by a previous inversion; or ``both`` — near a feature **and**
-        poorly fit, which is filter_31 and is more selective than either.
-    infrastructure : geopandas.GeoDataFrame | geopandas.GeoSeries | None
-        Vector geometry, for ``proximity`` and ``both``.
-    distance_first : float | dict | None
+        The dataset to cull; its in-use masks are written.
+    infrastructure : geopandas.GeoDataFrame | geopandas.GeoSeries | str
+        Vector geometry of the features to stay clear of — powerlines, fences,
+        pipelines — or a path geopandas can read.
+    distance_first : float | dict
         Exclusion distance at the first gate, in the survey's CRS units. Per
         channel key or moment name, or one value for all.
     distance_last : float | dict | None
-        The same at the last gate. Constant if unset.
-    result : XYZ | Dataset | str | Path | None
-        A previous inversion's or forward model's output, for ``misfit`` and
-        ``both``. **Only needed when the dataset has no misfit column yet** —
-        this reads the column first and computes one from the result only if
-        there is none, writing it so nothing recomputes it. Running
-        ``compute_misfit`` beforehand makes this an ordinary filter
-        thresholding a column, which is what ``01`` asks for.
-    max_misfit : float | None
-        Largest acceptable gatewise misfit, **in standard deviations**. Data
-        missed by more than this is suspect.
+        The same at the last gate; interpolated in log time between the two.
+        Constant if unset.
     crs : str | None
         The survey's CRS, if the dataset does not carry one.
     start_gate : int
@@ -221,41 +216,95 @@ def cull_by_external_evidence(dataset, criterion: str,
     -------
     tuple
         ``(dataset, StepReport)``.
-
-    Notes
-    -----
-    Each criterion carries only its own parameters, so nothing in the signature
-    is dead depending on a flag (R7).
     """
-    report = StepReport(step=STEP)
-    frame = dataset.flightlines
-    report.soundings_total = 0 if frame is None else len(frame)
+    if infrastructure is None or distance_first is None:
+        raise ValueError(
+            f"{INFRASTRUCTURE} needs infrastructure and distance_first.")
+    return _cull(dataset, INFRASTRUCTURE, infrastructure, distance_first,
+                 distance_last, None, None, crs, start_gate, spread_earlier,
+                 disable_tail)
 
-    if criterion not in CRITERIA:
-        raise ValueError(
-            f"Unknown criterion {criterion!r}. Available: {', '.join(CRITERIA)}")
-    wants_geometry = criterion in (PROXIMITY, BOTH)
-    wants_misfit = criterion in (MISFIT, BOTH)
 
-    if wants_geometry and (infrastructure is None or distance_first is None):
+def cull_by_misfit(dataset, max_misfit: float,
+                   result: str | XYZ | Dataset | None = None,
+                   within: str | GeoDataFrame | None = None,
+                   distance_first: float | dict[str, float] | None = None,
+                   distance_last: float | dict[str, float] | None = None,
+                   crs: str | None = None, start_gate: int = 0,
+                   spread_earlier: int = 0, disable_tail: bool = False):
+    """Disable gates a previous inversion fit poorly, optionally only near mapped features.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written, and a misfit column
+        may be added.
+    max_misfit : float
+        Largest acceptable gatewise misfit, **in standard deviations**. Data
+        missed by more than this is suspect.
+    result : XYZ | Dataset | str | Path | None
+        A previous inversion's or forward model's output. **Only needed when
+        the dataset has no misfit column yet** — this reads the column first
+        and computes one from the result only if there is none, writing it so
+        nothing recomputes it. Running ``compute_misfit`` beforehand makes this
+        an ordinary filter thresholding a column, which is what ``01`` asks for.
+    within : geopandas.GeoDataFrame | geopandas.GeoSeries | str | None
+        Restrict the cull to soundings within ``distance_first`` /
+        ``distance_last`` of these features. Poorly fit **and** near a feature
+        is more selective than either alone (``01``): a poor fit away from
+        anything mapped may be geology a 1D model cannot represent, and
+        removing it removes the evidence that the model was wrong.
+    distance_first : float | dict | None
+        Exclusion distance at the first gate, in the survey's CRS units, when
+        ``within`` is given. Per channel key or moment name, or one value.
+    distance_last : float | dict | None
+        The same at the last gate. Constant if unset.
+    crs : str | None
+        The survey's CRS, if the dataset does not carry one.
+    start_gate : int
+        Where evaluation begins, 0-based.
+    spread_earlier : int
+        Also disable this many gates before each hit.
+    disable_tail : bool
+        Also disable everything after the earliest hit.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
+    if max_misfit is None:
         raise ValueError(
-            f"A {criterion!r} criterion needs infrastructure and "
-            f"distance_first.")
-    if wants_misfit and max_misfit is None:
-        raise ValueError(
-            f"A {criterion!r} criterion needs max_misfit. The misfit is in "
-            f"standard deviations, so max_misfit is how many the model may miss "
-            f"by.")
-    if wants_misfit and max_misfit <= 0:
+            f"{MISFIT} needs max_misfit. The misfit is in standard deviations, "
+            f"so max_misfit is how many the model may miss by.")
+    if max_misfit <= 0:
         raise ValueError(
             f"max_misfit counts standard deviations and must be positive; got "
             f"{max_misfit:g}.")
+    if within is not None and distance_first is None:
+        raise ValueError(
+            f"{MISFIT} with within= needs distance_first: how close to a "
+            f"feature a poorly fit sounding must be to count.")
+    return _cull(dataset, MISFIT, within, distance_first, distance_last,
+                 result, max_misfit, crs, start_gate, spread_earlier,
+                 disable_tail)
+
+
+def _cull(dataset, step, infrastructure, distance_first, distance_last, result,
+          max_misfit, crs, start_gate, spread_earlier, disable_tail):
+    """The shared engine: proximity and misfit tests, intersected, then culled."""
+    report = StepReport(step=step)
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    wants_geometry = infrastructure is not None
+    wants_misfit = max_misfit is not None
 
     if frame is None or len(frame) == 0 or not dataset.channels:
         report.notes.append("No soundings or no channels; nothing to cull.")
         return dataset, report
 
-    step_code = STEP_CODES[criterion]
+    step_code = STEP_CODES[step]
     distance = None
     features = None
     survey_crs = None
@@ -349,7 +398,7 @@ def cull_by_external_evidence(dataset, criterion: str,
         per_channel[str(channel)] = outcome
 
     if culled_any:
-        mark_step(dataset, step_code, STEP)
+        mark_step(dataset, step_code, step)
     if without:
         report.notes.append(
             f"No misfit column for {', '.join(without)}, and none could be "
@@ -360,7 +409,7 @@ def cull_by_external_evidence(dataset, criterion: str,
     removed = sum(c["removed"] for c in per_channel.values())
     report.soundings_affected = removed
     report.distributions = {
-        "criterion": criterion,
+        "within": wants_geometry if step == MISFIT else None,
         "per_channel": per_channel,
         "removed": removed,
         "features": None if features is None else int(len(features)),
@@ -372,12 +421,12 @@ def cull_by_external_evidence(dataset, criterion: str,
                    "disable_tail": disable_tail},
         "provenance_code": step_code,
     }
-    if criterion == MISFIT:
+    if wants_misfit and not wants_geometry:
         report.notes.append(
             "Culled on misfit alone. 01 warns that this over-culls: a poor fit "
             "may be genuine geology a 1D model cannot represent, and removing "
-            "it removes the evidence that the model was wrong. The 'both' "
-            "criterion is more selective."
+            "it removes the evidence that the model was wrong. Restricting it "
+            "with within= to soundings near mapped features is more selective."
         )
-    log.info("%s: %s culled %d gate-sample(s)", STEP, criterion, removed)
+    log.info("%s: culled %d gate-sample(s)", step, removed)
     return dataset, report

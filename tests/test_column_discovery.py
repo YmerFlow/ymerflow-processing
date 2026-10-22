@@ -54,7 +54,7 @@ def test_the_attitude_check_now_grades_a_real_spelling():
 
 
 def test_tilt_correction_finds_them_too():
-    """Not only the check. correct_tilt defaulted to the literal name 'tilt_x',
+    """Not only the check. correct_tilt_1d defaulted to the literal name 'tilt_x',
     so on this delivery it would have raised rather than corrected."""
     dataset = renamed(tilt_x="AngleX", tilt_y="AngleY")
     assert resolve_attitude_columns(dataset, None, None) == ("AngleX", "AngleY")

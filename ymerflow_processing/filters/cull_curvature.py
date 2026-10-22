@@ -42,6 +42,8 @@ from ..transient import log_curvature
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "cull gates"
+
 STEP = "cull_by_curvature"
 
 #: The first of the pair's numbers in ``building_plans/01``. filter_28 is the
@@ -130,7 +132,7 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.points_affected = removed       # gates, not soundings
+    report.gates_affected = removed       # gates, not soundings
     report.distributions = {
         "per_channel": per_channel,
         "removed": removed,

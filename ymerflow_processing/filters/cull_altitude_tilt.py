@@ -72,7 +72,9 @@ from ..qc.thresholds import recorded_thresholds
 
 log = logging.getLogger(__name__)
 
-STEP = "cull_by_geometry"
+CATEGORY = "cull soundings"
+
+STEP = "cull_by_altitude_tilt"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.
 STEP_CODE = 22
@@ -102,7 +104,7 @@ def _limit(name, given, thresholds, report):
     return None, None
 
 
-def cull_by_geometry(
+def cull_by_altitude_tilt(
     dataset,
     max_pitch: float | None = None,
     max_roll: float | None = None,
@@ -162,7 +164,7 @@ def cull_by_geometry(
 
     if all(v is None for v in limits.values()):
         raise ValueError(
-            "cull_by_geometry needs at least one limit. None was given, and no "
+            "cull_by_altitude_tilt needs at least one limit. None was given, and no "
             "QC thresholds are recorded on this dataset to default from — run "
             "the QC checks first, or state the limits here. There are no "
             "built-in values: what counts as too tilted or too high is an "

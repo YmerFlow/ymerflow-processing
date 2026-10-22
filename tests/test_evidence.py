@@ -15,8 +15,8 @@ pytest.importorskip("geopandas", reason="geopandas is declared in setup.py")
 
 from conftest import make_dataset, make_infrastructure
 from ymerflow_processing.filters.cull_evidence import (
-    STEP_CODES, cull_by_external_evidence, distance_to_features,
-    gate_distances,
+    INFRASTRUCTURE, MISFIT, STEP_CODES, cull_by_misfit,
+    cull_near_infrastructure, distance_to_features, gate_distances,
 )
 from ymerflow_processing.filters.misfit import gatewise_misfit
 from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
@@ -86,7 +86,7 @@ def test_a_sounding_loses_its_late_gates_and_keeps_its_early_ones():
     """The right shape: early gates sense a small volume directly beneath the
     loop and are not reaching the conductor."""
     features = make_infrastructure(lines=[(0, 300), (1000, 300)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first=100.0,
                                           distance_last=500.0)
 
@@ -96,7 +96,7 @@ def test_a_sounding_loses_its_late_gates_and_keeps_its_early_ones():
 
 def test_a_survey_well_clear_of_everything_is_untouched():
     features = make_infrastructure(lines=[(0, 5000), (1000, 5000)])
-    dataset, report = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, report = cull_near_infrastructure(delivery(), features,
                                                distance_first=100.0,
                                                distance_last=400.0)
 
@@ -106,7 +106,7 @@ def test_a_survey_well_clear_of_everything_is_untouched():
 
 def test_a_survey_on_top_of_a_feature_loses_everything():
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first=50.0)
 
     assert (mask(dataset) == CULLED).all()
@@ -118,8 +118,8 @@ def test_each_moment_can_have_its_own_exclusion():
     """A high moment at late time senses far more ground than a low moment at
     early time, so one distance for the instrument is wrong for both."""
     features = make_infrastructure(lines=[(0, 300), (1000, 300)])
-    dataset, report = cull_by_external_evidence(
-        delivery(), 'proximity', features,
+    dataset, report = cull_near_infrastructure(
+        delivery(), features,
         distance_first={"ch1": 50.0, "ch2": 400.0})
 
     assert (mask(dataset, 0) == IN_USE).all()          # 300 > 50
@@ -131,7 +131,7 @@ def test_each_moment_can_have_its_own_exclusion():
 
 def test_a_moment_may_be_named_rather_than_keyed():
     features = make_infrastructure(lines=[(0, 300), (1000, 300)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first={"HM": 400.0})
 
     assert (mask(dataset, 0) == IN_USE).all()
@@ -144,7 +144,7 @@ def test_it_takes_a_geodataframe():
     """R8's typed form. This filter is the example R8 uses for the problem —
     its old default parameter was literally '/path/to/my/shape/file.shp'."""
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first=50.0)
     assert (mask(dataset) == CULLED).all()
 
@@ -155,7 +155,7 @@ def test_the_format_on_disk_is_not_this_filter_s_business(suffix, tmp_path):
     was."""
     path = make_infrastructure(tmp_path / f"lines{suffix}",
                                lines=[(0, 0), (1000, 0)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', path,
+    dataset, _ = cull_near_infrastructure(delivery(), path,
                                           distance_first=50.0)
     assert (mask(dataset) == CULLED).all()
 
@@ -166,7 +166,7 @@ def test_features_are_reprojected_to_the_survey():
     features = make_infrastructure(lines=[(0, 0), (1000, 0)], crs=UTM)
     in_degrees = features.to_crs("EPSG:4326")
 
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', in_degrees,
+    dataset, _ = cull_near_infrastructure(delivery(), in_degrees,
                                           distance_first=50.0)
     assert (mask(dataset) == CULLED).all()
 
@@ -177,7 +177,7 @@ def test_geometry_with_no_crs_is_refused():
     features.crs = None
 
     with pytest.raises(ValueError, match="declares no CRS"):
-        cull_by_external_evidence(delivery(), 'proximity', features, distance_first=50.0)
+        cull_near_infrastructure(delivery(), features, distance_first=50.0)
 
 
 def test_a_geographic_survey_crs_is_refused():
@@ -187,7 +187,7 @@ def test_a_geographic_survey_crs_is_refused():
     dataset.crs = "EPSG:4326"
 
     with pytest.raises(ValueError, match="is geographic"):
-        cull_by_external_evidence(dataset, 'proximity', make_infrastructure(),
+        cull_near_infrastructure(dataset, make_infrastructure(),
                                  distance_first=200.0)
 
 
@@ -196,7 +196,7 @@ def test_no_crs_at_all_is_a_note_not_a_refusal():
     dataset.crs = None
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
 
-    dataset, report = cull_by_external_evidence(dataset, 'proximity', features,
+    dataset, report = cull_near_infrastructure(dataset, features,
                                                distance_first=50.0)
     assert any("declares no CRS" in n for n in report.notes)
     assert (mask(dataset) == CULLED).all()
@@ -210,7 +210,7 @@ def test_it_changes_no_measurement_or_uncertainty():
     arrays = {k: v.copy() for k, v in dataset.layer_data.items()
               if "inuse" not in k.lower()}
 
-    dataset, _ = cull_by_external_evidence(dataset, 'proximity', features,
+    dataset, _ = cull_near_infrastructure(dataset, features,
                                           distance_first=50.0)
     for key, array in arrays.items():
         pd.testing.assert_frame_equal(dataset.layer_data[key], array)
@@ -218,10 +218,10 @@ def test_it_changes_no_measurement_or_uncertainty():
 
 def test_it_is_idempotent():
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first=50.0)
     snapshot = {k: v.copy() for k, v in dataset.layer_data.items()}
-    dataset, second = cull_by_external_evidence(dataset, 'proximity', features,
+    dataset, second = cull_near_infrastructure(dataset, features,
                                                distance_first=50.0)
 
     for key, array in snapshot.items():
@@ -236,7 +236,7 @@ def test_a_sounding_with_no_position_is_not_culled():
     dataset = delivery()
     dataset.flightlines.loc[3, "x"] = np.nan
 
-    dataset, report = cull_by_external_evidence(dataset, 'proximity', features,
+    dataset, report = cull_near_infrastructure(dataset, features,
                                                distance_first=50.0)
     assert (mask(dataset)[3] == IN_USE).all()
     assert any("no position" in n for n in report.notes)
@@ -244,18 +244,18 @@ def test_a_sounding_with_no_position_is_not_culled():
 
 def test_the_cull_is_attributed_to_this_filter():
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
-    dataset, _ = cull_by_external_evidence(delivery(), 'proximity', features,
+    dataset, _ = cull_near_infrastructure(delivery(), features,
                                           distance_first=50.0)
     why = dataset.layer_data[provenance_key(dataset.channels[0].inuse_key)]
 
-    assert (why.to_numpy() == STEP_CODES['proximity']).all()
-    assert STEP_CODES['proximity'] == 30
+    assert (why.to_numpy() == STEP_CODES[INFRASTRUCTURE]).all()
+    assert STEP_CODES[INFRASTRUCTURE] == 30
 
 
 def test_the_distance_distribution_is_reported():
     """The number someone needs to choose an exclusion."""
     features = make_infrastructure(lines=[(0, 300), (1000, 300)])
-    _, report = cull_by_external_evidence(delivery(), 'proximity', features,
+    _, report = cull_near_infrastructure(delivery(), features,
                                          distance_first=50.0)
 
     assert report.distributions["distance_to_nearest"]["mean"] == pytest.approx(300.0)
@@ -264,14 +264,10 @@ def test_the_distance_distribution_is_reported():
 
 def test_the_report_survives_serialization():
     features = make_infrastructure(lines=[(0, 0), (1000, 0)])
-    _, report = cull_by_external_evidence(delivery(), 'proximity', features,
+    _, report = cull_near_infrastructure(delivery(), features,
                                          distance_first=50.0)
     restored = json.loads(json.dumps(report.to_dict(), default=str))
     assert restored["distributions"]["provenance_code"] == 30
-
-
-def test_registered():
-    assert "cull_by_external_evidence" in load_steps(FILTER_GROUP)
 
 
 # ── Misfit, and the conjunction (filter_31) ──────────────────────────────────
@@ -335,8 +331,8 @@ def test_misfit_alone_culls_the_badly_fit_gates():
         dataset.layer_data[channel.std_key].iloc[:, :] = 0.10
     synthetic = forward(dataset, scale=0.5, gates=[6, 7])
 
-    dataset, report = cull_by_external_evidence(
-        dataset, "misfit", result=synthetic, max_misfit=3.0)
+    dataset, report = cull_by_misfit(
+        dataset, result=synthetic, max_misfit=3.0)
 
     assert (mask(dataset)[:, 6:] == CULLED).all()
     assert (mask(dataset)[:, 0] == IN_USE).all()
@@ -348,7 +344,7 @@ def test_misfit_alone_says_what_01_says_about_it():
     removing it removes the evidence that the model was wrong."""
     dataset = delivery()
     synthetic = forward(dataset)
-    _, report = cull_by_external_evidence(dataset, "misfit", result=synthetic,
+    _, report = cull_by_misfit(dataset, result=synthetic,
                                           max_misfit=3.0)
 
     assert any("over-culls" in n for n in report.notes)
@@ -368,54 +364,54 @@ def test_both_is_more_selective_than_either():
 
     # Badly fit everywhere, but the line is nowhere near a feature.
     dataset = prepared()
-    dataset, both = cull_by_external_evidence(
-        dataset, "both", infrastructure=far, distance_first=100.0,
+    dataset, both = cull_by_misfit(
+        dataset, within=far, distance_first=100.0,
         result=forward(dataset, scale=0.5, gates=[6, 7]), max_misfit=3.0)
     assert both.distributions["removed"] == 0
 
     # The same misfit, now beside a feature.
     dataset = prepared()
-    dataset, conjunction = cull_by_external_evidence(
-        dataset, "both", infrastructure=near, distance_first=100.0,
+    dataset, conjunction = cull_by_misfit(
+        dataset, within=near, distance_first=100.0,
         result=forward(dataset, scale=0.5, gates=[6, 7]), max_misfit=3.0)
     assert conjunction.distributions["removed"] > 0
 
     # And near the feature but fitting well, nothing goes either.
     dataset = prepared()
-    dataset, fits = cull_by_external_evidence(
-        dataset, "both", infrastructure=near, distance_first=100.0,
+    dataset, fits = cull_by_misfit(
+        dataset, within=near, distance_first=100.0,
         result=forward(dataset), max_misfit=3.0)
     assert fits.distributions["removed"] == 0
 
 
-def test_each_criterion_carries_only_its_own_parameters():
-    """R7: nothing in the signature is dead depending on a flag."""
+def test_each_step_insists_on_what_it_needs():
+    """Two steps rather than one with a criterion (2026-10-21), so each carries
+    only its own parameters and refuses plainly when one is missing."""
     with pytest.raises(ValueError, match="needs infrastructure and"):
-        cull_by_external_evidence(delivery(), "proximity")
+        cull_near_infrastructure(delivery(), None, None)
     with pytest.raises(ValueError, match="needs max_misfit"):
-        cull_by_external_evidence(delivery(), "misfit")
-    with pytest.raises(ValueError, match="needs max_misfit"):
-        cull_by_external_evidence(delivery(), "both",
-                                  infrastructure=make_infrastructure(),
-                                  distance_first=100.0)
-
-
-def test_an_unknown_criterion_names_the_available_ones():
-    with pytest.raises(ValueError, match="proximity, misfit, both"):
-        cull_by_external_evidence(delivery(), "nearby")
+        cull_by_misfit(delivery(), None)
+    with pytest.raises(ValueError, match="needs distance_first"):
+        cull_by_misfit(delivery(), max_misfit=3.0, within=make_infrastructure())
 
 
 def test_a_non_positive_misfit_threshold_is_refused():
     with pytest.raises(ValueError, match="must be positive"):
-        cull_by_external_evidence(delivery(), "misfit",
-                                  result=forward(delivery()), max_misfit=0)
+        cull_by_misfit(delivery(), result=forward(delivery()), max_misfit=0)
 
 
-def test_proximity_and_the_conjunction_are_attributed_separately():
-    """The report records the criterion, but the provenance array is what
-    someone reads six months later."""
-    assert STEP_CODES["proximity"] == 30
-    assert STEP_CODES["misfit"] == STEP_CODES["both"] == 31
+def test_the_two_steps_are_attributed_separately():
+    """The report records the step, but the provenance array is what someone
+    reads six months later. A misfit cull restricted to `within` a feature is
+    still a misfit cull."""
+    assert STEP_CODES[INFRASTRUCTURE] == 30
+    assert STEP_CODES[MISFIT] == 31
+
+
+def test_both_steps_are_registered():
+    registered = load_steps(FILTER_GROUP)
+    assert INFRASTRUCTURE in registered and MISFIT in registered
+    assert "cull_by_external_evidence" not in registered
 
 
 # ── The misfit column, and creating one where it can ─────────────────────────
@@ -432,8 +428,7 @@ def test_it_thresholds_a_column_when_one_exists():
                                                  gates=[6, 7]))
 
     # No result passed — the column is all it needs now.
-    dataset, report = cull_by_external_evidence(dataset, "misfit",
-                                                max_misfit=3.0)
+    dataset, report = cull_by_misfit(dataset, max_misfit=3.0)
     assert (mask(dataset)[:, 6:] == CULLED).all()
     assert report.distributions["removed"] > 0
 
@@ -449,8 +444,8 @@ def test_it_creates_the_column_when_there_is_none_and_it_can():
     key = misfit_key(dataset.channels[0])
     assert key not in dataset.layer_data
 
-    dataset, _ = cull_by_external_evidence(
-        dataset, "misfit", result=forward(dataset, scale=0.5, gates=[6, 7]),
+    dataset, _ = cull_by_misfit(
+        dataset, result=forward(dataset, scale=0.5, gates=[6, 7]),
         max_misfit=3.0)
 
     assert key in dataset.layer_data          # written, not just used
@@ -462,17 +457,15 @@ def test_a_created_column_is_not_recomputed_by_the_next_consumer():
         dataset.layer_data[channel.std_key].iloc[:, :] = 0.10
     synthetic = forward(dataset, scale=0.5, gates=[6, 7])
 
-    dataset, _ = cull_by_external_evidence(dataset, "misfit", result=synthetic,
+    dataset, _ = cull_by_misfit(dataset, result=synthetic,
                                            max_misfit=3.0)
     # Second pass with no result at all: the column carries it.
-    dataset, second = cull_by_external_evidence(dataset, "misfit",
-                                                max_misfit=3.0)
+    dataset, second = cull_by_misfit(dataset, max_misfit=3.0)
     assert second.distributions["removed"] == 0     # idempotent, and it ran
 
 
 def test_with_neither_a_column_nor_a_result_it_says_both_ways_out():
-    dataset, report = cull_by_external_evidence(delivery(), "misfit",
-                                                max_misfit=3.0)
+    dataset, report = cull_by_misfit(delivery(), max_misfit=3.0)
 
     assert report.distributions["removed"] == 0
     assert any("pass result=" in n and "compute_misfit" in n

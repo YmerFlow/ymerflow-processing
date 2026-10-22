@@ -39,7 +39,7 @@ import logging
 from numpydoc.docscrape import NumpyDocString
 
 from .pipeline import (
-    COMPARE_GROUP, FILTER_GROUP, QC_GROUP, load_steps,
+    CATEGORIES, COMPARE_GROUP, FILTER_GROUP, QC_GROUP, category, load_steps,
 )
 
 log = logging.getLogger(__name__)
@@ -60,9 +60,9 @@ GROUPS = [
 #: plausible-looking wrong pipeline gets wrong. Each is recorded in
 #: ``building_plans/01``; none is discoverable from a signature.
 ORDERING = [
-    ("estimate_noise_model", "assign_uncertainty",
+    ("set_noise_floor", "assign_uncertainty",
      "estimation precedes assignment: there is nothing to assign from"),
-    ("assign_uncertainty", "perturb_from_uncertainty",
+    ("assign_uncertainty", "add_noise",
      "noise is drawn from the assigned uncertainty, not from a system default"),
     ("assign_uncertainty", "average_along_line",
      "averaging propagates the uncertainty, so it must exist first"),
@@ -88,8 +88,8 @@ INVARIANTS = [
     "specific moment.",
     "One noise model per dataset, so uncertainty cannot be assigned with one "
     "floor and data culled with another.",
-    "disable_initial_gates is applied automatically when a survey and its "
-    "system description meet. Do not list it in a pipeline.",
+    "The system description's RemoveInitialGates is applied automatically when "
+    "a survey and its description meet. It is not a step and cannot be listed.",
 ]
 
 
@@ -227,25 +227,47 @@ def markdown(group: str) -> str:
            "", purpose, "",
            f"{len(steps)} step(s).", ""]
 
-    for step in sorted(steps):
-        function = steps[step]
-        out += [f"## `{step}`", ""]
-        summary = _summary(function)
-        if summary:
-            out += [summary, ""]
+    for heading, names in _sections(steps):
+        if heading:
+            out += [f"## {heading}", ""]
+        for step in names:
+            function = steps[step]
+            out += [f"### `{step}`" if heading else f"## `{step}`", ""]
+            summary = _summary(function)
+            if summary:
+                out += [summary, ""]
 
-        consumes = _consumes(function)
-        if consumes:
-            out += [f"**Consumes:** {consumes}", ""]
+            consumes = _consumes(function)
+            if consumes:
+                out += [f"**Consumes:** {consumes}", ""]
 
-        out += ["```python", f"{step}({_signature(function)})", "```", ""]
+            out += ["```python", f"{step}({_signature(function)})", "```", ""]
 
-        rows = _parameters(function)
-        if rows:
-            out += ["| parameter | default | |", "|---|---|---|"]
-            out += [f"| `{n}` | `{d}` | {t} |" for n, d, t in rows]
-            out += [""]
+            rows = _parameters(function)
+            if rows:
+                out += ["| parameter | default | |", "|---|---|---|"]
+                out += [f"| `{n}` | `{d}` | {t} |" for n, d, t in rows]
+                out += [""]
     return "\n".join(out).rstrip() + "\n"
+
+
+def _sections(steps: dict) -> list[tuple[str | None, list[str]]]:
+    """Steps grouped by category in :data:`CATEGORIES` order, sorted within.
+
+    A group whose steps declare no category — QC, compare — is one unheaded
+    section, so those documents read as they always did.
+    """
+    by_category: dict = {}
+    for step, function in steps.items():
+        by_category.setdefault(category(function), []).append(step)
+    if list(by_category) == [None]:
+        return [(None, sorted(steps))]
+    ordered = [(c, sorted(by_category[c])) for c in CATEGORIES if c in by_category]
+    # Anything declaring a category outside the list, or none, still appears —
+    # the test is what refuses it, not the renderer.
+    for other in sorted(k for k in by_category if k not in CATEGORIES):
+        ordered.append((other or "uncategorized", sorted(by_category[other])))
+    return ordered
 
 
 def llms_txt() -> str:
@@ -281,7 +303,9 @@ def llms_txt() -> str:
         for step in sorted(steps):
             function = steps[step]
             consumes = _consumes(function)
-            suffix = f"  [consumes: {consumes}]" if consumes else ""
+            kind = category(function)
+            suffix = (f"  [consumes: {consumes}]" if consumes
+                      else f"  [{kind}]" if kind else "")
             out.append(f"### {step}{suffix}")
             out.append(f"{step}({_signature(function)})")
             summary = _summary(function)

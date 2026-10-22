@@ -48,6 +48,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "housekeeping"
+
 
 def _report(step, dataset, kind, **fields):
     report = StepReport(step=step)

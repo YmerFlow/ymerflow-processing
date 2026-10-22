@@ -13,8 +13,8 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
-from ymerflow_processing.filters.cull_decay_rate import (
-    cull_by_decay_rate,
+from ymerflow_processing.filters.cull_slope import (
+    cull_by_slope,
 )
 from ymerflow_processing.filters.cull_curvature import (
     cull_by_curvature,
@@ -140,7 +140,7 @@ def test_curvature_sees_a_change_of_rate():
 # ── filter_25 / filter_26 ────────────────────────────────────────────────────
 
 def test_a_plausible_transient_is_left_alone():
-    dataset, report = cull_by_decay_rate(delivery(-2.5), shallowest=-0.5,
+    dataset, report = cull_by_slope(delivery(-2.5), shallowest=-0.5,
                                          steepest=-4.0)
 
     assert (mask(dataset) == IN_USE).all()
@@ -148,37 +148,37 @@ def test_a_plausible_transient_is_left_alone():
 
 
 def test_too_shallow_is_culled():
-    dataset, _ = cull_by_decay_rate(delivery(-0.2), shallowest=-0.5)
+    dataset, _ = cull_by_slope(delivery(-0.2), shallowest=-0.5)
     assert (mask(dataset)[:, 1:-1] == CULLED).all()
 
 
 def test_too_steep_is_culled():
-    dataset, _ = cull_by_decay_rate(delivery(-6.0), steepest=-4.0)
+    dataset, _ = cull_by_slope(delivery(-6.0), steepest=-4.0)
     assert (mask(dataset)[:, 1:-1] == CULLED).all()
 
 
 def test_the_bounds_are_signed_and_named_for_what_they_mean():
     """"Maximum" and "minimum" read backwards for a negative slope."""
     steep = delivery(-6.0)
-    kept, _ = cull_by_decay_rate(steep, shallowest=-0.5)   # only the other bound
+    kept, _ = cull_by_slope(steep, shallowest=-0.5)   # only the other bound
     assert (mask(kept) == IN_USE).all()
 
 
 def test_bounds_the_wrong_way_round_are_refused():
     """Written that way they exclude every slope."""
     with pytest.raises(ValueError, match="must be below shallowest"):
-        cull_by_decay_rate(delivery(), shallowest=-4.0, steepest=-0.5)
+        cull_by_slope(delivery(), shallowest=-4.0, steepest=-0.5)
 
 
 def test_neither_bound_is_an_error():
     with pytest.raises(ValueError, match="needs shallowest or steepest"):
-        cull_by_decay_rate(delivery())
+        cull_by_slope(delivery())
 
 
 def test_an_unmeasurable_gate_is_not_an_objection():
     """"The shape is unmeasurable here" is a different statement from "the shape
     is wrong", and only the second may cull."""
-    dataset, report = cull_by_decay_rate(delivery(-2.5), shallowest=-0.5,
+    dataset, report = cull_by_slope(delivery(-2.5), shallowest=-0.5,
                                          steepest=-4.0)
     outcome = report.distributions["per_channel"]["ch1 (LM/z)"]
 
@@ -189,7 +189,7 @@ def test_an_unmeasurable_gate_is_not_an_objection():
 
 def test_the_slope_distribution_is_reported():
     """The number someone needs to choose a bound."""
-    _, report = cull_by_decay_rate(delivery(-2.5), shallowest=-0.5)
+    _, report = cull_by_slope(delivery(-2.5), shallowest=-0.5)
     summary = report.distributions["per_channel"]["ch1 (LM/z)"]["slope"]
 
     assert summary["mean"] == pytest.approx(-2.5)
@@ -231,7 +231,7 @@ def test_neither_curvature_bound_is_an_error():
 # ── Shared behaviour ─────────────────────────────────────────────────────────
 
 def test_both_change_no_measurement_or_uncertainty():
-    for step, kwargs in ((cull_by_decay_rate, {"shallowest": -0.5}),
+    for step, kwargs in ((cull_by_slope, {"shallowest": -0.5}),
                          (cull_by_curvature, {"max_curvature": 0.001})):
         dataset = delivery(-0.2)
         arrays = {k: v.copy() for k, v in dataset.layer_data.items()
@@ -242,7 +242,7 @@ def test_both_change_no_measurement_or_uncertainty():
 
 
 def test_both_are_idempotent():
-    for step, kwargs in ((cull_by_decay_rate, {"shallowest": -0.5}),
+    for step, kwargs in ((cull_by_slope, {"shallowest": -0.5}),
                          (cull_by_curvature, {"max_curvature": 0.001})):
         dataset, _ = step(delivery(-0.2), **kwargs)
         snapshot = {k: v.copy() for k, v in dataset.layer_data.items()}
@@ -254,13 +254,13 @@ def test_both_are_idempotent():
 
 
 def test_the_policy_applies_to_both():
-    dataset, report = cull_by_decay_rate(delivery(-0.2), shallowest=-0.5,
+    dataset, report = cull_by_slope(delivery(-0.2), shallowest=-0.5,
                                          disable_tail=True)
     assert report.distributions["policy"]["disable_tail"] is True
 
 
 def test_they_are_attributed_separately():
-    decayed, _ = cull_by_decay_rate(delivery(-0.2), shallowest=-0.5)
+    decayed, _ = cull_by_slope(delivery(-0.2), shallowest=-0.5)
     curved, _ = cull_by_curvature(delivery(-0.2), max_curvature=-1e9)
 
     first = decayed.layer_data[provenance_key(decayed.channels[0].inuse_key)]
@@ -271,7 +271,7 @@ def test_they_are_attributed_separately():
 
 
 def test_the_reports_survive_serialization():
-    _, decayed = cull_by_decay_rate(delivery(-0.2), shallowest=-0.5)
+    _, decayed = cull_by_slope(delivery(-0.2), shallowest=-0.5)
     _, curved = cull_by_curvature(delivery(-0.2), max_curvature=0.001)
 
     for report in (decayed, curved):
@@ -279,6 +279,6 @@ def test_the_reports_survive_serialization():
         assert restored["distributions"]["provenance_code"] in (25, 27)
 
 
-@pytest.mark.parametrize("name", ["cull_by_decay_rate", "cull_by_curvature"])
+@pytest.mark.parametrize("name", ["cull_by_slope", "cull_by_curvature"])
 def test_registered(name):
     assert name in load_steps(FILTER_GROUP)

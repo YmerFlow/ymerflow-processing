@@ -227,7 +227,7 @@ class ChannelNaming:
     #: *this array belongs to no channel* — which is a real answer, not a
     #: failure: a vendor may ship a component its own system description does
     #: not declare, and an array nothing claims is reported by
-    #: ``select_channels.unclaimed_arrays`` rather than guessed at.
+    #: ``select_moments.unclaimed_arrays`` rather than guessed at.
     resolve: Callable[[tuple[str, ...], Any], int | None] | None = None
 
 

@@ -71,6 +71,8 @@ from ..qc.thresholds import labels, verdict_columns
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "housekeeping"
+
 STEP = "export_vector"
 
 #: Output extension to OGR driver. GeoPackage first because it is the default.

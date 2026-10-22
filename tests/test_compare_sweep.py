@@ -80,8 +80,8 @@ def test_runs_with_no_recorded_parameters_say_where_to_look():
 
 def test_a_parameter_whose_value_is_a_list_is_still_comparable():
     a, b = run(3), run(5)
-    a.history = [{"step": "select_channels", "params": {"keep": ["LM"]}}]
-    b.history = [{"step": "select_channels", "params": {"keep": ["LM", "HM"]}}]
+    a.history = [{"step": "select_moments", "params": {"keep": ["LM"]}}]
+    b.history = [{"step": "select_moments", "params": {"keep": ["LM", "HM"]}}]
 
     assert parameter_sweep([a, b]).distributions["parameter"]["name"] == "keep"
 

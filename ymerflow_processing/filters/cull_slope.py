@@ -53,14 +53,16 @@ from ..transient import log_slope
 
 log = logging.getLogger(__name__)
 
-STEP = "cull_by_decay_rate"
+CATEGORY = "cull gates"
+
+STEP = "cull_by_slope"
 
 #: The first of the pair's numbers in ``building_plans/01``. filter_26 is the
 #: other bound on the same measurement and shares it.
 STEP_CODE = 25
 
 
-def cull_by_decay_rate(dataset, shallowest: float | None = None,
+def cull_by_slope(dataset, shallowest: float | None = None,
                        steepest: float | None = None, start_gate: int = 0,
                        spread_earlier: int = 0, disable_tail: bool = False):
     """Disable data whose local decay rate is implausible.
@@ -92,7 +94,7 @@ def cull_by_decay_rate(dataset, shallowest: float | None = None,
 
     if shallowest is None and steepest is None:
         raise ValueError(
-            "cull_by_decay_rate needs shallowest or steepest. With neither it "
+            "cull_by_slope needs shallowest or steepest. With neither it "
             "would do nothing, which is better said by leaving the step out.")
     if (shallowest is not None and steepest is not None
             and steepest > shallowest):
@@ -143,7 +145,7 @@ def cull_by_decay_rate(dataset, shallowest: float | None = None,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.points_affected = removed       # gates, not soundings
+    report.gates_affected = removed       # gates, not soundings
     report.distributions = {
         "per_channel": per_channel,
         "removed": removed,

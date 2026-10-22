@@ -49,10 +49,13 @@ Left optional it is the single easiest thing to forget, and forgetting it is
 silent: the inversion runs, converges, and is confidently wrong about the
 shallow section. So "what is in the system description is what you get."
 
-It remains registered as an explicit step for the case the automatic pass cannot
-serve — a delivery whose description is known to be wrong, where ``gates:``
-overrides the declared count. Running it again changes nothing, because culling
-is subtractive.
+It is **not registered as a step** (unregistered 2026-10-21): a step that is not
+a decision has no place in a form or a pipeline document, and listing it beside
+the real culls invited people to think it was optional. The function stays
+callable from Python for the one case the automatic pass cannot serve — a
+delivery whose description is known to be wrong, where ``gates:`` overrides the
+declared count. Running it again changes nothing, because culling is subtractive.
+For a wrong declaration in a pipeline, ``set_inuse_gates`` is the step.
 
 Reversible, and deliberately so
 -------------------------------
@@ -76,6 +79,8 @@ from ..mask import cull, ensure, mark_step
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
+
+CATEGORY = "cull gates"
 
 STEP = "disable_initial_gates"
 

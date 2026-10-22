@@ -132,26 +132,26 @@ SHAPES = {
     # Data removed. The interesting half is always *what went and why*.
     "cull_below_noise_floor": CULLING,
     "cull_by_curvature": CULLING,
-    "cull_by_decay_rate": CULLING,
-    "cull_by_external_evidence": CULLING,
-    "cull_by_geometry": CULLING,
+    "cull_by_slope": CULLING,
+    "cull_near_infrastructure": CULLING,
+    "cull_by_misfit": CULLING,
+    "cull_by_altitude_tilt": CULLING,
     "cull_by_uncertainty": CULLING,
     "cull_negatives": CULLING,
     "cull_sparse_soundings": CULLING,
-    "disable_initial_gates": CULLING,
-    "nominate_gates": CULLING,
+    "set_inuse_gates": CULLING,
     "apply_manual_edits": CULLING,
 
     # Values changed. Before against after, on the same axes.
     "average_along_line": TRANSFORM,
-    "correct_tilt": TRANSFORM,
+    "correct_tilt_1d": TRANSFORM,
     "apply_nominal_current": TRANSFORM,
-    "perturb_from_uncertainty": TRANSFORM,
+    "add_noise": TRANSFORM,
     "compute_misfit": TRANSFORM,
 
     # The error bars are the subject, so drawing the values alone would miss it.
     "assign_uncertainty": UNCERTAINTY,
-    "estimate_noise_model": UNCERTAINTY,
+    "set_noise_floor": UNCERTAINTY,
     "inflate_uncertainty": UNCERTAINTY,
 
     # Per sounding rather than per gate: a transient plot says nothing useful.
@@ -167,7 +167,7 @@ SHAPES = {
     "remove_attribute": NOTHING,
     "rename_array": NOTHING,
     "rename_attribute": NOTHING,
-    "select_channels": NOTHING,
+    "select_moments": NOTHING,
     "export_vector": NOTHING,
 }
 
@@ -399,7 +399,7 @@ def _uncertainty(fig, before, after, channel, sounding, report):
         ax.errorbar(times, np.abs(values), yerr=spread, fmt="o", color=colour,
                     markersize=3, linewidth=0, elinewidth=1, capsize=2,
                     label=label)
-    # estimate_noise_model records a model and writes no uncertainty array, so
+    # set_noise_floor records a model and writes no uncertainty array, so
     # there may be nothing to put error bars on. Draw the floor it estimated
     # instead — that IS what the step produced, and it is the thing a reader
     # wants to see against the transient.

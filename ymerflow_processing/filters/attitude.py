@@ -63,6 +63,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "corrections"
+
 #: Where the delivered attitude is kept. Ten characters each.
 #: What these columns are called when nothing else names them — and what
 #: ``zero_attitude`` creates them as on a delivery that carries no attitude.
@@ -137,7 +139,7 @@ def _attitude(frame, pitch_column, roll_column):
             frame[roll_column].to_numpy(dtype=float))
 
 
-def correct_tilt(dataset, pitch_column: str | None = None,
+def correct_tilt_1d(dataset, pitch_column: str | None = None,
                  roll_column: str | None = None,
                  max_correction: float = 4.0,
                  again: bool = False, stash: bool = True):
@@ -166,7 +168,7 @@ def correct_tilt(dataset, pitch_column: str | None = None,
     tuple
         ``(dataset, StepReport)``.
     """
-    report = StepReport(step="correct_tilt")
+    report = StepReport(step="correct_tilt_1d")
     frame = dataset.flightlines
     report.soundings_total = 0 if frame is None else len(frame)
 
@@ -222,13 +224,13 @@ def correct_tilt(dataset, pitch_column: str | None = None,
             f"{int(too_tilted.sum())} sounding(s) tilt beyond a correction of "
             f"{max_correction:g} and were left as measured. Past that the "
             f"first-order treatment is not defensible; cull them with "
-            f"cull_by_geometry rather than scaling them harder."
+            f"cull_by_altitude_tilt rather than scaling them harder."
         )
     report.notes.append(
         "The recorded attitude is unchanged. The aircraft was still tilted; "
         "what changed is that the values no longer carry the consequence."
     )
-    log.info("correct_tilt: median factor %.4g across %d channel(s)",
+    log.info("correct_tilt_1d: median factor %.4g across %d channel(s)",
              float(np.median(factor)), len(per_channel))
     return dataset, report
 

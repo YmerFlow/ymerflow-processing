@@ -140,9 +140,8 @@ def test_a_threshold_gets_its_own_panel():
     before, after, report = _ran("""
         kind: filters
         steps:
-          - estimate_noise_model: {noise_level_1ms: 5.0e-10, noise_exponent: -0.5,
-                                   relative_fraction: 0.03}
-          - assign_uncertainty: {}
+          - set_noise_floor: {noise_level_1ms: 5.0e-10, noise_exponent: -0.5}
+          - assign_uncertainty: {relative_fraction: 0.03}
           - cull_by_uncertainty: {max_uncertainty: 0.5}
     """)
     step = next(s for s in report.steps if s.step == "cull_by_uncertainty")
@@ -222,6 +221,23 @@ def test_every_step_appears_in_the_reference():
     text = (REFERENCE_DIR / "filters.md").read_text()
     for step in load_steps(FILTER_GROUP):
         assert f"`{step}`" in text, step
+
+
+def test_every_registered_filter_declares_a_category():
+    """The grouping the reference and the platform's form show. A filter added
+    without one would land in an 'uncategorized' heading nobody asked for."""
+    from ymerflow_processing.pipeline import CATEGORIES, category
+    untagged = {step: category(fn) for step, fn in load_steps(FILTER_GROUP).items()
+                if category(fn) not in CATEGORIES}
+    assert untagged == {}
+
+
+def test_the_filter_reference_is_grouped_by_category():
+    text = (REFERENCE_DIR / "filters.md").read_text()
+    assert "## cull gates" in text and "## corrections" in text
+    assert text.index("## selection") < text.index("## cull gates")
+    # QC checks declare no category, so that document keeps its flat form.
+    assert "## uncategorized" not in (REFERENCE_DIR / "qc.md").read_text()
 
 
 def test_a_string_default_keeps_its_quotes():

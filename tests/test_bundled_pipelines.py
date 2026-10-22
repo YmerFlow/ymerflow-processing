@@ -66,7 +66,7 @@ def test_no_shipped_document_names_a_column_it_cannot_know():
 
     * ``altimeter_agreement`` naming its two altimeters, which every system
       spells differently. It ships commented out instead.
-    * ``correct_tilt`` naming ``tilt_x``/``tilt_y`` while the delivery spelled
+    * ``correct_tilt_1d`` naming ``tilt_x``/``tilt_y`` while the delivery spelled
       them ``AngleX``/``AngleY``.
 
     So the rule is general rather than a list of the two we found: a shipped
@@ -177,7 +177,7 @@ def test_standard_processing_runs_end_to_end(delivery):
         Pipeline.load("standard-processing")).run(delivery)
 
     ran = [s.step for s in report.steps]
-    assert "estimate_noise_model" in ran and "average_along_line" in ran
+    assert "set_noise_floor" in ran and "average_along_line" in ran
     assert dataset.n_soundings > 0
 
 
@@ -187,7 +187,7 @@ def test_standard_processing_orders_noise_before_averaging(delivery):
     fail — it produces plausible nonsense — so the document is checked."""
     ran = [name for name, _ in Pipeline.load("standard-processing").steps]
 
-    assert ran.index("estimate_noise_model") < ran.index("assign_uncertainty")
+    assert ran.index("set_noise_floor") < ran.index("assign_uncertainty")
     assert ran.index("assign_uncertainty") < ran.index("average_along_line")
 
 
@@ -200,7 +200,7 @@ def test_standard_processing_culls_before_averaging():
 
 def noisy(dataset, seed=7):
     """The fixture with sounding-to-sounding scatter, so a floor can be
-    estimated. standard-processing gets its scatter from correct_tilt acting on
+    estimated. standard-processing gets its scatter from correct_tilt_1d acting on
     a varying attitude; manual-processing applies no such step, and a noiseless
     delivery correctly yields no noise model."""
     rng = np.random.default_rng(seed)
@@ -216,7 +216,7 @@ def test_manual_processing_estimates_before_it_assigns(delivery):
     SimPEG convention upstream, so the chain opens straight at the noise model."""
     ran = [name for name, _ in Pipeline.load("manual-processing").steps]
     assert "declare_normalization" not in ran
-    assert ran.index("estimate_noise_model") < ran.index("assign_uncertainty")
+    assert ran.index("set_noise_floor") < ran.index("assign_uncertainty")
 
     dataset, report = ProcessingRunner(
         Pipeline.load("manual-processing")).run(noisy(delivery))
@@ -256,15 +256,15 @@ def test_synthetic_data_runs_and_perturbs(delivery):
 
     # Every run opens with an implicit inventory before any step acts.
     ran = [s.step for s in report.steps if s.step != "inventory"]
-    assert ran == ["estimate_noise_model", "assign_uncertainty",
-                   "perturb_from_uncertainty"]
+    assert ran == ["set_noise_floor", "assign_uncertainty",
+                   "add_noise"]
 
 
 def test_synthetic_data_supplies_the_noise_model_rather_than_measuring_it():
     """A forward model has no scatter to estimate from — it is noiseless by
     construction — so the model has to be stated."""
     steps = dict(Pipeline.load("synthetic-data").steps)
-    assert steps["estimate_noise_model"]["noise_level_1ms"] > 0
+    assert steps["set_noise_floor"]["noise_level_1ms"] > 0
 
 
 def test_synthetic_data_assigns_before_it_draws():
@@ -272,13 +272,13 @@ def test_synthetic_data_assigns_before_it_draws():
     system-description default, which is flat in relative terms, so late gates
     come out as clean as early ones — the result looks like data and is not."""
     ran = [name for name, _ in Pipeline.load("synthetic-data").steps]
-    assert ran.index("assign_uncertainty") < ran.index("perturb_from_uncertainty")
+    assert ran.index("assign_uncertainty") < ran.index("add_noise")
 
 
 def test_synthetic_data_pins_its_seed():
     """A fair test that cannot be repeated is not a fair test."""
     steps = dict(Pipeline.load("synthetic-data").steps)
-    assert "seed" in steps["perturb_from_uncertainty"]
+    assert "seed" in steps["add_noise"]
 
 
 # ── The commands that make them findable ─────────────────────────────────────

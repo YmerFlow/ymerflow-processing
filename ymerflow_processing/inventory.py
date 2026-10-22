@@ -13,7 +13,7 @@ The case that made this concrete: SkyTEM's data files carry a horizontal
 component, but **both** the GEX and the ALC are built for the Z component only.
 A dual-moment delivery then
 carries three gate arrays against two declared channels. Nothing declares the
-third, so discovery never registers it, and ``select_channels(keep=["z"])``
+third, so discovery never registers it, and ``select_moments(keep=["z"])``
 reported *"nothing removed"* while a non-Z array sat untouched in ``layer_data``.
 Every statement in that sentence was true of channels and false of the file.
 

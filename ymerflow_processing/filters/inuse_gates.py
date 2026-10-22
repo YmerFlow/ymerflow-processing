@@ -62,7 +62,9 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
-STEP = "nominate_gates"
+CATEGORY = "cull gates"
+
+STEP = "set_inuse_gates"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.
 STEP_CODE = 21
@@ -130,7 +132,7 @@ def parse_gates(nominated, width: int) -> list[int]:
     return sorted(set(out))
 
 
-def nominate_gates(dataset, enable_gates: int | str | list[int | str] | dict | None = None,
+def set_inuse_gates(dataset, enable_gates: int | str | list[int | str] | dict | None = None,
                    disable_gates: int | str | list[int | str] | dict | None = None):
     """Set named gates in the mask, either direction, per channel.
 
@@ -161,7 +163,7 @@ def nominate_gates(dataset, enable_gates: int | str | list[int | str] | dict | N
 
     if enable_gates is None and disable_gates is None:
         raise ValueError(
-            "nominate_gates needs enable_gates or disable_gates. With neither "
+            "set_inuse_gates needs enable_gates or disable_gates. With neither "
             "it would do nothing, which is better said by leaving the step out."
         )
 

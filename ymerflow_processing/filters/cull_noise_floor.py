@@ -52,6 +52,8 @@ from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
+CATEGORY = "cull gates"
+
 STEP = "cull_below_noise_floor"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.
@@ -66,7 +68,7 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
     ----------
     dataset : Dataset
         The dataset to cull; its in-use masks are written. Must carry a noise
-        model — see ``estimate_noise_model``.
+        model — see ``set_noise_floor``.
     margin : float
         How many times the floor a datum must exceed to be kept. ``1.0`` culls
         at the floor itself; ``2.0`` demands twice it. This is a multiplier on
@@ -98,7 +100,7 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
     model = recorded(dataset)
     if model is None:
         raise ValueError(
-            "This dataset carries no noise model. Run estimate_noise_model "
+            "This dataset carries no noise model. Run set_noise_floor "
             "first — R9 keeps one definition on the dataset so this cannot cull "
             "against a different floor than filter_12 assigned uncertainty with."
         )
@@ -156,7 +158,7 @@ def cull_below_noise_floor(dataset, margin: float = 1.0, start_gate: int = 0,
         mark_step(dataset, STEP_CODE, STEP)
 
     removed = sum(c["removed"] for c in per_channel.values())
-    report.points_affected = removed       # gates, not soundings
+    report.gates_affected = removed       # gates, not soundings
     report.distributions = {
         "model": model.to_dict(),
         "margin": float(margin),

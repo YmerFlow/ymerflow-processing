@@ -13,7 +13,7 @@ check can see the second.
 
 It invents no state
 -------------------
-Every input already exists. ``estimate_noise_model`` records the floor, the
+Every input already exists. ``set_noise_floor`` records the floor, the
 exponent and what was measured versus supplied in its step report, and R3 means
 those reports are stored. So this reads prior runs rather than carrying anything
 between them — which is ``02``'s argument for why the comparison shape resolves
@@ -55,7 +55,7 @@ STEP = "noise_floor_drift"
 
 #: The step whose report carries the model. Named rather than assumed, so a
 #: pipeline that estimated under a different name can still be compared.
-SOURCE_STEP = "estimate_noise_model"
+SOURCE_STEP = "set_noise_floor"
 
 
 def _model_of(report: dict, source: str) -> dict | None:
