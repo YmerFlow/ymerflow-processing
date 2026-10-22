@@ -187,9 +187,9 @@ def test_the_rollup_survives_serialization():
     assert step(restored, "altimeter_agreement")["finding"] == "instrument"
 
 
-def test_the_column_names_fit_a_shapefile_field():
-    """DBF allows ten characters, and these are what the export carries."""
+def test_the_rollup_names_its_columns():
+    """These are what the export carries, so the report has to name them."""
     dataset = altimeter_dataset([30], [30], [30.1])
     _, report = run(WITH_ALTIMETERS, dataset)
     for name in report.rollup["columns"].values():
-        assert len(name) <= 10, name
+        assert name in dataset.flightlines.columns, name

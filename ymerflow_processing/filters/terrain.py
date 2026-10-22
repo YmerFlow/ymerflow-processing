@@ -70,9 +70,7 @@ comparing against a datum it cannot know. NaN is unclassified, which every check
 already handles, and the count is reported.
 
 The originals are stashed either way, under ``orig_`` + the column name, so
-nothing is lost. ``orig_tx_alt`` is eleven characters, one past a shapefile
-field; the vector export notes the truncation and refuses a collision, which
-is the right place for that rule rather than every step guessing at it.
+nothing is lost.
 
 Sources
 -------

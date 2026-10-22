@@ -94,10 +94,6 @@ def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, 
         else:
             before = summarize(frame[column].to_numpy(dtype=float))
             if stash:
-                # Not truncated to ten characters. The vector export detects
-                # truncation collisions and refuses before writing, which is
-                # the right place for that check rather than every step
-                # guessing at it.
                 frame[stash_key(column)] = frame[column]
 
         frame[column] = float(nominal)

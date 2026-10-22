@@ -252,9 +252,10 @@ ql_  its line               qd_  the delivery it arrived in
 
 A bare name is a *measurement* rather than a verdict — `spacing`, `alt_spread`, `pl_excess`.
 
-**Every name stays inside ten characters**, because that is what a shapefile field allows and
-the vector export is what reaches a client. Two names truncating to the same ten would
-collide silently, so this is a constraint on new checks rather than a stylistic preference.
+Names are short so the family reads at a glance in a GIS attribute table. The ten-character
+limit that used to bind them came from the shapefile field name; **shapefile is no longer
+written** (dropped 2026-10-22), the vector export is GeoPackage with GeoJSON for the web, so
+length is no longer a constraint on new checks.
 
 ---
 

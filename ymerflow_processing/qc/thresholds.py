@@ -351,10 +351,9 @@ def labels(codes):
     Returns
     -------
     list
-        One tier name per code, ``None`` where unclassified — which every
-        vector driver can write; the exports replace it with an explicit label
-        of their own, since shapefile cannot distinguish a null from an empty
-        string.
+        One tier name per code, ``None`` where unclassified; the exports
+        replace it with an explicit label of their own, so "not measured"
+        never reads as an empty cell.
     """
     lookup = {v: k for k, v in TIER_POINTS.items()}
     return [lookup.get(v) for v in np.asarray(codes, dtype=float)]

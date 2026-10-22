@@ -261,8 +261,7 @@ def transmitter_stability(
         nominal current, as a fraction — ``nom_ch1``. ``None`` writes none.
     per_moment_prefix : str | None
         Prefix for the per-moment stability verdicts, suffixed with the channel
-        key so the name stays inside the ten characters a shapefile field
-        allows. ``None`` to skip them.
+        key — ``qs_cur_ch1``. ``None`` to skip them.
     line_column : str | None
         Which column identifies the line. Discovered if unset.
     flight_column : str | None

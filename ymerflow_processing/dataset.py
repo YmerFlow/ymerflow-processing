@@ -482,9 +482,7 @@ def role_key(channel, role: str) -> str:
 #: found two data arrays for one channel. ``orig_dbdt_ch1gt`` matches nothing.
 #: One spelling for every step (Ben, 2026-10-21) rather than ``_raw``,
 #: ``_untilted``, ``_clean`` and ``_unaveraged``, so a reader of the file knows
-#: what ``orig_`` means without knowing which step wrote it. Note that it pushes
-#: a ten-character flightline name past a shapefile field; the vector export
-#: reports the truncation and refuses a collision.
+#: what ``orig_`` means without knowing which step wrote it.
 STASH_PREFIX = "orig_"
 
 

@@ -248,9 +248,7 @@ def test_a_delivery_with_no_attitude_can_still_be_tilt_corrected():
 
 
 def test_the_stash_names_carry_the_orig_prefix():
-    """One spelling for every step (Ben, 2026-10-21). `orig_tilt_x` is eleven
-    characters, one past a shapefile field; the vector export reports the
-    truncation and refuses a collision, which is where that rule lives."""
+    """One spelling for every step (Ben, 2026-10-21)."""
     assert STASHED_PITCH == "orig_tilt_x"
     assert STASHED_ROLL == "orig_tilt_y"
 

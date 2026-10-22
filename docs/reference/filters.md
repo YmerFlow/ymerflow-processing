@@ -412,9 +412,9 @@ export_vector(path: str, crs: str, source_crs: str | None = None, columns: list[
 | `crs` | `required` | **Output** CRS, e.g. ``"EPSG:32613"``. Required and never guessed: it is a project decision, and a contractor's delivery CRS and a client's output CRS are routinely different. |
 | `source_crs` | `None` | What the dataset's coordinates are in. Taken from the dataset if it knows; an error if neither says, since reprojecting from an assumed CRS produces plausible, wrong positions. |
 | `columns` | `None` | Which attributes to write. All of ``flightlines`` by default. |
-| `lines` | `True` | Also write one feature per flightline. GeoPackage takes both layers in one file; a shapefile holds one geometry type, so this writes a second file alongside. |
+| `lines` | `True` | Also write one feature per flightline. GeoPackage takes both layers in one file; GeoJSON holds one, so this writes a second file alongside. |
 | `unclassified` | `'Unclassified'` | What a verdict with no classification is written as. |
-| `format` | `None` | Which format to write — ``gpkg``, ``shp`` or ``geojson``. Taken from the extension if unset, which is what a standalone run usually wants. Stated explicitly it wins, so a caller serving a chosen format is not obliged to encode that choice in a filename. |
+| `format` | `None` | Which format to write — ``gpkg`` or ``geojson``. Taken from the extension if unset, which is what a standalone run usually wants. Stated explicitly it wins, so a caller serving a chosen format is not obliged to encode that choice in a filename. Shapefile is refused. |
 
 ### `remove_array`
 
