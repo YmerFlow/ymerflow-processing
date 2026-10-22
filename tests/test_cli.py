@@ -60,6 +60,46 @@ def run_qc(pipeline, xyz, gex, out, *extra):
     return invoke("run", pipeline, "--xyz", xyz, "--gex", gex, "--out", out, *extra)
 
 
+def test_an_alias_file_and_a_crs_reach_the_loader(pipeline_file, tmp_path):
+    """A contractor-named delivery runs from the command line with --alc, and
+    --crs is what lets a step measure a distance or write geometry."""
+    from test_dataset import _contractor_delivery
+    xyz, alc, gex = _contractor_delivery(tmp_path)
+    out = tmp_path / "out"
+
+    result = run_qc(pipeline_file("kind: filters\nsteps: [{cull_negatives: {}}]"),
+                    xyz, gex, out, "--alc", alc, "--crs", "EPSG:32613")
+
+    assert result.exit_code == EXIT_GOOD, result.output
+    assert "4 soundings" in result.output
+    report = json.loads((out / "c.report.json").read_text())
+    assert [s["step"] for s in report["steps"]] == ["inventory", "cull_negatives"]
+    assert report["steps"][0]["distributions"]["channels"][0]["key"] == "ch1"
+
+
+def test_a_scalefactor_on_the_command_line_is_recorded_where_the_importer_puts_it(
+        pipeline_file, tmp_path):
+    """A file that never went through the platform carries no scalefactor, and
+    a physical noise floor compared against pV arrays as if they were V/m²
+    is wrong by twelve orders of magnitude with nothing to say so."""
+    from test_dataset import _contractor_delivery
+    xyz, alc, gex = _contractor_delivery(tmp_path)
+    out = tmp_path / "out"
+    floor = ("kind: filters\nsteps:\n"
+             "  - set_noise_floor: {noise_level_1ms: 2.0e-9}\n"
+             "  - assign_uncertainty: {relative_fraction: 0.03}\n")
+
+    without = run_qc(pipeline_file(floor, "a.yaml"), xyz, gex, out / "a",
+                     "--alc", alc)
+    assert "carries no scalefactor" in without.output
+
+    with_it = run_qc(pipeline_file(floor, "b.yaml"), xyz, gex, out / "b",
+                     "--alc", alc, "--scalefactor", "1e-12")
+    assert "carries no scalefactor" not in with_it.output
+    processed = load(out / "b" / "c.xyz", gex)
+    assert float(processed.survey.xyz.model_info["scalefactor"]) == 1e-12
+
+
 # ── Exit codes ───────────────────────────────────────────────────────────────
 # The exit code answers two questions at once: did the run happen, and was the
 # flight any good. 0-2 mean it ran; 3-4 mean it did not.

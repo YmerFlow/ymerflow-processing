@@ -364,6 +364,13 @@ def recorded(dataset) -> NoiseModel | None:
     return NoiseModel(**fields) if fields else None
 
 
+def _as_physical(dataset, channel, level_in_array_units) -> float:
+    """An estimated floor converted to V/Am², the units a supplied one is in."""
+    moment = getattr(channel, "dipole_moment", None) or 1.0
+    return (float(level_in_array_units) * scalefactor(dataset)
+            * gate_factor(dataset, channel) * float(moment))
+
+
 def _scatter(values, groups) -> np.ndarray:
     """Robust per-gate noise, from consecutive differences within each group.
 
@@ -551,11 +558,25 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
     store(dataset, model)
 
     if "level_1ms" in supplied and measured_level is not None:
+        # The supplied floor is physical (V/Am²) and the estimate is in the raw
+        # array units, so the estimate is converted before the two are put side
+        # by side — comparing them as written would be off by scalefactor ×
+        # moment, ~10¹⁶ for a pV delivery.
+        physical = _as_physical(dataset, channels[0], measured_level)
         report.notes.append(
-            f"level_1ms was supplied as {model.level_1ms:g}; the data suggests "
-            f"{measured_level:g}. Either the number came from a different "
-            f"survey, or something is not as expected."
+            f"level_1ms was supplied as {model.level_1ms:g} V/Am²; the late-gate "
+            f"scatter suggests {physical:.3g} V/Am² (measured {measured_level:.3g} "
+            f"in the arrays' own units, converted with {channels[0]}'s moment). "
+            f"Either the number came from a different survey, or something is "
+            f"not as expected."
         )
+    if model.physical and "scalefactor" not in dataset.survey.xyz.model_info:
+        report.notes.append(
+            "A physical floor was supplied but model_info carries no "
+            "scalefactor, so the arrays are taken to be in V/m² already "
+            "(scalefactor 1). That is right for a synthetic system and wrong "
+            "for a delivery in pV — pass --scalefactor on the command line, or "
+            "import through the platform, which records it.")
     if fit_exponent and measured_slope is None:
         report.notes.append(
             f"The exponent could not be fitted — too few usable gates — so "
