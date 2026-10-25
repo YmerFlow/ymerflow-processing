@@ -521,6 +521,51 @@ conductive sheet draped on a slope, so it presents as an inclined conductive
 sheet — the dipping-conductor mimic — it follows contours so it curves, and it
 lives where terrain is steepest and the 1/r⁶ amplitude swing is largest.
 
+### Possible refinement: stack the symmetry estimate across gates
+
+**Not part of the method above — a candidate improvement to decide on before
+implementing.** Step 1 locates the crossing one gate at a time. But the coupling
+occupies a *band* of gates (Appendix A: a time window near the LM/HM crossover,
+not a single moment), and a symmetric departure that repeats across many gates at
+the same place is a stronger, more noise-resistant signal than one gate's. The
+reconstruction criterion already exploits this cross-gate coherence — "coherent
+is what distinguishes coupling from noise"; the profile criterion as written
+throws it away by going gate-by-gate.
+
+The refinement: combine the per-gate symmetry estimates coherently.
+
+- **Stack in lag-space, not in distance-space.** The crossing is at one spatial
+  position, the *same for every time channel* — only the pattern's amplitude
+  scales with gate, its spatial shape is roughly gate-invariant. So every
+  affected gate's self-reverse correlation peaks at the **same lag** (twice the
+  axis offset). Sum the **per-gate correlation functions** (what you proposed),
+  not the stacked profile: autocorrelating each gate first discards absolute
+  amplitude and keeps only the symmetry lag, so weak and strong gates combine
+  cleanly; summing profiles *then* correlating lets a loud early gate swamp the
+  rest and mixes cross-gate terms.
+- **Weight by per-gate uncertainty.** Normalise each gate — e.g. autocorrelate
+  the standardised residual (profile minus smooth background, over `Δd_obs`) —
+  so one loud gate cannot dominate the stack. The denominator is already in hand
+  from `assign_uncertainty`, the same one the reconstruction criterion uses.
+- **Keep the per-gate contributions, not only the sum.** The vector of each
+  gate's contribution to the consensus-lag peak *is* the affected band — exactly
+  what the per-gate coupling table records — so `candidates()` returns a position
+  plus a per-gate weight vector, and the table nearly falls out of it. Retaining
+  the decomposition also preserves the sweep-across-gates ordering (§4 of "Later")
+  as a later discriminator; collapsing to the sum alone would discard it.
+
+Two payoffs: a sharper crossing position and tighter `position_sigma` from a
+sharper combined peak, and the gate band for free. One honest limit: this
+sharpens *detection and localisation*, not *discrimination* — a dipping
+conductor's symmetric double peak also sits at a fixed place across gates and
+stacks just as coherently, so powerline-vs-geology still rests on collinearity,
+infrastructure and the monitor.
+
+> **Implementer: raise this with the plan owner before building it.** It changes
+> the `Candidate` shape (a per-gate weight vector, not a scalar amplitude) and
+> the profile/table coupling, so it is a design decision, not a local tweak.
+> Confirm the direction before writing step 1 against it.
+
 ### Later, once the shed stands
 
 **The horizontal component.** Deliveries carry one (`HM_X_G01`) and the library
