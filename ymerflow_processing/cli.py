@@ -119,13 +119,24 @@ def _summarize(report: RunReport, dataset) -> None:
               help="The survey file to run against.")
 @click.option("--gex", required=True, type=click.Path(),
               help="The system description.")
+@click.option("--alc", default=None, type=click.Path(),
+              help="An Aarhus .alc alias file, for a survey file exported "
+                   "under the contractor's own column names.")
+@click.option("--crs", default=None,
+              help="What the positions are in, e.g. EPSG:32613. Needed by "
+                   "any step that measures a distance or writes geometry.")
+@click.option("--scalefactor", default=None, type=float,
+              help="What the data arrays are multiplied by to read in V/m² "
+                   "(1e-12 for pV). The platform's importer records this; a "
+                   "file that never went through it has to say, or a "
+                   "physical noise floor is compared against the wrong units.")
 @click.option("--out", required=True, type=click.Path(file_okay=False),
               help="Directory for the resulting dataset and report.")
 @click.option("--label", default=None,
               help="What to call this run. Defaults to the survey file's name.")
 @click.option("--group", type=click.Choice(sorted(RUNNERS)), default=None,
               help="Override which registry the steps are looked up in.")
-def run(pipeline, xyz, gex, out, label, group):
+def run(pipeline, xyz, gex, alc, crs, scalefactor, out, label, group):
     """Run a processing or QC pipeline against a delivery.
 
     Exit codes: 0 in spec, 1 marginal, 2 out of spec, 3 never started,
@@ -147,9 +158,12 @@ def run(pipeline, xyz, gex, out, label, group):
         return _fail(str(exc).strip("'"))
 
     try:
-        dataset = load(xyz, gex)
+        dataset = load(xyz, gex, crs=crs, alc=alc)
     except FileNotFoundError as exc:
         return _fail(str(exc))
+    if scalefactor is not None:
+        # Where the importer records it, so every consumer reads one value.
+        dataset.survey.xyz.model_info["scalefactor"] = float(scalefactor)
 
     identity = label or Path(xyz).stem
     report = RunReport(

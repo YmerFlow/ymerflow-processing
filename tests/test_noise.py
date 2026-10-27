@@ -97,7 +97,36 @@ def test_a_supplied_value_is_used_and_the_estimate_reported_anyway():
     assert model["level_1ms"] == 1e-7
     assert model["measured"]["level_1ms"] == pytest.approx(TRUE_FLOOR, rel=0.35)
     assert "level_1ms" in model["supplied"]
-    assert any("the data suggests" in n for n in report.notes)
+    assert any("scatter suggests" in n for n in report.notes)
+
+
+def test_the_estimate_is_put_beside_a_supplied_floor_in_the_same_units():
+    """A supplied floor is physical (V/Am²); the estimate is in the arrays' own
+    units. On a pV delivery the two as written differ by ~1e16, so the note
+    converts the estimate with scalefactor, GateFactor and the moment."""
+    dataset = delivery()
+    dataset.survey.xyz.model_info["scalefactor"] = 1e-12
+    moment = dataset.channels[0].dipole_moment
+    _, report = set_noise_floor(dataset, noise_level_1ms=1e-7)
+
+    note = next(n for n in report.notes if "scatter suggests" in n)
+    measured = report.distributions["model"]["measured"]["level_1ms"]
+    assert f"{measured * 1e-12 * moment:.3g} V/Am²" in note
+
+
+def test_a_physical_floor_without_a_scalefactor_is_called_out():
+    """Right for a synthetic system, silently wrong by 1e12 for a delivery in
+    pV that never went through the importer."""
+    _, without = set_noise_floor(delivery(), noise_level_1ms=1e-9)
+    assert any("carries no scalefactor" in n for n in without.notes)
+
+    dataset = delivery()
+    dataset.survey.xyz.model_info["scalefactor"] = 1e-12
+    _, with_it = set_noise_floor(dataset, noise_level_1ms=1e-9)
+    assert not any("carries no scalefactor" in n for n in with_it.notes)
+
+    _, estimated = set_noise_floor(delivery())
+    assert not any("carries no scalefactor" in n for n in estimated.notes)
 
 
 def test_the_slope_is_held_at_minus_a_half_unless_asked_to_fit():

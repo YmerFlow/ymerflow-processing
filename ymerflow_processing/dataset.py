@@ -982,13 +982,13 @@ def _plain(value):
 
 # ── Loading ──────────────────────────────────────────────────────────────────
 
-def load(xyz, gex, crs: str | None = None) -> Dataset:
+def load(xyz, gex, crs: str | None = None, alc=None) -> Dataset:
     """A dataset read from a survey file and a system description.
 
-    Both are paths. That is deliberate and is what keeps the library usable on
-    its own: R8's layering is *the platform materialises, the library reads*, so
+    All paths. That is deliberate and is what keeps the library usable on its
+    own: R8's layering is *the platform materialises, the library reads*, so
     nothing here resolves an asset identifier or reaches for a storage backend.
-    Hand it two files and it works, with no platform and no credentials.
+    Hand it the files and it works, with no platform and no credentials.
 
     Parameters
     ----------
@@ -998,17 +998,23 @@ def load(xyz, gex, crs: str | None = None) -> Dataset:
         The system description.
     crs : str | None
         The coordinate reference system the positions are in, where known.
+    alc : str | Path | None
+        An Aarhus ``.alc`` alias file naming which of the survey file's columns
+        are which — line, position, altitude, the gates of each channel. A
+        delivery exported with the contractor's own column names (a Geotech
+        VTEM database, say) needs one for the channels to be found at all;
+        a file already in the library's spellings does not.
 
     Returns
     -------
     Dataset
-        The two files as one object, with the system description's declared
+        The files as one object, with the system description's declared
         initial gates already disabled.
 
     Raises
     ------
     FileNotFoundError
-        If either path does not exist.
+        If any path does not exist.
 
     Notes
     -----
@@ -1030,10 +1036,12 @@ def load(xyz, gex, crs: str | None = None) -> Dataset:
     ``filter_21`` puts them back for anyone doing full primary-field modeling,
     which is why this writes a mask rather than removing anything.
     """
-    for role, path in (("survey", xyz), ("system description", gex)):
-        if not Path(path).exists():
+    for role, path in (("survey", xyz), ("system description", gex),
+                       ("alias file", alc)):
+        if path is not None and not Path(path).exists():
             raise FileNotFoundError(f"No {role} at {path}")
-    survey = libaarhusxyz.Survey(str(xyz), str(gex))
+    survey = libaarhusxyz.Survey(str(xyz), str(gex),
+                                 alcfile=None if alc is None else str(alc))
 
     # No amplitude convention to read or default: the data on disk is always the
     # SimPEG static_instrument format (raw dbdt per unit transmitter moment, with

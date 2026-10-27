@@ -370,6 +370,91 @@ def test_the_crs_survives_a_round_trip(tmp_path):
     assert load(tmp_path / "a.xyz", tmp_path / "a.gex").crs == "EPSG:32610"
 
 
+# ── A contractor's own column names, through an alias file ───────────────────
+# A Geotech VTEM database exported as it is names its gates SFz[n], its line
+# Line and its position UTMX/UTMY. Nothing in the library's spellings matches,
+# so without the .alc no channel is found at all — which is how the Estancia
+# four-line file could not be run standalone (2026-10-22).
+
+CONTRACTOR_XYZ = """\
+/ Geotech-style export: the contractor's own column names
+/ Line UTMX UTMY radar DEM PLM SFz[1] SFz[2] SFz[3] SFzSTD[1] SFzSTD[2] SFzSTD[3] Use[1] Use[2] Use[3]
+1060 388500.0 3884850.0 40.0 1900.0 0.5 200.0 100.0 50.0 0.03 0.03 0.03 1 1 1
+1060 388510.0 3884850.0 41.0 1900.0 0.6 198.0 99.0 49.0 0.03 0.03 0.03 1 1 1
+1060 388520.0 3884850.0 42.0 1900.0 0.4 202.0 101.0 51.0 0.03 0.03 0.03 1 1 1
+1060 388530.0 3884850.0 40.0 1900.0 9.9 150.0 80.0 40.0 0.03 0.03 0.03 1 1 1
+"""
+
+CONTRACTOR_ALC = """\
+Version=              2
+System=               Geotech VTEM ET
+Dummy=                *
+ChannelsNumber=       1
+Line=                 1
+UTMX=                 2
+UTMY=                 3
+TxAltitude=           4
+Topography=           5
+PowerLineMonitor=     6
+Gate_Ch01_01=         7
+Gate_Ch01_02=         8
+Gate_Ch01_03=         9
+STD_Ch01_01=          10
+STD_Ch01_02=          11
+STD_Ch01_03=          12
+InUse_Ch01_01=        13
+InUse_Ch01_02=        14
+InUse_Ch01_03=        15
+"""
+
+
+def _contractor_delivery(tmp_path):
+    """The three files a Geotech-style delivery arrives as."""
+    from conftest import make_dataset
+    xyz, alc, gex = tmp_path / "c.xyz", tmp_path / "c.alc", tmp_path / "c.gex"
+    xyz.write_text(CONTRACTOR_XYZ)
+    alc.write_text(CONTRACTOR_ALC)
+    make_dataset(moments=("LM",), n=2, n_lines=1, n_gates=3).survey.dump(
+        gexfile=str(gex))
+    return xyz, alc, gex
+
+
+def test_an_alias_file_lets_a_contractor_named_delivery_be_loaded(tmp_path):
+    from ymerflow_processing.dataset import load
+    from ymerflow_processing.qc.powerline import find_powerline_column
+    xyz, alc, gex = _contractor_delivery(tmp_path)
+
+    dataset = load(xyz, gex, crs="EPSG:32613", alc=alc)
+
+    assert [c.key for c in dataset.channels] == ["ch1"]
+    channel = dataset.channels[0]
+    assert dataset.layer_data[channel.data_key].shape == (4, 3)
+    assert dataset.layer_data[channel.data_key].iloc[0, 0] == 200.0
+    assert dataset.layer_data[channel.std_key].shape == (4, 3)
+    assert dataset.layer_data[channel.inuse_key].shape == (4, 3)
+    assert dataset.survey.xyz.line_id_column in dataset.flightlines.columns
+    assert dataset.n_soundings == 4
+    assert find_powerline_column(dataset.flightlines) is not None
+    assert dataset.crs == "EPSG:32613"
+
+
+def test_without_the_alias_file_the_same_delivery_has_no_channels(tmp_path):
+    """Not an error — a scalar instrument legitimately has none — which is
+    exactly why the alias file has to be passed rather than discovered."""
+    from ymerflow_processing.dataset import load
+    xyz, _, gex = _contractor_delivery(tmp_path)
+
+    assert load(xyz, gex).channels == []
+
+
+def test_a_missing_alias_file_is_reported_by_name(tmp_path):
+    from ymerflow_processing.dataset import load
+    xyz, _, gex = _contractor_delivery(tmp_path)
+
+    with pytest.raises(FileNotFoundError, match="alias file"):
+        load(xyz, gex, alc=tmp_path / "nope.alc")
+
+
 def test_a_float_shaped_code_from_a_round_trip_is_still_recognized():
     """libaarhusxyz writes model_info values as floats, so the integer comes
     back as '32610.0'. A string test would have recognised a projection before
