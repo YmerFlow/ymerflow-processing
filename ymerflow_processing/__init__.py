@@ -13,4 +13,4 @@ See ``building_plans/`` for the specification this is built from, and
 ``docs/plans/package-layout.md`` for why the layout is by role.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
