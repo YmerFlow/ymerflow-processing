@@ -207,12 +207,11 @@ def test_the_report_survives_serialization():
     assert restored["distributions"]["culled_here"] == N * 4
 
 
-def test_the_column_names_fit_a_shapefile_field():
+def test_the_columns_are_written_under_their_documented_names():
     dataset, _ = culled_fraction(culled(delivery()), good_max=0.1,
                                  marginal_max=0.2)
     for name in ("qs_culled", "cull_frac"):
         assert name in dataset.flightlines.columns
-        assert len(name) <= 10
 
 
 def test_registered():

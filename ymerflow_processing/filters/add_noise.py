@@ -65,6 +65,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+from ..dataset import STASH_PREFIX, stash_key
 from ..distribution import summarize
 from ..pipeline import StepReport
 
@@ -73,9 +74,6 @@ log = logging.getLogger(__name__)
 CATEGORY = "synthetic"
 
 STEP = "add_noise"
-
-#: Suffix for the stashed originals — the noise-free values this was drawn onto.
-STASH_SUFFIX = "_clean"
 
 #: Where the application is recorded, so a second one is detectable.
 REGISTRY = "synthetic_noise"
@@ -123,7 +121,7 @@ def add_noise(dataset, seed: int = DEFAULT_SEED,
         because doing it unknowingly is the silent error this filter is written
         to prevent.
     stash : bool
-        Keep the noise-free values under the same key with ``_clean`` appended.
+        Keep the noise-free values under the same key with ``orig_`` in front.
 
     Returns
     -------
@@ -173,7 +171,8 @@ def add_noise(dataset, seed: int = DEFAULT_SEED,
         relative = dataset.layer_data[channel.std_key].to_numpy(dtype=float)
 
         if stash:
-            dataset.layer_data[f"{channel.data_key}{STASH_SUFFIX}"] = array.copy()
+            # The noise-free values this was drawn onto.
+            dataset.layer_data[stash_key(channel.data_key)] = array.copy()
 
         # The stored uncertainty is relative, so the absolute spread of the
         # perturbation is that times the magnitude. Drawing from the relative
@@ -221,7 +220,7 @@ def add_noise(dataset, seed: int = DEFAULT_SEED,
         "seed": int(seed),
         "seed_source": "given" if seed_given else "default",
         "per_channel": per_channel,
-        "stashed": STASH_SUFFIX if stash else None,
+        "stashed": STASH_PREFIX if stash else None,
         "repeated": bool(already),
     }
     log.info("%s: perturbed %d channel(s) with seed %s",

@@ -32,9 +32,8 @@ from .thresholds import (
 )
 
 #: The measure each tier's fraction is written under, appended to a grain prefix
-#: to give ``ql_good``, ``qf_marg``, ``qd_oos`` and so on. Abbreviated so that
-#: every one of them clears the shapefile's ten-character field-name limit with
-#: the longest prefix attached.
+#: to give ``ql_good``, ``qf_marg``, ``qd_oos`` and so on. Abbreviated so the
+#: whole family reads at a glance in a GIS attribute table.
 MEASURE_TIER = {"good": GOOD, "marg": MARGINAL, "oos": OUT_OF_SPEC}
 
 

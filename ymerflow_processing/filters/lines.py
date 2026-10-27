@@ -46,8 +46,8 @@ reading. ``High-Altitude`` is fine.
 **A label is a string, so the plot layer cannot draw it.** YmerFlow's plot layer
 enumerates columns that are typed arrays and a label column is not one. Verdicts
 solved this by being numeric with a fixed legend; ``line_type`` cannot, because
-the vocabulary is deliberately open. It exports to GeoPackage and shapefile,
-where it is exactly what someone wants to symbolise on, and it is readable in the
+the vocabulary is deliberately open. It exports to GeoPackage, where it is
+exactly what someone wants to symbolize on, and it is readable in the
 xyz — it simply is not available as a plot channel. Worth knowing rather than
 discovering.
 """
@@ -63,8 +63,7 @@ log = logging.getLogger(__name__)
 
 CATEGORY = "selection"
 
-#: Where a flightline's classification lives. Nine characters, so it survives a
-#: shapefile field name intact.
+#: Where a flightline's classification lives.
 LINE_TYPE_COLUMN = "line_type"
 
 #: What a line is until something classifies it otherwise.

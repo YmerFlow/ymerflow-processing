@@ -47,6 +47,7 @@ import logging
 
 import numpy as np
 
+from .dataset import is_stash
 from .mask import is_provenance
 from .pipeline import StepReport
 
@@ -87,12 +88,16 @@ def take(dataset) -> dict:
     # the model failed to account for. Detected by shape because a name we
     # recognized would already have been claimed.
     gate_shapes = {_shape(layer_data[k]) for k in claimed}
-    unresolved, other = {}, {}
+    unresolved, other, stashed = {}, {}, []
     for key, array in layer_data.items():
         # Provenance is gate-shaped and claimed by no channel, so the shape test
         # picks it up — and calling a column this library wrote "something the
-        # model failed to account for" is the opposite of the truth.
+        # model failed to account for" is the opposite of the truth. The same
+        # goes for a stashed original, which a correction wrote two steps ago.
         if key in claimed or is_provenance(key):
+            continue
+        if is_stash(key):
+            stashed.append(key)
             continue
         (unresolved if _shape(array) in gate_shapes else other)[key] = _shape(array)
 
@@ -136,6 +141,7 @@ def take(dataset) -> dict:
             "resolved": {k: v for k, v in sorted(claimed.items())},
             "unresolved": dict(sorted(unresolved.items())),
             "other": dict(sorted(other.items())),
+            "stashed": sorted(stashed),
         },
         "channels": resolved,
         "system_description": system or None,

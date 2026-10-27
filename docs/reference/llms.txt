@@ -72,7 +72,7 @@ Copy a per-sounding attribute, leaving the original (filter_14).
 
 ### correct_tilt_1d  [corrections]
 correct_tilt_1d(pitch_column: str | None = None, roll_column: str | None = None, max_correction: float = 4.0, again: bool = False, stash: bool = True)
-Rescale amplitudes to what a horizontal transmitter would have measured.
+Rescale amplitudes to what a horizontal transmitter would have measured, by 1/cos².
 
 ### cull_below_noise_floor  [cull gates]
 cull_below_noise_floor(margin: float = 1.0, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
