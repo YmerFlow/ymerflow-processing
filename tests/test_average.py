@@ -15,7 +15,8 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.dataset import stash_key
 from ymerflow_processing.filters.average import (
-    BOXCAR, GAUSSIAN, HANN, STEP_CODE, average_along_line, gate_widths, kernel,
+    BOXCAR, GAUSSIAN, HANN, HYBRID, STEP_CODE, average_along_line, gate_widths,
+    hybrid_mean, kernel, round_to_odd,
 )
 from ymerflow_processing.mask import CULLED, IN_USE, provenance_key
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
@@ -359,3 +360,114 @@ def test_the_report_survives_serialization():
 
 def test_registered():
     assert "average_along_line" in load_steps(FILTER_GROUP)
+
+
+# ── The hybrid method (emerald-processing's, ported) ─────────────────────────
+
+def test_hybrid_is_the_sum_of_squares_total_of_its_window():
+    """Hand-computed: three neighbours, no trim below ten, equal errors so equal
+    weights. The error is the mean stated variance plus the scatter, and is not
+    divided by the number of neighbours."""
+    values = np.array([1.0, 2.0, 3.0])
+    errors = np.array([0.1, 0.1, 0.1])
+    mean, error, enough = hybrid_mean(values, errors, width=3, min_valid_fraction=0.5)
+
+    assert enough[1]
+    assert mean[1] == pytest.approx(2.0)
+    assert error[1] == pytest.approx(np.sqrt(0.1 ** 2 + 2.0 / 3.0))
+
+
+def test_hybrid_error_does_not_shrink_for_agreeing_neighbours():
+    """Ben's formulation: the typical stated error, not the standard error of
+    the mean. Seven identical soundings at 5% stay at 5%."""
+    values = np.full(21, 10.0)
+    mean, error, _ = hybrid_mean(values, 0.05 * values, width=7)
+
+    assert error[10] / mean[10] == pytest.approx(0.05)
+
+
+def test_independent_neighbours_give_the_standard_error_of_the_mean():
+    """independent_fraction=1 divides the variance by n: 7 at 5% gives 5%/√7."""
+    values = np.full(21, 10.0)
+    mean, error, _ = hybrid_mean(values, 0.05 * values, width=7,
+                                 independent_fraction=1.0)
+
+    assert error[10] / mean[10] == pytest.approx(0.05 / np.sqrt(7))
+
+
+def test_hybrid_trims_an_outlier_from_a_wide_window():
+    """floor(n × alpha) each end: one of eleven at alpha 0.1, so a single spike
+    is dropped rather than averaged in."""
+    values = np.full(31, 1.0)
+    values[15] = 1000.0
+    trimmed, _, _ = hybrid_mean(values, np.full(31, 0.03), width=11, alpha=0.1)
+    kept, _, _ = hybrid_mean(values, np.full(31, 0.03), width=11, alpha=0.0)
+
+    assert trimmed[15] == pytest.approx(1.0)
+    assert kept[15] > 50.0
+
+
+def test_hybrid_caps_a_quiet_neighbour():
+    """An error far below the window median is raised to it, so the quiet
+    neighbour weighs no more than a typical one."""
+    values = np.array([1.0, 1.0, 9.0, 1.0, 1.0])
+    errors = np.array([0.1, 0.1, 1e-9, 0.1, 0.1])
+    mean, _, _ = hybrid_mean(values, errors, width=5, alpha=0.0)
+
+    assert mean[2] == pytest.approx(13.0 / 5.0)
+
+
+def test_hybrid_needs_enough_valid_neighbours():
+    values = np.full(21, 1.0)
+    values[5:16] = np.nan
+    values[10] = 1.0
+    _, _, enough = hybrid_mean(values, np.full(21, 0.03), width=7,
+                               min_valid_fraction=0.5)
+
+    assert not enough[10]
+    assert enough[0]
+
+
+def test_hybrid_width_one_is_the_identity():
+    values = np.array([1.0, 2.0, np.nan, 4.0])
+    errors = np.array([0.1, 0.2, 0.3, 0.4])
+    mean, error, enough = hybrid_mean(values, errors, width=1)
+
+    np.testing.assert_array_equal(mean, values)
+    np.testing.assert_array_equal(error[enough], errors[[0, 1, 3]])
+
+
+def test_hybrid_widths_are_odd():
+    """The sounding plus the same number of neighbours each side."""
+    widths = gate_widths(7, 17, np.logspace(-5, -2, 30), odd=True)
+
+    assert widths[0] == 7 and widths[-1] == 17
+    assert (widths % 2 == 1).all()
+    assert list(round_to_odd([7, 8, 8.1, 9])) == [7, 7, 9, 9]
+
+
+def test_the_ramp_starts_at_the_first_gate_in_use():
+    """width_first lands on the first gate that is averaged, not on padding."""
+    times = np.logspace(-6, -3, 10)
+    active = np.arange(10) >= 4
+    widths = gate_widths(7, 17, times, active=active, odd=True)
+
+    assert list(widths[:5]) == [7, 7, 7, 7, 7]
+    assert widths[-1] == 17
+
+
+def test_hybrid_runs_through_the_step():
+    dataset, report = average_along_line(delivery(), width_first=3, width_last=7,
+                                         method=HYBRID, min_valid_fraction=0.5)
+    outcome = report.distributions["per_channel"]["ch1 (LM/z)"]
+
+    assert report.distributions["hybrid"]["independent_fraction"] == 0.0
+    assert all(w % 2 == 1 for w in outcome["widths"]["per_gate"])
+    assert np.isfinite(data(dataset)).any()
+    assert np.isfinite(std(dataset)[np.isfinite(data(dataset))]).all()
+
+
+def test_hybrid_parameters_are_checked():
+    for bad in ({"alpha": 0.5}, {"independent_fraction": 1.5}, {"max_weight_factor": 0}):
+        with pytest.raises(ValueError):
+            average_along_line(delivery(), width_first=3, method=HYBRID, **bad)

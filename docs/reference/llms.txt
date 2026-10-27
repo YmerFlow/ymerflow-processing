@@ -51,7 +51,7 @@ assign_uncertainty(relative_fraction: float | None = None, stash: bool = True)
 Replace uncertainties with the noise floor and a proportional error.
 
 ### average_along_line  [averaging]
-average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True)
+average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float = 0.1, max_weight_factor: float = 10.0, independent_fraction: float = 0.0)
 Average each sounding with its along-line neighbours.
 
 ### classify_lines  [selection]

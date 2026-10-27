@@ -357,18 +357,21 @@ set_inuse_gates(enable_gates: int | str | list[int | str] | dict | None = None, 
 Average each sounding with its along-line neighbours.
 
 ```python
-average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True)
+average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float = 0.1, max_weight_factor: float = 10.0, independent_fraction: float = 0.0)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `width_first` | `required` | Window width in soundings at the first gate. |
-| `width_last` | `None` | Width at the last gate. Equal to ``width_first`` if unset, giving a constant window. |
-| `method` | `'hann'` | ``hann`` (default), ``gaussian`` or ``boxcar``. The last is a flat kernel and is kept for reproducing a previous run, not because it is a good choice. |
-| `min_valid_fraction` | `0.5` | The **effective** sample size a window must reach, as a fraction of its width, before an output is produced. Effective, not counted — see the module docstring. |
+| `width_first` | `required` | Window width in soundings at the first gate in use. |
+| `width_last` | `None` | Width at the last gate in use. Equal to ``width_first`` if unset, giving a constant window. |
+| `method` | `'hann'` | ``hann`` (default), ``gaussian``, ``boxcar`` or ``hybrid``. ``hybrid`` is emerald-processing's alpha-trimmed, capped inverse-variance mean with the sum-of-squares-total error, and always uses odd widths; see the module docstring. ``boxcar`` is a flat kernel kept for reproducing a previous run. |
+| `min_valid_fraction` | `0.5` | For the tapered methods, the **effective** sample size a window must reach, as a fraction of its width. For ``hybrid``, the **count** of valid neighbours, ``max(2, ceil(fraction × width))``, as emerald counts it. |
 | `decimate_to` | `None` | Keep only soundings this far apart along the line, in CRS units. Drops soundings, changing the dataset's extent. |
 | `line_column` | `None` | Which column identifies the line. Discovered if unset. |
 | `stash` | `True` | Keep the unaveraged values and uncertainties alongside. |
+| `alpha` | `0.1` | ``hybrid`` only: the fraction trimmed from each end of the sorted values in a window. |
+| `max_weight_factor` | `10.0` | ``hybrid`` only: the cap on any weight, as a multiple of the window's median weight. |
+| `independent_fraction` | `0.0` | ``hybrid`` only, 0 to 1: how independent neighbouring soundings are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps emerald's error, the window's total spread; 1 is the standard error of the mean for fully independent soundings. |
 
 ## housekeeping
 
