@@ -29,6 +29,7 @@ import logging
 
 import numpy as np
 
+from ..dataset import STASH_PREFIX, stash_key
 from ..distribution import summarize
 from ..pipeline import StepReport
 
@@ -48,7 +49,8 @@ def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, 
         Which ``flightlines`` column holds each channel's current, per channel
         key or moment name. Discovered if unset.
     stash : bool
-        Keep the measured values alongside.
+        Keep the measured values alongside, under the column's name with
+        ``orig_`` in front.
 
     Returns
     -------
@@ -92,13 +94,7 @@ def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, 
         else:
             before = summarize(frame[column].to_numpy(dtype=float))
             if stash:
-                # Not truncated to ten characters. "LMcurrent_raw"[:10] is
-                # "LMcurrent_", which is neither readable nor safely unique —
-                # two current columns would collide. The vector export already
-                # detects truncation collisions and refuses before writing,
-                # which is the right place for that check to live rather than
-                # in every step guessing at it.
-                frame[f"{column}_raw"] = frame[column]
+                frame[stash_key(column)] = frame[column]
 
         frame[column] = float(nominal)
         per_channel[str(channel)] = {"column": column, "nominal": float(nominal),
@@ -117,7 +113,7 @@ def apply_nominal_current(dataset, columns: str | dict[str, str] | None = None, 
 
     report.soundings_affected = report.soundings_total
     report.distributions = {"per_channel": per_channel,
-                            "stashed": "_raw" if stash else None}
+                            "stashed": STASH_PREFIX if stash else None}
     report.notes.append(
         "The measured current is overwritten by declaration. qc_04 is what says "
         "whether it should be: it measures stability against the moment's own "

@@ -247,8 +247,7 @@ def summarize_run(
     inspecting column dtypes, so one check's verdict is never mistaken for
     another's.
 
-    Three columns, all within the ten characters a shapefile allows for a field
-    name, because these are what the export carries:
+    Three columns, which are what the export carries:
 
     ``qs_verdict``
         Worst flight-quality verdict — what a map is colored by.

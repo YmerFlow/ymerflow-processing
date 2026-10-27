@@ -15,10 +15,13 @@ import pandas as pd
 import pytest
 
 from conftest import make_dataset
+from ymerflow_processing.dataset import stash_key
 from ymerflow_processing.filters.attitude import (
-    REGISTRY as TILT_REGISTRY, STASHED_PITCH, STASHED_ROLL, correct_tilt_1d,
-    corrected, zero_attitude,
+    REGISTRY as TILT_REGISTRY, correct_tilt_1d, corrected, zero_attitude,
 )
+
+STASHED_PITCH = stash_key("tilt_x")
+STASHED_ROLL = stash_key("tilt_y")
 from ymerflow_processing.filters.normalize import apply_nominal_current
 from ymerflow_processing.pipeline import FILTER_GROUP, load_steps
 
@@ -99,37 +102,104 @@ def test_the_application_is_recorded():
     assert TILT_REGISTRY in dataset.survey.xyz.model_info
 
 
-def test_the_recorded_attitude_is_left_alone():
-    """Clearing it would make a corrected dataset indistinguishable from one
-    flown level, and qc_02 would report perfect attitude on salvaged data."""
+def test_a_corrected_sounding_presents_zero_attitude_and_keeps_the_measurement():
+    """SimPEG applies its own tilt term from the attitude columns at read, so a
+    corrected dataset still showing its tilt is corrected twice at inversion.
+    The measured attitude moves to orig_ (Ben, 2026-10-21)."""
     dataset, report = correct_tilt_1d(delivery(pitch=10.0, roll=5.0))
+    frame = dataset.flightlines
 
-    assert (dataset.flightlines["tilt_x"] == 10.0).all()
-    assert (dataset.flightlines["tilt_y"] == 5.0).all()
-    assert any("still tilted" in n for n in report.notes)
+    assert (frame["tilt_x"] == 0.0).all()
+    assert (frame["tilt_y"] == 0.0).all()
+    assert (frame[STASHED_PITCH] == 10.0).all()
+    assert (frame[STASHED_ROLL] == 5.0).all()
+    assert any("is now zero" in n for n in report.notes)
+
+
+def test_a_corrected_dataset_is_a_no_op_for_a_downstream_tilt_term():
+    """What the zeroing buys: the 1/cos² of the live attitude is exactly one."""
+    dataset, _ = correct_tilt_1d(delivery(pitch=20.0, roll=15.0))
+    frame = dataset.flightlines
+    downstream = 1.0 / (np.cos(np.radians(frame["tilt_x"]))
+                        * np.cos(np.radians(frame["tilt_y"]))) ** 2
+    assert np.allclose(downstream, 1.0)
 
 
 def test_an_extreme_tilt_is_left_uncorrected_and_reported():
     """Past the limit the neglected horizontal mode is no longer small, so
-    scaling harder is not a better answer — culling is."""
+    scaling harder is not a better answer — culling is. Its attitude stays
+    live too, so cull_by_altitude_tilt and the inversion still see it."""
     dataset, report = correct_tilt_1d(delivery(pitch=70.0), max_correction=4.0)
 
     assert np.allclose(data(dataset), 1e-9)
+    assert (dataset.flightlines["tilt_x"] == 70.0).all()
     assert report.distributions["left_uncorrected"] == N
     assert any("cull_by_altitude_tilt" in n for n in report.notes)
 
 
-def test_the_originals_are_stashed():
+def test_the_originals_are_stashed_under_the_orig_prefix():
     dataset, _ = correct_tilt_1d(delivery(pitch=10.0))
-    key = f"{dataset.channels[0].data_key}_untilted"
+    key = stash_key(dataset.channels[0].data_key)
+    assert key.startswith("orig_")
     assert np.allclose(dataset.layer_data[key].to_numpy(), 1e-9)
 
 
-def test_a_missing_attitude_column_is_an_error():
+def test_the_stash_is_not_mistaken_for_a_second_data_array():
+    """The suffix form `dbdt_ch1gt_untilted` matched the anchored data pattern
+    `^dbdt_ch(\\d+)` and discovery found two data arrays for one channel; a
+    prefix sits outside every anchored pattern."""
+    from ymerflow_processing.filters.select_moments import unclaimed_arrays
+    from ymerflow_processing.inventory import take
+
+    before = delivery(pitch=10.0)
+    keys = [c.data_key for c in before.channels]
+    dataset, _ = correct_tilt_1d(before)
+
+    assert [c.data_key for c in dataset.channels] == keys
+    assert unclaimed_arrays(dataset) == {}
+    assert take(dataset)["arrays"]["unresolved"] == {}
+    assert stash_key(keys[0]) in take(dataset)["arrays"]["stashed"]
+
+
+def test_a_delivery_with_no_attitude_is_skipped_with_a_note():
+    """VTEM ships none. A shipped pipeline has to run on it, so the step says
+    it did nothing rather than failing the run."""
+    dataset = delivery()
+    dataset.survey.xyz.flightlines = dataset.flightlines.drop(
+        columns=["tilt_x", "tilt_y"])
+
+    dataset, report = correct_tilt_1d(dataset)
+
+    assert np.allclose(data(dataset), 1e-9)
+    assert corrected(dataset) is None
+    assert any("No pitch or roll column" in n for n in report.notes)
+
+
+def test_one_missing_axis_is_also_a_skip():
     dataset = delivery()
     dataset.survey.xyz.flightlines = dataset.flightlines.drop(columns=["tilt_y"])
-    with pytest.raises(KeyError, match="roll column"):
-        correct_tilt_1d(dataset)
+    dataset, report = correct_tilt_1d(dataset)
+    assert np.allclose(data(dataset), 1e-9)
+    assert any("No roll column" in n for n in report.notes)
+
+
+def test_a_named_column_that_is_absent_is_still_an_error():
+    """Naming a column that is not there is a mistake about this dataset, not
+    a dataset without the input."""
+    with pytest.raises(KeyError, match="roll column 'TxRoll'"):
+        correct_tilt_1d(delivery(), roll_column="TxRoll")
+
+
+def test_qc_attitude_grades_the_measured_attitude_after_a_correction():
+    """A corrected dataset must not grade as perfectly flown: the check reads
+    the orig_ columns the correction left behind."""
+    from ymerflow_processing.qc.attitude import system_attitude
+
+    dataset, _ = correct_tilt_1d(delivery(pitch=12.0, roll=0.0))
+    dataset, report = system_attitude(dataset, good=5.0, marginal=10.0)
+
+    assert report.soundings_affected == N          # 12° is out of spec
+    assert any("grades what was flown" in n for n in report.notes)
 
 
 # ── filter_07: zeroed attitude ───────────────────────────────────────────────
@@ -177,9 +247,10 @@ def test_a_delivery_with_no_attitude_can_still_be_tilt_corrected():
     assert np.allclose(data(dataset), 1e-9)
 
 
-def test_the_stash_names_fit_a_shapefile_field():
-    for name in (STASHED_PITCH, STASHED_ROLL):
-        assert len(name) <= 10
+def test_the_stash_names_carry_the_orig_prefix():
+    """One spelling for every step (Ben, 2026-10-21)."""
+    assert STASHED_PITCH == "orig_tilt_x"
+    assert STASHED_ROLL == "orig_tilt_y"
 
 
 # ── filter_09: nominal current ───────────────────────────────────────────────
@@ -199,9 +270,7 @@ def test_the_measured_values_are_stashed():
     dataset.flightlines["LMcurrent"] = 7.5
     dataset, _ = apply_nominal_current(dataset)
 
-    stashed = [c for c in dataset.flightlines.columns if c.endswith("_raw")]
-    assert stashed
-    assert (dataset.flightlines[stashed[0]] == 7.5).all()
+    assert (dataset.flightlines[stash_key("LMcurrent")] == 7.5).all()
 
 
 def test_a_delivery_with_no_current_column_gets_one():

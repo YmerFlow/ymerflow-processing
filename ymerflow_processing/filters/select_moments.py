@@ -52,7 +52,7 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 
 import logging
 
-from ..dataset import role_key
+from ..dataset import is_stash, role_key
 from ..mask import is_provenance, provenance_key
 from ..pipeline import StepReport
 
@@ -111,7 +111,7 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
     return {key: tuple(frame.shape)
             for key, frame in dataset.layer_data.items()
             if key not in claimed and frame.shape in shapes
-            and not is_provenance(key)}
+            and not is_provenance(key) and not is_stash(key)}
 
 
 def select_moments(dataset, criterion: str, keep: list[str], drop_system_blocks: bool = True,

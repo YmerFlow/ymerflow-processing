@@ -45,11 +45,29 @@ is a plausible sounding of a different earth. So the application is recorded on
 the dataset and a second pass raises unless explicitly asked for — the same
 guard filter_13 uses, for the same reason.
 
-The recorded attitude is not cleared afterwards. It remains true that the
-aircraft was tilted; what changes is that the values no longer carry the
-consequence. Clearing it would make a corrected dataset indistinguishable from
-one flown level, and qc_02 would then report perfect attitude on data that was
-salvaged rather than well flown.
+The live attitude is zeroed afterwards, and the originals kept
+---------------------------------------------------------------
+The inversion applies its own tilt correction. SimPEG's ``static_instrument``
+reads the attitude columns and multiplies the data by its tilt term at read
+(``dual.py``: ``dbdt × scalefactor × GateFactor × tiltcorrection``), so a dataset
+that has been corrected here *and* still presents its measured tilt is corrected
+twice at inversion — the exact silent error the ``again`` guard exists for, met
+from outside the library. So once a sounding is corrected its pitch and roll are
+set to zero in the live columns, and the measured values move to ``orig_``-prefixed
+copies (Ben, 2026-10-21). A sounding left uncorrected because its tilt was beyond
+``max_correction`` keeps its live attitude, so the inversion still sees it and a
+later ``cull_by_altitude_tilt`` still finds it.
+
+It remains true that the aircraft was tilted, and that is what the ``orig_``
+columns are for: qc_02 reads them in preference to the live columns, so a
+corrected dataset does not grade as perfectly flown.
+
+Absent attitude is a skip, not a failure
+----------------------------------------
+A delivery with no pitch or roll columns at all — VTEM, for one — cannot be tilt
+corrected, and a shipped pipeline has to run on it. The step says so in a note
+and changes nothing. A column the caller *named* and that is absent is still an
+error: that is a mistake about this dataset, not a dataset without the input.
 """
 
 import logging
@@ -58,21 +76,17 @@ import numpy as np
 import pandas as pd
 
 from ..distribution import summarize
-from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, find_column
+from ..dataset import PITCH_COLUMNS, ROLL_COLUMNS, STASH_PREFIX, find_column, stash_key
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
 
 CATEGORY = "corrections"
 
-#: Where the delivered attitude is kept. Ten characters each.
-#: What these columns are called when nothing else names them — and what
+#: What the attitude columns are called when nothing else names them — and what
 #: ``zero_attitude`` creates them as on a delivery that carries no attitude.
 DEFAULT_PITCH = "tilt_x"
 DEFAULT_ROLL = "tilt_y"
-
-STASHED_PITCH = "tilt_x_raw"
-STASHED_ROLL = "tilt_y_raw"
 
 #: Where a tilt correction records itself, so a second one is detectable.
 REGISTRY = "tilt_corrected"
@@ -128,40 +142,43 @@ def resolve_attitude_columns(dataset, pitch_column, roll_column):
             or find_column(frame, ROLL_COLUMNS) or DEFAULT_ROLL)
 
 
-def _attitude(frame, pitch_column, roll_column):
+def _named_but_absent(frame, pitch_column, roll_column):
+    """Raise for a column the caller named that is not there."""
     for role, name in (("pitch", pitch_column), ("roll", roll_column)):
-        if name not in frame.columns:
+        if name is not None and name not in frame.columns:
             raise KeyError(
                 f"No {role} column {name!r} in flightlines. "
                 f"Present: {', '.join(map(str, frame.columns))}"
             )
-    return (frame[pitch_column].to_numpy(dtype=float),
-            frame[roll_column].to_numpy(dtype=float))
 
 
 def correct_tilt_1d(dataset, pitch_column: str | None = None,
-                 roll_column: str | None = None,
-                 max_correction: float = 4.0,
-                 again: bool = False, stash: bool = True):
-    """Rescale amplitudes to what a horizontal transmitter would have measured.
+                    roll_column: str | None = None,
+                    max_correction: float = 4.0,
+                    again: bool = False, stash: bool = True):
+    """Rescale amplitudes to what a horizontal transmitter would have measured, by 1/cos².
 
     Parameters
     ----------
     dataset : Dataset
-        The dataset to correct; every channel's data array is rescaled.
+        The dataset to correct; every channel's data array is rescaled, and the
+        attitude of each corrected sounding is then set to zero so the
+        inversion does not correct it again.
     pitch_column : str | None
-        Which column holds pitch, along the flight direction.
+        Which column holds pitch, along the flight direction. Discovered if
+        unset; a delivery with none is skipped with a note.
     roll_column : str | None
-        Which holds roll, across it.
+        Which holds roll, across it. Likewise.
     max_correction : float
         Largest factor to apply. Beyond this the first-order treatment has
         stopped being defensible, so the sounding is left uncorrected and
         reported rather than scaled by a number the physics does not support.
-        ``4.0`` corresponds to about 45° of total tilt.
+        ``4.0`` is 60° of total tilt (``1/cos² 60° = 4``).
     again : bool
         Permit correcting a dataset that already carries a correction.
     stash : bool
-        Keep the delivered values alongside.
+        Keep the delivered values and the measured attitude alongside, under
+        their own names with ``orig_`` in front.
 
     Returns
     -------
@@ -184,9 +201,22 @@ def correct_tilt_1d(dataset, pitch_column: str | None = None,
         report.notes.append("No soundings or no channels; nothing to correct.")
         return dataset, report
 
+    _named_but_absent(frame, pitch_column, roll_column)
     pitch_column, roll_column = resolve_attitude_columns(
         dataset, pitch_column, roll_column)
-    pitch, roll = _attitude(frame, pitch_column, roll_column)
+    absent = [role for role, name in (("pitch", pitch_column),
+                                      ("roll", roll_column))
+              if name not in frame.columns]
+    if absent:
+        report.notes.append(
+            f"No {' or '.join(absent)} column in this delivery; the tilt "
+            f"correction was not applied. Name the column with pitch_column: / "
+            f"roll_column: if it is present under an unusual name, or run "
+            f"zero_attitude first to declare there is no tilt to correct.")
+        return dataset, report
+
+    pitch = frame[pitch_column].to_numpy(dtype=float)
+    roll = frame[roll_column].to_numpy(dtype=float)
     cosine = np.cos(np.radians(pitch)) * np.cos(np.radians(roll))
     tilt = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
 
@@ -201,11 +231,22 @@ def correct_tilt_1d(dataset, pitch_column: str | None = None,
     for channel in dataset.channels:
         array = dataset.layer_data[channel.data_key]
         if stash:
-            dataset.layer_data[f"{channel.data_key}_untilted"] = array.copy()
+            dataset.layer_data[stash_key(channel.data_key)] = array.copy()
         values = array.to_numpy(dtype=float)
         dataset.layer_data[channel.data_key] = pd.DataFrame(
             values * factor[:, None], index=array.index, columns=array.columns)
         per_channel[str(channel)] = {"column": channel.data_key}
+
+    # The correction has been applied, so the live attitude of a corrected
+    # sounding is now zero — SimPEG applies its own tilt term from these
+    # columns at read, and would otherwise correct it a second time. The
+    # measured values move to the orig_ copies; a sounding left uncorrected
+    # keeps its attitude, so the inversion and cull_by_altitude_tilt still see it.
+    if stash:
+        frame[stash_key(pitch_column)] = pitch
+        frame[stash_key(roll_column)] = roll
+    frame[pitch_column] = np.where(too_tilted, pitch, 0.0)
+    frame[roll_column] = np.where(too_tilted, roll, 0.0)
 
     dataset.survey.xyz.model_info[REGISTRY] = (
         f"cos2 pitch={pitch_column} roll={roll_column}")
@@ -217,18 +258,26 @@ def correct_tilt_1d(dataset, pitch_column: str | None = None,
         "left_uncorrected": int(too_tilted.sum()),
         "max_correction": float(max_correction),
         "per_channel": per_channel,
+        "attitude_columns": {"pitch": pitch_column, "roll": roll_column},
+        "stashed": STASH_PREFIX if stash else None,
         "repeated": bool(already),
     }
     if too_tilted.any():
         report.notes.append(
             f"{int(too_tilted.sum())} sounding(s) tilt beyond a correction of "
-            f"{max_correction:g} and were left as measured. Past that the "
-            f"first-order treatment is not defensible; cull them with "
-            f"cull_by_altitude_tilt rather than scaling them harder."
+            f"{max_correction:g} and were left as measured, attitude included. "
+            f"Past that the first-order treatment is not defensible; cull them "
+            f"with cull_by_altitude_tilt rather than scaling them harder."
         )
     report.notes.append(
-        "The recorded attitude is unchanged. The aircraft was still tilted; "
-        "what changed is that the values no longer carry the consequence."
+        f"The attitude of every corrected sounding is now zero in "
+        f"{pitch_column!r}/{roll_column!r}, so an inversion applying its own "
+        f"tilt correction from them applies none. The measured attitude is "
+        f"kept under {stash_key(pitch_column)!r}/{stash_key(roll_column)!r}."
+        if stash else
+        f"The attitude of every corrected sounding is now zero in "
+        f"{pitch_column!r}/{roll_column!r}; the measured values were not kept "
+        f"(stash=False)."
     )
     log.info("correct_tilt_1d: median factor %.4g across %d channel(s)",
              float(np.median(factor)), len(per_channel))
@@ -258,8 +307,9 @@ def zero_attitude(dataset, pitch_column: str | None = None,
     roll_column : str | None
         Which holds roll. Likewise.
     stash : bool
-        Keep the delivered attitude alongside. Where the columns did not exist
-        there is nothing to keep, and that is reported.
+        Keep the delivered attitude alongside, under the column names with
+        ``orig_`` in front. Where the columns did not exist there is nothing
+        to keep, and that is reported.
 
     Returns
     -------
@@ -277,15 +327,14 @@ def zero_attitude(dataset, pitch_column: str | None = None,
     created, zeroed = [], {}
     pitch_column, roll_column = resolve_attitude_columns(
         dataset, pitch_column, roll_column)
-    for role, name, stash_name in (("pitch", pitch_column, STASHED_PITCH),
-                                   ("roll", roll_column, STASHED_ROLL)):
+    for role, name in (("pitch", pitch_column), ("roll", roll_column)):
         if name not in frame.columns:
             created.append(name)
             frame[name] = 0.0
             continue
         values = frame[name].to_numpy(dtype=float)
         if stash:
-            frame[stash_name] = values
+            frame[stash_key(name)] = values
         zeroed[role] = summarize(values)
         frame[name] = 0.0
 
@@ -299,7 +348,8 @@ def zero_attitude(dataset, pitch_column: str | None = None,
         "columns": {"pitch": pitch_column, "roll": roll_column},
         "created": created,
         "before": zeroed,
-        "stashed": ({"pitch": STASHED_PITCH, "roll": STASHED_ROLL}
+        "stashed": ({"pitch": stash_key(pitch_column),
+                     "roll": stash_key(roll_column)}
                     if stash and zeroed else None),
     }
     report.notes.append(

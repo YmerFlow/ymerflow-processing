@@ -132,10 +132,6 @@ def test_the_rms_ignores_culled_gates():
     assert np.allclose(dataset.flightlines[RMS_COLUMN], 0.0)
 
 
-def test_the_rms_column_fits_a_shapefile_field():
-    assert len(RMS_COLUMN) <= 10
-
-
 def test_it_changes_no_measurement_uncertainty_or_mask():
     dataset = delivery()
     keep = {k: v.copy() for k, v in dataset.layer_data.items()}

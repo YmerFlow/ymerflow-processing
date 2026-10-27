@@ -43,9 +43,8 @@ misfit came from an inversion and one whose misfit was computed here are then
 indistinguishable, and anything reading misfit finds it the same way in both.
 
 **Per sounding**, as ``resdata`` — the root-mean-square of the gatewise misfit
-over the gates that are in use. That is the column qc_11 grades, it is seven
-characters so it survives a shapefile field name, and it is what the inversion
-itself writes under that name.
+over the gates that are in use. That is the column qc_11 grades, and it is
+what the inversion itself writes under that name.
 
 Only over gates in use, because a culled gate is not evidence about the fit. A
 sounding whose bad gates were removed before inverting should not carry their
@@ -75,8 +74,8 @@ STEP = "compute_misfit"
 #: rather than by substring, the discipline channel discovery keeps.
 MISFIT_PATTERNS = (r"^dbdt_err_ch(\d+)", r"^err_ch(\d+)")
 
-#: Where the per-sounding root-mean-square misfit goes. The name the inversion
-#: itself uses, and seven characters, so it survives a shapefile field.
+#: Where the per-sounding root-mean-square misfit goes: the name the inversion
+#: itself uses.
 RMS_COLUMN = "resdata"
 
 

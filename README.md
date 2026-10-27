@@ -189,9 +189,15 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   that are still in use, at their real times. Shared by `cull_by_slope` (filter_25/26) and
   `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbour and getting that
   wrong yields a plausible number rather than an error.
-- **`filters/attitude.py`** (filter_06, filter_07) — the tilt correction and its counterpart. One
-  rescales amplitudes to what a level transmitter would have measured; the other declares there
-  is no trustworthy attitude, so the correction becomes exactly one.
+- **`filters/attitude.py`** (filter_06, filter_07) — the 1D tilt correction and its counterpart.
+  One rescales amplitudes to what a level transmitter would have measured and then zeroes the
+  live attitude of every corrected sounding, because SimPEG applies its own tilt term from
+  those columns at read; the other declares there is no trustworthy attitude, so the
+  correction becomes exactly one. A delivery with no attitude is skipped with a note.
+- **Stashed originals carry one prefix, `orig_`** (`dataset.stash_key`), whatever step wrote
+  them. A prefix because every discovery pattern is anchored at the start of a key, so a
+  suffixed copy was being found as a second data array for the channel. The inventory and
+  `select_moments` know a stash from an undeclared array.
 - **`filters/normalize.py`** (filter_09) — the nominal current. filter_08's
   amplitude-convention steps are **retired**: the data on disk is fixed in the
   SimPEG `static_instrument` convention upstream by the importer (raw dB/dt per
@@ -246,9 +252,10 @@ ql_  its line               qd_  the delivery it arrived in
 
 A bare name is a *measurement* rather than a verdict — `spacing`, `alt_spread`, `pl_excess`.
 
-**Every name stays inside ten characters**, because that is what a shapefile field allows and
-the vector export is what reaches a client. Two names truncating to the same ten would
-collide silently, so this is a constraint on new checks rather than a stylistic preference.
+Names are short so the family reads at a glance in a GIS attribute table. The ten-character
+limit that used to bind them came from the shapefile field name; **shapefile is no longer
+written** (dropped 2026-10-22), the vector export is GeoPackage with GeoJSON for the web, so
+length is no longer a constraint on new checks.
 
 ---
 

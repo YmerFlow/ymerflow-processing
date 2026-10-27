@@ -97,6 +97,7 @@ import numpy as np
 import pandas as pd
 
 from ..distribution import summarize
+from ..dataset import STASH_PREFIX, stash_key
 from ..mask import CULLED, apply_policy, cull, in_use, mark_step
 from ..pipeline import StepReport
 
@@ -108,10 +109,6 @@ STEP = "average_along_line"
 
 #: This filter's number in ``building_plans/01``, used as its provenance code.
 STEP_CODE = 10
-
-#: Suffixes for the stashed originals. This writes values, uncertainty and the
-#: mask, so what was delivered is kept.
-STASH_SUFFIX = "_unaveraged"
 
 HANN, GAUSSIAN, BOXCAR = "hann", "gaussian", "boxcar"
 METHODS = (HANN, GAUSSIAN, BOXCAR)
@@ -296,10 +293,12 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
         live = in_use(dataset, channel)
 
         if stash:
-            dataset.layer_data[f"{channel.data_key}{STASH_SUFFIX}"] = \
+            # This writes values, uncertainty and the mask, so what was
+            # delivered is kept under the orig_ prefix.
+            dataset.layer_data[stash_key(channel.data_key)] = \
                 dataset.layer_data[channel.data_key].copy()
             if has_std:
-                dataset.layer_data[f"{channel.std_key}{STASH_SUFFIX}"] = \
+                dataset.layer_data[stash_key(channel.std_key)] = \
                     dataset.layer_data[channel.std_key].copy()
 
         widths = gate_widths(int(width_first), int(width_last), times)
@@ -410,7 +409,7 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
         "method": method,
         "min_valid_fraction": float(min_valid_fraction),
         "decimated": decimated,
-        "stashed": STASH_SUFFIX if stash else None,
+        "stashed": STASH_PREFIX if stash else None,
         "provenance_code": STEP_CODE,
     }
     log.info("%s: averaged %d channel(s) with a %s kernel",

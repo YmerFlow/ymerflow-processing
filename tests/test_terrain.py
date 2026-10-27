@@ -22,9 +22,11 @@ from conftest import make_dataset, make_terrain
 from ymerflow_processing.pipeline import (
     FILTER_GROUP, Pipeline, ProcessingRunner, load_steps,
 )
-from ymerflow_processing.filters.terrain import (
-    STASHED_ALTITUDE, STASHED_ELEVATION, apply_terrain_model, sample_terrain,
-)
+from ymerflow_processing.dataset import stash_key
+from ymerflow_processing.filters.terrain import apply_terrain_model, sample_terrain
+
+STASHED_ALTITUDE = stash_key("tx_alt")
+STASHED_ELEVATION = stash_key("topo")
 
 N = 8
 UTM = "EPSG:32612"
@@ -107,9 +109,11 @@ def test_the_delivered_values_are_stashed(tmp_path):
     assert (frame[STASHED_ELEVATION] == 250.0).all()
 
 
-def test_the_stash_names_fit_a_shapefile_field():
-    for name in (STASHED_ALTITUDE, STASHED_ELEVATION):
-        assert len(name) <= 10
+def test_the_stash_carries_the_orig_prefix():
+    """One spelling for every step (Ben, 2026-10-21), and a prefix so no
+    anchored discovery pattern can mistake the copy for the thing."""
+    assert STASHED_ALTITUDE == "orig_tx_alt"
+    assert STASHED_ELEVATION == "orig_topo"
 
 
 def test_stashing_can_be_declined(tmp_path):
@@ -254,13 +258,26 @@ def test_an_open_raster_is_accepted_too(tmp_path):
     assert (dataset.flightlines["tx_alt"] == 90.0).all()
 
 
-def test_a_missing_column_is_an_error(tmp_path):
+def test_a_delivery_without_the_input_is_skipped_with_a_note(tmp_path):
+    """A shipped pipeline has to run on a delivery that lacks the input; the
+    step says it did nothing rather than failing the run."""
     terrain = make_terrain(tmp_path / "dtm.tif")
     dataset = delivery()
     dataset.survey.xyz.flightlines = dataset.flightlines.drop(columns=["topo"])
+    before = dataset.flightlines.copy()
 
-    with pytest.raises(KeyError, match="elevation column"):
-        apply_terrain_model(dataset, terrain, crs=UTM)
+    dataset, report = apply_terrain_model(dataset, terrain, crs=UTM)
+
+    pd.testing.assert_frame_equal(dataset.flightlines, before)
+    assert any("No elevation column" in n for n in report.notes)
+
+
+def test_a_named_column_that_is_absent_is_still_an_error(tmp_path):
+    """Naming a column that is not there is a mistake about this dataset, not
+    a dataset without the input."""
+    terrain = make_terrain(tmp_path / "dtm.tif")
+    with pytest.raises(KeyError, match="elevation column 'dem'"):
+        apply_terrain_model(delivery(), terrain, crs=UTM, elevation_column="dem")
 
 
 def test_the_report_survives_serialization(tmp_path):
