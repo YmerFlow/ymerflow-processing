@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ymerflow-processing",
-    version="0.4.1",
+    version="0.4.2",
     description="Airborne geophysical data processing, QC and comparison for YmerFlow",
     license="GPL-3.0-or-later",
     packages=find_packages(),
