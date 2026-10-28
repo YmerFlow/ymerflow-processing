@@ -247,6 +247,20 @@ def test_the_whole_chain_runs_from_one_pipeline(tmp_path):
             == CULLED).all()
 
 
+def test_a_msgpack_result_is_read(tmp_path):
+    """Platform process outputs are root.msgpack, which the XYZ text reader
+    cannot open (found with ymerflow-business#121)."""
+    from libaarhusxyz.export import msgpack
+    dataset = delivery(sigma=0.10)
+    path = tmp_path / "root.msgpack"
+    msgpack.dump(forward(dataset, scale=0.8, gates=[3]), str(path))
+
+    dataset, _ = compute_misfit(dataset, str(path))
+
+    assert dataset.flightlines[RMS_COLUMN].notna().all()
+    assert gatewise_misfit(dataset, str(path), dataset.channels[0])[0, 3] == pytest.approx(2.0, rel=1e-6)
+
+
 def test_misfit_is_generally_available_once_it_is_a_column():
     """01: plottable, exportable in the vector output, usable by QC — instead
     of locked inside one filter."""

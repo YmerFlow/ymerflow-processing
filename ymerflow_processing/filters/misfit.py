@@ -144,11 +144,16 @@ def find_misfit(source, channel, shape=None):
 
 
 def _as_xyz(result):
-    """The result as an XYZ, whether given as one, a Dataset, or a path."""
+    """The result as an XYZ, whether given as one, a Dataset, or a path (.xyz or .msgpack)."""
     if hasattr(result, "layer_data"):
         return result
     if hasattr(result, "survey"):
         return result.survey.xyz
+    # Platform process outputs are msgpack (root.msgpack), which the XYZ text
+    # reader cannot open.
+    if str(result).endswith(".msgpack"):
+        from libaarhusxyz.export import msgpack
+        return msgpack.load(str(result))
     return XYZ(str(result))
 
 
