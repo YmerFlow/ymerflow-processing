@@ -364,14 +364,14 @@ average_along_line(width_first: int, width_last: int | None = None, method: str 
 |---|---|---|
 | `width_first` | `required` | Window width in soundings at the first gate in use. |
 | `width_last` | `None` | Width at the last gate in use. Equal to ``width_first`` if unset, giving a constant window. |
-| `method` | `'hann'` | ``hann`` (default), ``gaussian``, ``boxcar`` or ``hybrid``. ``hybrid`` is emerald-processing's alpha-trimmed, capped inverse-variance mean with the sum-of-squares-total error, and always uses odd widths; see the module docstring. ``boxcar`` is a flat kernel kept for reproducing a previous run. |
-| `min_valid_fraction` | `0.5` | For the tapered methods, the **effective** sample size a window must reach, as a fraction of its width. For ``hybrid``, the **count** of valid neighbours, ``max(2, ceil(fraction × width))``, as emerald counts it. |
+| `method` | `'hann'` | ``hann`` (default), ``gaussian``, ``boxcar`` or ``robust_stack``. ``robust_stack`` is an alpha-trimmed, weight-capped inverse-variance mean whose error is the window's total spread, with odd widths; see the module docstring. ``hybrid`` is accepted as its earlier name. ``boxcar`` is a flat kernel kept for reproducing a previous run. |
+| `min_valid_fraction` | `0.5` | For the tapered methods, the **effective** sample size a window must reach, as a fraction of its width. For ``robust_stack``, the **count** of valid neighbours, ``max(2, ceil(fraction × width))``. |
 | `decimate_to` | `None` | Keep only soundings this far apart along the line, in CRS units. Drops soundings, changing the dataset's extent. |
 | `line_column` | `None` | Which column identifies the line. Discovered if unset. |
 | `stash` | `True` | Keep the unaveraged values and uncertainties alongside. |
-| `alpha` | `0.1` | ``hybrid`` only: the fraction trimmed from each end of the sorted values in a window. |
-| `max_weight_factor` | `10.0` | ``hybrid`` only: the cap on any weight, as a multiple of the window's median weight. |
-| `independent_fraction` | `0.0` | ``hybrid`` only, 0 to 1: how independent neighbouring soundings are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps emerald's error, the window's total spread; 1 is the standard error of the mean for fully independent soundings. |
+| `alpha` | `0.1` | ``robust_stack`` only: the fraction trimmed from each end of the sorted values in a window. |
+| `max_weight_factor` | `10.0` | ``robust_stack`` only: the cap on any weight, as a multiple of the window's median weight. |
+| `independent_fraction` | `0.0` | ``robust_stack`` only, 0 to 1: how independent neighbouring soundings are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps the window's total spread as the error; 1 is the standard error of the mean for fully independent soundings. |
 
 ## housekeeping
 
