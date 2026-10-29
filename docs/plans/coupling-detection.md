@@ -42,7 +42,7 @@ keyed on misfit — so `cull_by_external_evidence`'s `misfit` criterion and
 is not evidence the data was clean.**
 
 But field data says misfit responds more often than that argument implies.
-On Estancia line 1080 a sounding with a plausible, monotonic, smoothly elevated
+On one line of a VTEM survey a sounding with a plausible, monotonic, smoothly elevated
 decay and a **quiet monitor** (PLM 0.59) still came in at **NRMS 8.78**. That
 run was **downsampled, not stacked** — every 10th fiducial, so each point is a
 single unaveraged sounding — which makes the smoothness itself informative: an
@@ -326,7 +326,7 @@ splitting.
 
 **Never assume the monitor, always use it where it is there.** The same rule as
 the infrastructure layer: no capability may depend on a PLNI channel, and any
-that exists should be consumed. Geotech's VTEM finals for Estancia carry one
+that exists should be consumed. Geotech's VTEM finals can carry one
 (as `PLM`), so it is not a SkyTEM-only convenience — but it is not guaranteed
 either, and a delivery without one must lose nothing but confidence.
 
@@ -829,29 +829,28 @@ agreement with that judgement is a fair test even where the reason is unknown.
 Remaining caveats: the mask is aggregate rather than coupling-specific, the join
 loses resolution, and it is one line of one survey by one processor.
 
-### A second case: Estancia, and what it already shows
+### A second case: a VTEM survey, and what it already shows
 
-`AGF_Projects/NMTech_FY2027_Working/Estancia/.../ymerflow_runs/test_A` is a
-first test inversion of **Geotech VTEM finals** on the platform — four lines,
+A first test inversion of **Geotech VTEM finals** on the platform — four lines,
 every 10th fiducial, **downsampled rather than stacked**, on platform defaults
-nobody had reviewed. Not a result, and the model is under-regularized. The
+nobody had reviewed — is not a result, and the model is under-regularized. The
 *data* panels are useful anyway, and four things in them bear on this plan.
 
 **It carries a power-line monitor** (`PLM`), so the witness is not SkyTEM-only.
 
 **The hump sits where Appendix A predicts.** The worst high-monitor sounding
-(line 1070, PLM 3.70, NRMS 14.0) tracks the synthetic to ~300 µs, then departs
+(PLM 3.70, NRMS 14.0) tracks the synthetic to ~300 µs, then departs
 and humps at **~1000–1500 µs** before falling. Appendix A derives a 0.4–1.4 ms
 peak from Kang's LM/HM overlap on *SkyTEM*; this is VTEM, a different system
 and survey, landing in the same window.
 
-**The pilot climb is observable.** On line 1070 at x ≈ 37,500 m the loop height
+**The pilot climb is observable.** On the same line the loop height
 reaches **125 m against ~35 m nominal**, coincident with the largest monitor
 peak. Kang's explanation for why field LM is quieter than modeled LM, seen in
 our own data.
 
-**And the smooth case is there, with a quiet monitor.** Line 1080, x = 3719 m:
-PLM **0.59** — background — and a decay that is monotonic, plausible and
+**And the smooth case is there, with a quiet monitor.** On another line, PLM
+**0.59** — background — and a decay that is monotonic, plausible and
 **consistently above the synthetic** from ~100 µs out. This is the signature the
 whole plan exists for, in one panel, with the monitor saying nothing.
 
