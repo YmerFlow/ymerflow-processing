@@ -112,7 +112,7 @@ of soundings:
 
 That last point is a choice about the data, not an omission. Dividing by N
 assumes the neighbours are independent, and full-rate deliveries that the
-contractor has already filtered along the line are not: on the Estancia VTEM
+contractor has already filtered along the line are not: on one set of VTEM
 finals, averaging ten neighbours lowers the measured scatter by about 1.16×,
 not √10. ``independent_fraction`` says how independent they are: the error
 variance is divided by ``max(1, independent_fraction × n)``. 0 (the default)
