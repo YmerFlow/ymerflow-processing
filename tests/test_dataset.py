@@ -373,8 +373,8 @@ def test_the_crs_survives_a_round_trip(tmp_path):
 # ── A contractor's own column names, through an alias file ───────────────────
 # A Geotech VTEM database exported as it is names its gates SFz[n], its line
 # Line and its position UTMX/UTMY. Nothing in the library's spellings matches,
-# so without the .alc no channel is found at all — which is how the Estancia
-# four-line file could not be run standalone (2026-10-22).
+# so without the .alc no channel is found at all — which is how a four-line
+# VTEM delivery could not be run standalone (2026-10-22).
 
 CONTRACTOR_XYZ = """\
 / Geotech-style export: the contractor's own column names
