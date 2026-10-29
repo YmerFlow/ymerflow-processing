@@ -85,14 +85,16 @@ among neighbours rather than any instrument's stated error.
 
 Output is relative, as the format requires everywhere else.
 
-The hybrid method — emerald-processing's, ported
-------------------------------------------------
-``method="hybrid"`` is Ben's ``rolling_hybrid_mean_df`` from emerald-processing,
-vectorized. Per gate, per window of soundings:
+The robust stack
+----------------
+``method="robust_stack"`` is an alpha-trimmed, weight-capped inverse-variance
+mean whose error is the window's total spread. (``"hybrid"`` is accepted as an
+alias, so documents written before the rename still run.) Per gate, per window
+of soundings:
 
 1. Culled and non-finite neighbours drop out; a window needs
    ``ceil(min_valid_fraction × width)`` of them (at least two) — a **count**,
-   as emerald counts, not the effective sample size the tapered methods use.
+   not the effective sample size the tapered methods use.
 2. An alpha trim drops the highest and lowest ``alpha`` of the values
    (``floor(n × alpha)`` each end, so nothing is trimmed below 1 / alpha).
 3. Inverse-variance weights, with each error raised to the larger of the
@@ -110,15 +112,15 @@ vectorized. Per gate, per window of soundings:
 
 That last point is a choice about the data, not an omission. Dividing by N
 assumes the neighbours are independent, and full-rate deliveries that the
-contractor has already filtered along the line are not: on the Estancia VTEM
+contractor has already filtered along the line are not: on one set of VTEM
 finals, averaging ten neighbours lowers the measured scatter by about 1.16×,
 not √10. ``independent_fraction`` says how independent they are: the error
 variance is divided by ``max(1, independent_fraction × n)``. 0 (the default)
-is emerald's behavior; 1 is fully independent neighbours, the standard error of
-the mean.
+keeps the window's total spread; 1 is fully independent neighbours, the
+standard error of the mean.
 
-The hybrid method's widths are always odd — the sounding plus the same number
-of neighbours each side — rounded as emerald rounds them.
+The robust stack's widths are always odd — the sounding plus the same number
+of neighbours each side — rounded with ``round_to_odd``.
 
 Widths ramp over the gates in use
 ---------------------------------
@@ -152,8 +154,11 @@ STEP = "average_along_line"
 #: This filter's number in ``building_plans/01``, used as its provenance code.
 STEP_CODE = 10
 
-HANN, GAUSSIAN, BOXCAR, HYBRID = "hann", "gaussian", "boxcar", "hybrid"
-METHODS = (HANN, GAUSSIAN, BOXCAR, HYBRID)
+HANN, GAUSSIAN, BOXCAR, ROBUST_STACK = "hann", "gaussian", "boxcar", "robust_stack"
+METHODS = (HANN, GAUSSIAN, BOXCAR, ROBUST_STACK)
+#: Earlier names still accepted, so pipeline documents written before a rename
+#: reproduce: "hybrid" was the robust stack's name in v0.4.1 and v0.4.2.
+ALIASES = {"hybrid": ROBUST_STACK}
 
 
 def kernel(width: int, method: str = HANN) -> np.ndarray:
@@ -200,7 +205,7 @@ def kernel(width: int, method: str = HANN) -> np.ndarray:
 
 
 def round_to_odd(width) -> np.ndarray:
-    """Round widths [soundings] to the nearest odd number, as emerald-processing does.
+    """Round widths [soundings] to the nearest odd number.
 
     ``ceil(w / 2) · 2 − 1``: 7 stays 7, 8 becomes 7, 8.1 becomes 9.
     """
@@ -259,14 +264,14 @@ def _windows(series, width):
     return np.lib.stride_tricks.sliding_window_view(padded, width)
 
 
-def hybrid_mean(values, errors, width: int, min_valid_fraction: float = 0.35,
-                alpha: float = 0.1, max_weight_factor: float = 10.0,
-                independent_fraction: float = 0.0):
-    """Ben's hybrid average along one line for one gate, vectorized.
+def robust_stack(values, errors, width: int, min_valid_fraction: float = 0.35,
+                 alpha: float = 0.1, max_weight_factor: float = 10.0,
+                 independent_fraction: float = 0.0):
+    """The robust stack along one line for one gate, vectorized.
 
-    A port of emerald-processing's ``rolling_hybrid_mean_df``: alpha trim, then
-    capped inverse-variance weights, then the sum-of-squares-total error. See
-    the module docstring.
+    Alpha trim, then capped inverse-variance weights, then the error as the
+    window's total spread (stated variance plus scatter). See the module
+    docstring.
 
     Parameters
     ----------
@@ -274,7 +279,7 @@ def hybrid_mean(values, errors, width: int, min_valid_fraction: float = 0.35,
         The gate's values along the line, NaN where culled [data units].
     errors : array_like
         Absolute 1-sigma errors, same units, NaN where unknown. Zeros mean "no
-        error information" for the weights, as emerald treats them.
+        error information" for the weights.
     width : int
         Window width in soundings; odd widths are centered.
     min_valid_fraction : float
@@ -298,7 +303,7 @@ def hybrid_mean(values, errors, width: int, min_valid_fraction: float = 0.35,
     errors = np.abs(np.asarray(errors, dtype=float))
     valid_one = np.isfinite(values) & np.isfinite(errors)
     if width <= 1:
-        # The identity: the sounding with its own error, as emerald does.
+        # The identity: the sounding with its own error.
         return (np.where(valid_one, values, np.nan),
                 np.where(valid_one, errors, np.nan), valid_one)
 
@@ -395,16 +400,15 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
         Width at the last gate in use. Equal to ``width_first`` if unset,
         giving a constant window.
     method : str
-        ``hann`` (default), ``gaussian``, ``boxcar`` or ``hybrid``. ``hybrid``
-        is emerald-processing's alpha-trimmed, capped inverse-variance mean
-        with the sum-of-squares-total error, and always uses odd widths; see
-        the module docstring. ``boxcar`` is a flat kernel kept for reproducing
-        a previous run.
+        ``hann`` (default), ``gaussian``, ``boxcar`` or ``robust_stack``.
+        ``robust_stack`` is an alpha-trimmed, weight-capped inverse-variance
+        mean whose error is the window's total spread, with odd widths; see the
+        module docstring. ``hybrid`` is accepted as its earlier name.
+        ``boxcar`` is a flat kernel kept for reproducing a previous run.
     min_valid_fraction : float
         For the tapered methods, the **effective** sample size a window must
-        reach, as a fraction of its width. For ``hybrid``, the **count** of
-        valid neighbours, ``max(2, ceil(fraction × width))``, as emerald counts
-        it.
+        reach, as a fraction of its width. For ``robust_stack``, the **count**
+        of valid neighbours, ``max(2, ceil(fraction × width))``.
     decimate_to : float | None
         Keep only soundings this far apart along the line, in CRS units. Drops
         soundings, changing the dataset's extent.
@@ -413,16 +417,16 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
     stash : bool
         Keep the unaveraged values and uncertainties alongside.
     alpha : float
-        ``hybrid`` only: the fraction trimmed from each end of the sorted
-        values in a window.
+        ``robust_stack`` only: the fraction trimmed from each end of the
+        sorted values in a window.
     max_weight_factor : float
-        ``hybrid`` only: the cap on any weight, as a multiple of the window's
-        median weight.
+        ``robust_stack`` only: the cap on any weight, as a multiple of the
+        window's median weight.
     independent_fraction : float
-        ``hybrid`` only, 0 to 1: how independent neighbouring soundings are.
-        The error variance is divided by ``max(1, fraction × n)``. 0 keeps
-        emerald's error, the window's total spread; 1 is the standard error of
-        the mean for fully independent soundings.
+        ``robust_stack`` only, 0 to 1: how independent neighbouring soundings
+        are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps
+        the window's total spread as the error; 1 is the standard error of the
+        mean for fully independent soundings.
 
     Returns
     -------
@@ -433,6 +437,7 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
     frame = dataset.flightlines
     report.soundings_total = 0 if frame is None else len(frame)
 
+    method = ALIASES.get(method, method)
     if method not in METHODS:
         raise ValueError(
             f"Unknown method {method!r}. Available: {', '.join(METHODS)}")
@@ -489,7 +494,7 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
                     dataset.layer_data[channel.std_key].copy()
 
         widths = gate_widths(int(width_first), int(width_last), times,
-                             active=live.any(axis=0), odd=method == HYBRID)
+                             active=live.any(axis=0), odd=method == ROBUST_STACK)
         averaged = np.full(values.shape, np.nan)
         propagated = np.full(values.shape, np.nan)
         thin = np.zeros(values.shape, dtype=bool)
@@ -499,16 +504,16 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
             column = values[:, gate]
             usable = np.isfinite(column) & live[:, gate]
 
-            if method == HYBRID:
+            if method == ROBUST_STACK:
                 # Absolute errors; without a stated uncertainty, zero, which the
-                # hybrid reads as "no error information": equal weights, and an
+                # robust stack reads as "no error information": equal weights, and an
                 # error from the scatter alone.
                 sigma = (np.abs(relative[:, gate]) * np.abs(column) if has_std
                          else np.zeros(column.size))
                 spread_used = spread_used or not has_std
                 for key in np.unique(lines):
                     rows = lines == key
-                    mean, error, enough = hybrid_mean(
+                    mean, error, enough = robust_stack(
                         np.where(usable[rows], column[rows], np.nan),
                         np.where(usable[rows], sigma[rows], np.nan),
                         int(widths[gate]), min_valid_fraction=min_valid_fraction,
@@ -619,9 +624,9 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
         "per_channel": per_channel,
         "method": method,
         "min_valid_fraction": float(min_valid_fraction),
-        "hybrid": ({"alpha": float(alpha), "max_weight_factor": float(max_weight_factor),
-                    "independent_fraction": float(independent_fraction)}
-                   if method == HYBRID else None),
+        "robust_stack": ({"alpha": float(alpha), "max_weight_factor": float(max_weight_factor),
+                          "independent_fraction": float(independent_fraction)}
+                         if method == ROBUST_STACK else None),
         "decimated": decimated,
         "stashed": STASH_PREFIX if stash else None,
         "provenance_code": STEP_CODE,
