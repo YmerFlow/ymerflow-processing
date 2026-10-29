@@ -867,6 +867,52 @@ Those four decay panels — typical, hump-with-loud-monitor,
 severe-with-climb, smooth-with-quiet-monitor — are close to a labelled set of
 the cases the detector has to separate, and worth keeping as fixtures.
 
+### Estancia now has ground truth, at full rate (2026-10-28)
+
+The caveat above no longer holds. Ben culled seven lines by hand at the delivered
+rate, **after** the automatic pre-average chain, on drawing sheets read back
+into an edit set:
+
+| | |
+|---|---|
+| lines | L1060, L1061, L1070, L1080 (adjacent, north); L1360 (0.07 s sampling), L1510 (south basin), L2110 (a tie line), chosen as the least like the first four |
+| labels | `processing_tests/manual_cull_L1060-L1080/training_sheets_postauto/read/bens_edits.msgpack`, in full-survey rows of `estancia_fullsurvey_run1/out_preavg/estancia_fullsurvey_preavg.xyz` |
+| the chain they follow | `estancia_fullsurvey_run1/estancia_fullsurvey_preavg.yaml` |
+| repeatability | Ben's two independent passes over L1060 agree on 90.6% of first-pass cells, which is the ceiling to score against |
+
+Paths are under `AGF_Projects/NMTech_FY2027_Working/Estancia/1_Interim/01_AEM/`.
+
+**Score against what the automatic chain leaves.** The automatic culls remove the
+climbs, negatives and flat tails, which are the easy part. Scored on raw-data labels,
+a learned model caught 99% of the crossing culls; on post-automatic labels the
+same approach caught 46-97% depending on threshold. Experiment B − A is
+post-automatic.
+
+**The baseline to beat.** A gradient-boosted per-gate classifier on data-shape,
+along-line-shape, IP, monitor and altitude features
+(`processing_tests/powerline_model/cull_model_v2.py`), leave-one-line-out over the
+seven lines. At its middle setting it catches 62% of Ben's culls at 50% precision,
+and 87% of his crossing culls. On lines nobody labelled it removes 7-43% of a
+line's in-use data, and only 10-40% of what it removes lies within 300 m of an
+elevated monitor (`powerline_model/model_vs_plm_0.3/`). It cuts smooth conductors
+as readily as coupling. That is the failure the reconstruction and symmetry
+criteria are meant to avoid, and the number this step has to beat.
+
+**Gating on the monitor fails both ways.** Restricting culls to monitor zones
+misses fences and pipelines; ignoring the monitor cuts geology. That is the
+measured cost behind "witnesses corroborate, they do not trigger".
+
+**Shape and windows.** Ben's culls are trapezoids: whole soundings at a feature's
+core, late gates only on its flanks. Rectangular cut blocks were rejected by eye.
+Every along-line window is in metres: Estancia mixes 0.1 s lines with five at
+0.06-0.07 s, and the contractor's 1 s filter correlates neighbours at full rate.
+
+**Report in percent, with a review aid.** Each run reports what it removes as a
+percentage of each line's in-use data, and the share of that near an elevated
+monitor. It flags any line whose share sits far above the labelled lines'. For
+lines nobody labelled, it draws the culls beside the monitor
+(`model_vs_plm.py`), so a person can judge them by eye before the run is used.
+
 ### Synthetic data, and its circularity
 
 Kang released the notebooks behind the paper and the 3D code is SimPEG-EM,
