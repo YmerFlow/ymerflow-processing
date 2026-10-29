@@ -68,6 +68,10 @@ ORDERING = [
      "averaging propagates the uncertainty, so it must exist first"),
     ("cull_negatives", "average_along_line",
      "cull before averaging, or a bad gate is smeared into its neighbours"),
+    ("assign_uncertainty", "cull_by_coupling",
+     "the reconstruction error is in sigmas of the assigned uncertainty"),
+    ("cull_by_coupling", "average_along_line",
+     "judge before averaging, or the coupling is smeared into its neighbors"),
     ("apply_manual_edits", None,
      "replays last, so a human decision is never overwritten by an automated "
      "one"),

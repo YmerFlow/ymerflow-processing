@@ -83,6 +83,7 @@ setup(
             "cull_by_curvature = ymerflow_processing.filters.cull_curvature:cull_by_curvature",
             "cull_below_noise_floor = ymerflow_processing.filters.cull_noise_floor:cull_below_noise_floor",
             "cull_by_uncertainty = ymerflow_processing.filters.cull_uncertainty:cull_by_uncertainty",
+            "cull_by_coupling = ymerflow_processing.filters.cull_coupling:cull_by_coupling",
             "cull_near_infrastructure = ymerflow_processing.filters.cull_evidence:cull_near_infrastructure",
             "cull_by_misfit = ymerflow_processing.filters.cull_evidence:cull_by_misfit",
             "set_inuse_gates = ymerflow_processing.filters.inuse_gates:set_inuse_gates",
