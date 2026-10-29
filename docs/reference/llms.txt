@@ -24,6 +24,8 @@ A wrong order here does not fail. It produces plausible nonsense.
 - `assign_uncertainty` before `add_noise` — noise is drawn from the assigned uncertainty, not from a system default
 - `assign_uncertainty` before `average_along_line` — averaging propagates the uncertainty, so it must exist first
 - `cull_negatives` before `average_along_line` — cull before averaging, or a bad gate is smeared into its neighbours
+- `assign_uncertainty` before `cull_by_coupling` — the reconstruction error is in sigmas of the assigned uncertainty
+- `cull_by_coupling` before `average_along_line` — judge before averaging, or the coupling is smeared into its neighbors
 - `apply_manual_edits` last — replays last, so a human decision is never overwritten by an automated one
 
 ## filters
@@ -81,6 +83,10 @@ Disable gates at or below the dataset's noise floor.
 ### cull_by_altitude_tilt  [cull soundings]
 cull_by_altitude_tilt(max_pitch: float | None = None, max_roll: float | None = None, max_altitude: float | None = None, min_altitude: float | None = None, pitch_column: str | None = None, roll_column: str | None = None, altitude_column: str | None = None)
 Disable soundings flown outside the geometry the forward model assumes.
+
+### cull_by_coupling  [cull gates]
+cull_by_coupling(action: str = 'flag', max_reconstruction_error: float = 2.5, min_confidence: float = 0.86, cull_below_confidence: float | None = None, window: float = 15.0, max_uncertainty: float = 0.2, n_components: int = 4, confidence_column: str = 'qs_coupling', start_gate: int = 0, spread_earlier: int = 1, disable_tail: bool = True)
+Mark, and optionally cull, gates the survey's basis cannot reproduce.
 
 ### cull_by_curvature  [cull gates]
 cull_by_curvature(max_curvature: float | None = None, min_curvature: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)

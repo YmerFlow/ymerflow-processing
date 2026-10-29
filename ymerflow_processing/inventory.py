@@ -48,6 +48,7 @@ import logging
 import numpy as np
 
 from .dataset import is_stash
+from .coupling.table import is_table
 from .mask import is_provenance
 from .pipeline import StepReport
 
@@ -93,8 +94,9 @@ def take(dataset) -> dict:
         # Provenance is gate-shaped and claimed by no channel, so the shape test
         # picks it up — and calling a column this library wrote "something the
         # model failed to account for" is the opposite of the truth. The same
-        # goes for a stashed original, which a correction wrote two steps ago.
-        if key in claimed or is_provenance(key):
+        # goes for a stashed original, which a correction wrote two steps ago,
+        # and for a coupling table.
+        if key in claimed or is_provenance(key) or is_table(key):
             continue
         if is_stash(key):
             stashed.append(key)

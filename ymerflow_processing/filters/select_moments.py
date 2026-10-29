@@ -53,6 +53,7 @@ resolves its two moments by receiver orientation and dipole moment, so channels
 import logging
 
 from ..dataset import is_stash, role_key
+from ..coupling import table
 from ..mask import is_provenance, provenance_key
 from ..pipeline import StepReport
 
@@ -111,7 +112,8 @@ def unclaimed_arrays(dataset) -> dict[str, tuple]:
     return {key: tuple(frame.shape)
             for key, frame in dataset.layer_data.items()
             if key not in claimed and frame.shape in shapes
-            and not is_provenance(key) and not is_stash(key)}
+            and not is_provenance(key) and not is_stash(key)
+            and not table.is_table(key)}
 
 
 def select_moments(dataset, criterion: str, keep: list[str], drop_system_blocks: bool = True,
@@ -227,12 +229,12 @@ def select_moments(dataset, criterion: str, keep: list[str], drop_system_blocks:
         return dataset, report
 
     for channel in discarded:
-        # The provenance array belongs to no channel's array_keys by design
-        # (mask.is_provenance), so it has to be named here or it is orphaned
-        # — gate-shaped, claimed by nothing, and flagged as unclaimed on the
-        # next run of this very step.
+        # The provenance array and the coupling table belong to no channel's
+        # array_keys by design (mask.is_provenance, table.is_table), so they
+        # have to be named here or they are orphaned — gate-shaped, claimed by
+        # nothing, and kept by nothing.
         why = provenance_key(channel.inuse_key or role_key(channel, "inuse"))
-        for key in (*channel.array_keys, why):
+        for key in (*channel.array_keys, why, table.channel_key(channel)):
             if key in dataset.layer_data:
                 del dataset.layer_data[key]
                 removed.append(key)

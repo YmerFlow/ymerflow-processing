@@ -137,6 +137,7 @@ SHAPES = {
     "cull_by_misfit": CULLING,
     "cull_by_altitude_tilt": CULLING,
     "cull_by_uncertainty": CULLING,
+    "cull_by_coupling": CULLING,
     "cull_negatives": CULLING,
     "cull_sparse_soundings": CULLING,
     "set_inuse_gates": CULLING,

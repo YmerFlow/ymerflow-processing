@@ -4,7 +4,7 @@
 
 dataset in, dataset out. These change the data.
 
-31 step(s).
+32 step(s).
 
 ## selection
 
@@ -237,6 +237,28 @@ cull_below_noise_floor(margin: float = 1.0, start_gate: int = 0, spread_earlier:
 | `start_gate` | `0` | Where evaluation begins, 0-based. |
 | `spread_earlier` | `0` | Also disable this many gates before each hit. |
 | `disable_tail` | `False` | Also disable everything after the earliest hit in that sounding. Well justified here — the floor is crossed once and the signal keeps decaying, so later gates are further below it. |
+
+### `cull_by_coupling`
+
+Mark, and optionally cull, gates the survey's basis cannot reproduce.
+
+```python
+cull_by_coupling(action: str = 'flag', max_reconstruction_error: float = 2.5, min_confidence: float = 0.86, cull_below_confidence: float | None = None, window: float = 15.0, max_uncertainty: float = 0.2, n_components: int = 4, confidence_column: str = 'qs_coupling', start_gate: int = 0, spread_earlier: int = 1, disable_tail: bool = True)
+```
+
+| parameter | default | |
+|---|---|---|
+| `action` | `'flag'` | ``flag`` writes the coupling table and confidence only; ``cull`` also applies the table to the mask. |
+| `max_reconstruction_error` | `2.5` | A gate reconstructs when its error is below this many standard deviations of its assigned uncertainty. Asif et al.'s ``α``, 2.5. Lower is stricter. |
+| `min_confidence` | `0.86` | A sounding whose smoothed confidence, the fraction of its gates that reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``, 0.86 for their airborne survey (0.99 on the ground). Higher is stricter. A fraction, 0..1. |
+| `cull_below_confidence` | `None` | Below this smoothed confidence every gate of the sounding is culled; between it and ``min_confidence`` only gates within one standard deviation survive. ``0.80 × min_confidence`` if unset, as in Asif et al. A fraction, at most ``min_confidence``. |
+| `window` | `15.0` | The along-line length the data are averaged over before they are judged, in the survey's horizontal units (meters for a projected CRS). The confidence is averaged over twice this. Asif et al. average 7 raw stacks; 15 m is that at a 10 Hz SkyTEM spacing of about 2.2 m. Set by the sounding spacing, not a strictness dial: a larger window smears the coupling. |
+| `max_uncertainty` | `0.2` | From the first gate whose relative uncertainty, after averaging, exceeds this, the transient is not judged: that is noise, not coupling. Asif et al.'s ``Δ_max``, 20%. A fraction. |
+| `n_components` | `4` | Components kept in the reconstruction basis. Too many and the basis learns the coupling as well as the decay. |
+| `confidence_column` | `'qs_coupling'` | Prefix of the per-sounding confidence column written for each channel, suffixed with the channel key (``qs_coupling_ch1``). The smoothed fraction of gates that reconstruct, 0..1; ``NaN`` where nothing could be judged. |
+| `start_gate` | `0` | Where the culling policy begins, 0-based. |
+| `spread_earlier` | `1` | Also cull this many gates before each hit. |
+| `disable_tail` | `True` | Also cull everything after the earliest hit in that sounding. |
 
 ### `cull_by_curvature`
 
