@@ -3,7 +3,8 @@
 The criterion needs only ``fit`` then ``reconstruct``, so any basis that offers
 the two drops in without the step changing. Asif et al. (2022) use an
 auto-encoder trained on forward responses of 1D models; this is the linear
-stand-in, an SVD over the gate dimension fitted on the delivered survey itself.
+stand-in, a low-rank basis over the gate dimension fitted on the delivered
+survey itself.
 
 Fitting on the delivered survey is its strength and its risk. The vendor's own
 processing lands in the basis rather than in the residual, so it is not mistaken
@@ -13,8 +14,9 @@ coupling if there is enough of it to reach the leading components.
 
 Missing gates are ``NaN`` in the transients handed over: a gate that is culled,
 non-positive, or past a sounding's noise cutoff. The basis is fitted by
-iterative SVD imputation, so every sounding contributes the gates it has, and a
-sounding is reconstructed by least squares on its own available gates.
+alternating least squares over the known gates only, so every sounding
+contributes the gates it has and nothing is imputed, and a sounding is
+reconstructed by least squares on its own available gates.
 """
 
 from typing import Protocol
@@ -33,7 +35,7 @@ class Reconstructor(Protocol):
 
 
 class PCAReconstructor:
-    """SVD over the gate dimension, in log amplitude, fitted on this survey.
+    """A low-rank basis over the gate dimension, in log amplitude, fitted on this survey.
 
     Parameters
     ----------
@@ -44,23 +46,27 @@ class PCAReconstructor:
         Work in ``log10`` of the amplitude, where a decay is close to linear in
         the components. Non-positive values are then treated as missing.
     tolerance : float
-        Imputation stops when no missing value moves by more than this between
-        rounds, in the units the basis is fitted in (``log10`` amplitude by
-        default, so ``1e-7`` is a relative change of about 0.2 ppm).
+        Fitting stops when the root-mean-square misfit of the basis to the
+        known gates improves by less than this fraction between rounds.
     max_iterations : int
-        Rounds of imputation allowed. Convergence is linear, so a survey with
-        many missing gates can need hundreds; whether it converged is recorded
-        in ``converged_``.
+        Rounds of alternating least squares allowed; whether the fit converged
+        is recorded in ``converged_``.
+    max_soundings : int
+        The basis is fitted on at most this many soundings, evenly spaced
+        through the survey; every sounding is still reconstructed. A basis of
+        a few components is well determined long before this.
     """
 
     def __init__(self, n_components: int = 4, log_space: bool = True,
-                 tolerance: float = 1e-7, max_iterations: int = 500):
+                 tolerance: float = 1e-5, max_iterations: int = 200,
+                 max_soundings: int = 20000):
         if n_components < 1:
             raise ValueError(f"n_components must be at least 1; got {n_components}")
         self.n_components = int(n_components)
         self.log_space = bool(log_space)
         self.tolerance = float(tolerance)
         self.max_iterations = int(max_iterations)
+        self.max_soundings = int(max_soundings)
         self.mean_ = None
         self.components_ = None
         self.iterations_ = 0
@@ -92,8 +98,9 @@ class PCAReconstructor:
             is unavailable in every sounding.
         """
         values = self._forward(transients)
-        rows = np.isfinite(values).any(axis=1)
-        values = values[rows]
+        values = values[np.isfinite(values).any(axis=1)]
+        if len(values) > self.max_soundings:
+            values = values[np.linspace(0, len(values) - 1, self.max_soundings).astype(int)]
         if len(values) <= self.n_components:
             raise ValueError(
                 f"{len(values)} sounding(s) with a usable gate; a basis of "
@@ -104,21 +111,28 @@ class PCAReconstructor:
                 "At least one gate is unavailable in every sounding; leave it "
                 "out of the transients rather than fit a basis over it.")
 
-        filled = np.where(known, values, np.nanmean(values, axis=0))
+        # Start from the leading directions of the mean-filled data, then
+        # alternate: each sounding's coefficients given the basis, then each
+        # gate's mean and loadings given the coefficients, on known gates only.
         k = min(self.n_components, values.shape[1])
-        self.iterations_, self.converged_ = 0, known.all()
+        mean = np.nanmean(values, axis=0)
+        _, _, vt = np.linalg.svd(np.where(known, values, mean) - mean, full_matrices=False)
+        components = vt[:k].copy()
+        self.iterations_, self.converged_, misfit = 0, False, np.inf
         while not self.converged_ and self.iterations_ < self.max_iterations:
-            mean = filled.mean(axis=0)
-            _, _, vt = np.linalg.svd(filled - mean, full_matrices=False)
-            components = vt[:k]
-            approximation = mean + (filled - mean) @ components.T @ components
-            update = np.where(known, values, approximation)
-            self.converged_ = bool(np.abs(update - filled).max() <= self.tolerance)
-            filled = update
+            coefficients = _solve_rows(components, values - mean, known)
+            for gate in range(values.shape[1]):
+                rows = known[:, gate]
+                design = np.column_stack([np.ones(rows.sum()), coefficients[rows]])
+                solution, *_ = np.linalg.lstsq(design, values[rows, gate], rcond=None)
+                mean[gate], components[:, gate] = solution[0], solution[1:]
+            residual = mean + coefficients @ components - values
+            previous, misfit = misfit, np.sqrt(np.mean(residual[known] ** 2))
+            self.converged_ = bool(previous - misfit <= self.tolerance * max(misfit, 1e-12))
             self.iterations_ += 1
-        self.mean_ = filled.mean(axis=0)
-        _, _, vt = np.linalg.svd(filled - self.mean_, full_matrices=False)
-        self.components_ = vt[:k]
+        # An orthonormal basis spanning the same space, for stable projections.
+        self.mean_ = mean
+        self.components_ = np.linalg.qr(components.T)[0].T
 
     def reconstruct(self, transients: np.ndarray) -> np.ndarray:
         """Project each sounding onto the basis using only its available gates.
@@ -138,14 +152,30 @@ class PCAReconstructor:
         if self.components_ is None:
             raise RuntimeError("reconstruct() before fit()")
         values = self._forward(transients)
+        known = np.isfinite(values)
         out = np.full(values.shape, np.nan)
-        k = len(self.components_)
-        for row in range(len(values)):
-            known = np.isfinite(values[row])
-            if known.sum() < k:
-                continue
-            basis = self.components_[:, known].T
-            coefficients, *_ = np.linalg.lstsq(
-                basis, values[row, known] - self.mean_[known], rcond=None)
-            out[row] = self.mean_ + coefficients @ self.components_
+        enough = known.sum(axis=1) >= len(self.components_)
+        coefficients = _solve_rows(self.components_, values[enough] - self.mean_, known[enough])
+        out[enough] = self.mean_ + coefficients @ self.components_
         return self._inverse(out)
+
+
+def _solve_rows(components, values, known):
+    """Each row's coefficients on ``components``, by least squares on its known entries.
+
+    Rows sharing the same known entries are solved together, which is most of
+    them: the unknowns are a noise-cutoff tail and the occasional culled gate.
+    """
+    coefficients = np.zeros((len(values), len(components)))
+    if not len(values):
+        return coefficients
+    patterns, group = np.unique(known, axis=0, return_inverse=True)
+    group = np.asarray(group).ravel()
+    for index, pattern in enumerate(patterns):
+        if not pattern.any():
+            continue
+        rows = np.flatnonzero(group == index)
+        solution, *_ = np.linalg.lstsq(components[:, pattern].T,
+                                       values[np.ix_(rows, pattern)].T, rcond=None)
+        coefficients[rows] = solution.T
+    return coefficients
