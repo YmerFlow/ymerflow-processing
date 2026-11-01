@@ -35,6 +35,7 @@ and the only reliable fix is to make drift a failing test rather than a habit.
 
 import inspect
 import logging
+import typing
 
 from numpydoc.docscrape import NumpyDocString
 
@@ -120,9 +121,15 @@ def _signature(function) -> str:
         # `from __future__ import annotations`, as the source text. Both are
         # accepted: a string is already what we want to print, and
         # `formatannotation` would wrap it in quotes.
+        #
+        # An Annotated type is printed as the type it annotates. Its metadata
+        # is for the platform's form, and Python 3.10 and 3.12 print it
+        # differently, so the committed reference could match only one.
         text = parameter.name
         if parameter.annotation is not inspect.Parameter.empty:
             annotation = parameter.annotation
+            if typing.get_origin(annotation) is typing.Annotated:
+                annotation = typing.get_args(annotation)[0]
             text += ": " + (annotation if isinstance(annotation, str)
                             else inspect.formatannotation(annotation))
         if parameter.default is not inspect.Parameter.empty:

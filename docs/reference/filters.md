@@ -364,7 +364,7 @@ cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool 
 Save the state reached here under a name, then replay its manual edit.
 
 ```python
-save_intermediate_and_apply_diff(name: typing.Annotated[str, {'json_schema': {'title': 'Save point name'}}], diff: typing.Annotated[pydantic.networks.AnyUrl, {'json_schema': {'x-url-media-type': 'application/x-geophysics-xyz-model'}}, {'json_schema': {'title': 'Manual edit'}}] = None)
+save_intermediate_and_apply_diff(name: str, diff: pydantic.networks.AnyUrl = None)
 ```
 
 | parameter | default | |

@@ -142,7 +142,7 @@ rename_attribute(source: str, destination: str)
 Rename a per-sounding attribute (filter_16).
 
 ### save_intermediate_and_apply_diff  [cull gates]
-save_intermediate_and_apply_diff(name: typing.Annotated[str, {'json_schema': {'title': 'Save point name'}}], diff: typing.Annotated[pydantic.networks.AnyUrl, {'json_schema': {'x-url-media-type': 'application/x-geophysics-xyz-model'}}, {'json_schema': {'title': 'Manual edit'}}] = None)
+save_intermediate_and_apply_diff(name: str, diff: pydantic.networks.AnyUrl = None)
 Save the state reached here under a name, then replay its manual edit.
 
 ### select_lines  [selection]
