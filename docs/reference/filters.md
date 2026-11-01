@@ -4,7 +4,7 @@
 
 dataset in, dataset out. These change the data.
 
-32 step(s).
+33 step(s).
 
 ## selection
 
@@ -358,6 +358,19 @@ cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool 
 | `start_gate` | `0` | Where evaluation begins, 0-based. Early gates sit in the transmitter turn-off and legitimately change sign there. |
 | `spread_earlier` | `0` | Also disable this many gates before each negative — the contamination precedes its visible onset. |
 | `disable_tail` | `False` | Also disable everything after the earliest negative in that sounding, since a transient does not recover. |
+
+### `save_intermediate_and_apply_diff`
+
+Save the state reached here under a name, then replay its manual edit.
+
+```python
+save_intermediate_and_apply_diff(name: str, diff: pydantic.networks.AnyUrl = None)
+```
+
+| parameter | default | |
+|---|---|---|
+| `name` | `required` | A name for the intermediate state saved here. It appears in the plot editor under Dataset, and is the state this point's manual edits are a difference from. |
+| `diff` | `None` | An in-use edit saved from a plot of this save point. Filled in by the plot editor; replayed after the save point is written, so re-running keeps it. Leave empty for a pure save point. |
 
 ### `set_inuse_gates`
 
