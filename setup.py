@@ -43,6 +43,10 @@ setup(
         # numpydoc's parser -- the same one swaggerspect builds the platform's
         # forms with, so the two cannot read a docstring differently.
         "numpydoc",
+        # The type of a field the platform's form fills with a URL: a save
+        # point's manual edit is a pydantic.AnyUrl carrying the media type the
+        # plot editor matches on, which swaggerspect turns into a URL field.
+        "pydantic",
     ],
     extras_require={
         "test": ["pytest"],
@@ -88,6 +92,7 @@ setup(
             "cull_by_misfit = ymerflow_processing.filters.cull_evidence:cull_by_misfit",
             "set_inuse_gates = ymerflow_processing.filters.inuse_gates:set_inuse_gates",
             "apply_manual_edits = ymerflow_processing.filters.cull_manual_edits:apply_manual_edits",
+            "save_intermediate_and_apply_diff = ymerflow_processing.filters.save_point:save_intermediate_and_apply_diff",
             # averaging
             "average_along_line = ymerflow_processing.filters.average:average_along_line",
             # housekeeping

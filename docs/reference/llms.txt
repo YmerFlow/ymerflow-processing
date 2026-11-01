@@ -23,10 +23,11 @@ A wrong order here does not fail. It produces plausible nonsense.
 - `set_noise_floor` before `assign_uncertainty` — estimation precedes assignment: there is nothing to assign from
 - `assign_uncertainty` before `add_noise` — noise is drawn from the assigned uncertainty, not from a system default
 - `assign_uncertainty` before `average_along_line` — averaging propagates the uncertainty, so it must exist first
-- `cull_negatives` before `average_along_line` — cull before averaging, or a bad gate is smeared into its neighbours
+- `cull_negatives` before `average_along_line` — cull before averaging, or a bad gate is smeared into its neighbors
 - `assign_uncertainty` before `cull_by_coupling` — the reconstruction error is in sigmas of the assigned uncertainty
 - `cull_by_coupling` before `average_along_line` — judge before averaging, or the coupling is smeared into its neighbors
 - `apply_manual_edits` last — replays last, so a human decision is never overwritten by an automated one
+- `save_intermediate_and_apply_diff` before `cull_sparse_soundings` — an edit can leave a sounding with too few gates, and only a later sparse cull can catch it
 
 ## filters
 
@@ -139,6 +140,10 @@ Rename a per-gate array (filter_17).
 ### rename_attribute  [housekeeping]
 rename_attribute(source: str, destination: str)
 Rename a per-sounding attribute (filter_16).
+
+### save_intermediate_and_apply_diff  [cull gates]
+save_intermediate_and_apply_diff(name: typing.Annotated[str, {'json_schema': {'title': 'Save point name'}}], diff: typing.Annotated[pydantic.networks.AnyUrl, {'json_schema': {'x-url-media-type': 'application/x-geophysics-xyz-model'}}, {'json_schema': {'title': 'Manual edit'}}] = None)
+Save the state reached here under a name, then replay its manual edit.
 
 ### select_lines  [selection]
 select_lines(criterion: str, line_types: list[str] | None = None, lines: list[int | str] | None = None, line_column: str | None = None)

@@ -132,7 +132,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   in a file rather than a physical thing; `export_vector`; and the system description's
   `RemoveInitialGates` (filter_20), which is **not a step**: it is applied automatically by
   `load()` and at the top of every run — the instrument's own statement about which of its
-  samples can be inverted is part of reading the file correctly rather than a judgement.
+  samples can be inverted is part of reading the file correctly rather than a judgment.
 - **Every filter declares a category** — `selection`, `corrections`, `noise`, `cull soundings`,
   `cull gates`, `averaging`, `housekeeping`, `synthetic` (`pipeline.CATEGORIES`). The generated
   reference groups by it and the platform's form shows it beside each step.
@@ -146,7 +146,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   last: run first it has nothing to find.
 - **`set_inuse_gates`** (filter_21) — sets named gates either direction, per channel. One of
   only two steps permitted to turn data back on, which is what gives the early gates back to
-  anyone doing full primary-field modelling.
+  anyone doing full primary-field modeling.
 - **`cull_negatives`** (filter_32) and **`cull_by_uncertainty`** (filter_24) — point-local
   predicates through the shared policy. Negatives need no threshold at all, since zero is not
   a number anyone chose.
@@ -187,7 +187,7 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   serve several formats.
 - **`transient.py`** — local slope and curvature in log-log space, measured over the gates
   that are still in use, at their real times. Shared by `cull_by_slope` (filter_25/26) and
-  `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbour and getting that
+  `cull_by_curvature` (filter_27/28), because a culled gate is not a neighbor and getting that
   wrong yields a plausible number rather than an error.
 - **`filters/attitude.py`** (filter_06, filter_07) — the 1D tilt correction and its counterpart.
   One rescales amplitudes to what a level transmitter would have measured and then zeroes the
@@ -217,8 +217,15 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   together, because a vertical datum mismatch and genuine terrain error have opposite
   signatures in those two numbers.
 - **`apply_manual_edits`** (filter_33) — replays a hand-authored in-use diff, which is what
-  makes the chain reproducible in the presence of human judgement. The second and last step
+  makes the chain reproducible in the presence of human judgment. The second and last step
   permitted to turn data back on.
+- **`save_intermediate_and_apply_diff`** — a named save point. It hands the state the steps
+  above produced to the runner's sink, then replays the edit drawn against that state through
+  `apply_manual_edits`, so a chain can carry one edit point per stage (full rate, then
+  averaged) inside one pipeline. The library writes no files: the runner's `sink(name,
+  dataset)` does, as each point is reached. Names are checked before any data is read — unique,
+  and not `output` or `processed_data`. With no sink the snapshot is skipped and the edit still
+  replays.
 - **`filters/lines.py`** (filter_01-04, collapsed to two by `01`'s decision) — `classify_lines`
   labels flightlines by height threshold or by name; `select_lines` reduces the dataset to the
   ones wanted, moving every array with the soundings so nothing can misalign.
@@ -226,7 +233,9 @@ Interface layer, channel discovery, seven QC checks, and the command line.
   Six entry points over one symmetry. They exist to work around import problems, not to do
   geophysics, and a rename that takes a channel out of the model says so.
 - **The CLI.** `yf-process run` walks a pipeline against a delivery and writes the enriched
-  dataset plus a JSON report; `compare`, `list` and `validate` alongside it.
+  dataset plus a JSON report; `compare`, `list` and `validate` alongside it. Each save point
+  is written beside the final output as `<label>.<name>.xyz`, with `.gex` and `.msgpack`
+  companions.
 
 ```bash
 yf-process run qc.yaml --xyz 20260815.xyz --gex sys.gex --out QC/
@@ -372,7 +381,7 @@ What remains:
 2. **filter_32's defaults** ([#5](https://github.com/YmerFlow/ymerflow-processing/issues/5)) —
    built, but whether a sign reversal is one phenomenon or three is unsettled.
 3. **Altitude processing** ([#4](https://github.com/YmerFlow/ymerflow-processing/issues/4)) —
-   filter_05 did the mechanics; the judgement calls are unopened.
+   filter_05 did the mechanics; the judgment calls are unopened.
 4. **Packaging** ([#3](https://github.com/YmerFlow/ymerflow-processing/issues/3)) — the
    libaarhusxyz pin by URL blocks development against a local checkout.
 

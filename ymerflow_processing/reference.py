@@ -39,7 +39,7 @@ import logging
 from numpydoc.docscrape import NumpyDocString
 
 from .pipeline import (
-    CATEGORIES, COMPARE_GROUP, FILTER_GROUP, QC_GROUP, category, load_steps,
+    CATEGORIES, COMPARE_GROUP, FILTER_GROUP, QC_GROUP, SINK, category, load_steps,
 )
 
 log = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ ORDERING = [
     ("assign_uncertainty", "average_along_line",
      "averaging propagates the uncertainty, so it must exist first"),
     ("cull_negatives", "average_along_line",
-     "cull before averaging, or a bad gate is smeared into its neighbours"),
+     "cull before averaging, or a bad gate is smeared into its neighbors"),
     ("assign_uncertainty", "cull_by_coupling",
      "the reconstruction error is in sigmas of the assigned uncertainty"),
     ("cull_by_coupling", "average_along_line",
@@ -75,6 +75,9 @@ ORDERING = [
     ("apply_manual_edits", None,
      "replays last, so a human decision is never overwritten by an automated "
      "one"),
+    ("save_intermediate_and_apply_diff", "cull_sparse_soundings",
+     "an edit can leave a sounding with too few gates, and only a later "
+     "sparse cull can catch it"),
 ]
 
 #: The invariants that are easy to violate silently. Stated for an agent, which
@@ -97,9 +100,16 @@ INVARIANTS = [
 ]
 
 
-def _signature(function) -> str:
-    """The call signature, without the leading dataset or items argument."""
+def _listed(function) -> list[inspect.Parameter]:
+    """The parameters a pipeline document can set: not the leading dataset or
+    items argument, and not the runner's sink."""
     parameters = list(inspect.signature(function).parameters.values())[1:]
+    return [p for p in parameters if p.name != SINK]
+
+
+def _signature(function) -> str:
+    """The call signature, without the arguments a document cannot set."""
+    parameters = _listed(function)
     rendered = []
     for parameter in parameters:
         # Built piece by piece rather than from str(parameter), which quotes
@@ -163,7 +173,7 @@ def _numpy_parameters(doc: str) -> dict[str, str]:
 
 
 def _parameters(function) -> list[tuple[str, str, str]]:
-    """``(name, default, description)`` for each parameter after the first.
+    """``(name, default, description)`` for each parameter a document can set.
 
     Both docstring styles are read. NumPy is the standard; the Sphinx field
     lists this library was first written in are still accepted, so that the
@@ -175,7 +185,7 @@ def _parameters(function) -> list[tuple[str, str, str]]:
     described.update({k: v for k, v in _numpy_parameters(doc).items() if v})
 
     rows = []
-    for parameter in list(inspect.signature(function).parameters.values())[1:]:
+    for parameter in _listed(function):
         default = ("required" if parameter.default is inspect.Parameter.empty
                    else repr(parameter.default))
         rows.append((parameter.name, default,
