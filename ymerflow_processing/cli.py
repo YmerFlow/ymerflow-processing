@@ -27,7 +27,7 @@ import click
 
 from .dataset import load
 from .pipeline import (
-    COMPARE_GROUP, GROUPS, MISSING, ComparisonRunner, Pipeline, PipelineKindError,
+    COMPARE_GROUP, GROUPS, MISSING, ComparisonRunner, Pipeline,
     ProcessingRunner, QCRunner, RunReport, bundled, describe_bundled,
     load_steps, resolve_group,
 )
@@ -98,6 +98,31 @@ def _write_report(report: RunReport, path: Path) -> None:
     path.write_text(json.dumps(report.to_dict(), indent=2, default=str))
 
 
+def _save_point_sink(directory: Path, identity: str):
+    """A sink that writes each save point beside the final output as it is reached.
+
+    Parameters
+    ----------
+    directory : Path
+        The run's output directory; created on the first save point.
+    identity : str
+        The run's label, which every file it writes is named after.
+
+    Returns
+    -------
+    callable
+        ``sink(name, dataset)``, writing ``<identity>.<name>.xyz`` with its
+        ``.gex`` and ``.msgpack`` companions.
+    """
+    def sink(name, dataset):
+        directory.mkdir(parents=True, exist_ok=True)
+        stem = directory / f"{identity}.{name}"
+        dataset.survey.dump(xyzfile=f"{stem}.xyz", gexfile=f"{stem}.gex",
+                            msgpackfile=f"{stem}.msgpack")
+        click.echo(f"  wrote save point {stem.name}.xyz")
+    return sink
+
+
 def _summarize(report: RunReport, dataset) -> None:
     """A few readable lines on stdout. The detail is in the report file."""
     for step in report.steps:
@@ -150,11 +175,11 @@ def run(pipeline, xyz, gex, alc, crs, scalefactor, out, label, group):
 
     # Everything that can be checked without touching data is checked first. A
     # scheduled overnight run should not die at 3 a.m. on a typo after loading
-    # gigabytes.
+    # gigabytes. A wrong kind and a bad save-point name are both ValueErrors.
     try:
         group, steps = resolve_group(pipeline, list(RUNNERS), group)
         pipeline.validate(steps)
-    except (PipelineKindError, KeyError) as exc:
+    except (ValueError, KeyError) as exc:
         return _fail(str(exc).strip("'"))
 
     try:
@@ -175,8 +200,12 @@ def run(pipeline, xyz, gex, alc, crs, scalefactor, out, label, group):
 
     click.echo(f"{identity}: {dataset.n_soundings} soundings, "
                f"{len(pipeline.steps)} step(s) [{group}]")
+    directory = Path(out)
+    # Save points stream out mid-run, beside where the final output will land.
+    sink = ({"sink": _save_point_sink(directory, identity)}
+            if RUNNERS[group] is ProcessingRunner else {})
     try:
-        dataset, walked = RUNNERS[group](pipeline, steps).run(dataset)
+        dataset, walked = RUNNERS[group](pipeline, steps, **sink).run(dataset)
     except Exception as exc:                      # noqa: BLE001 — reported, not swallowed
         log.exception("step raised")
         return _fail(f"a step raised: {exc}", EXIT_STEP_RAISED)
@@ -184,7 +213,6 @@ def run(pipeline, xyz, gex, alc, crs, scalefactor, out, label, group):
     # The runner's cross-check rollup, which the exit code below reads.
     report.rollup = walked.rollup
 
-    directory = Path(out)
     directory.mkdir(parents=True, exist_ok=True)
     dataset.survey.dump(xyzfile=str(directory / f"{identity}.xyz"))
     _write_report(report, directory / f"{identity}.report.json")
@@ -418,7 +446,7 @@ def validate(pipeline, group):
     try:
         resolved, steps = resolve_group(pipeline, candidates, group)
         pipeline.validate(steps)
-    except (PipelineKindError, KeyError) as exc:
+    except (ValueError, KeyError) as exc:
         return _fail(str(exc).strip("'"))
     click.echo(f"{len(pipeline.steps)} step(s), all resolvable [{resolved}].")
     return EXIT_GOOD

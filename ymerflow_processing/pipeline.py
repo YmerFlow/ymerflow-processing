@@ -21,6 +21,7 @@ Diagnostics go to ``logging``; what a step *did* goes in the report.
 
 import importlib.metadata
 import importlib.resources
+import inspect
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -133,6 +134,32 @@ def category(function) -> str | None:
     """
     module = sys.modules.get(getattr(function, "__module__", ""), None)
     return getattr(module, "CATEGORY", None)
+
+
+#: The argument a runner gives a step that writes save points: a callable
+#: ``sink(name, dataset)`` that writes ``dataset`` out under ``name`` as soon as
+#: it is called. Supplied by the runner, never by the document, so it is not a
+#: pipeline parameter and the generated reference and forms leave it out.
+SINK = "sink"
+
+#: Names a save point cannot take, because they name the pipeline's final output.
+RESERVED_SAVE_POINT_NAMES = ("output", "processed_data")
+
+
+def takes_sink(function) -> bool:
+    """Whether a step accepts the runner's :data:`SINK`.
+
+    Parameters
+    ----------
+    function : Callable
+        A registered step.
+
+    Returns
+    -------
+    bool
+        ``True`` if its signature has a ``sink`` parameter.
+    """
+    return SINK in inspect.signature(function).parameters
 
 
 def load_steps(group: str) -> dict[str, Callable]:
@@ -427,6 +454,9 @@ class Pipeline:
         ------
         KeyError
             Naming the first step that is not available.
+        ValueError
+            If a save point has no name, a reserved name, or a name another
+            save point already took; or if the document sets the runner's sink.
         """
         unknown = [name for name, _ in self.steps if name not in available]
         if unknown:
@@ -434,6 +464,37 @@ class Pipeline:
                 f"Unknown step(s): {', '.join(unknown)}. "
                 f"Available: {', '.join(sorted(available))}"
             )
+        self._validate_save_points(available)
+
+    def _validate_save_points(self, available: dict[str, Callable]) -> None:
+        """Check the name of every step that writes to the sink.
+
+        Each save point becomes a dataset under its ``name``, so two with one
+        name would overwrite each other and a reserved name would overwrite the
+        final output.
+        """
+        taken = set()
+        for step, params in self.steps:
+            if not takes_sink(available[step]):
+                continue
+            if SINK in params:
+                raise ValueError(
+                    f"{step} was given a {SINK!r} parameter. The runner "
+                    f"supplies the sink; a pipeline document cannot.")
+            name = params.get("name")
+            if name is None:
+                raise ValueError(f"{step} needs a 'name' for its save point.")
+            if name in RESERVED_SAVE_POINT_NAMES:
+                raise ValueError(
+                    f"Save point name {name!r} is reserved: "
+                    f"{' and '.join(RESERVED_SAVE_POINT_NAMES)} name the "
+                    f"pipeline's final output.")
+            if name in taken:
+                raise ValueError(
+                    f"Save point name {name!r} is used more than once. Each "
+                    f"save point is written as its own dataset, so the names "
+                    f"must be unique.")
+            taken.add(name)
 
 
 # ── Which registry a step name is looked up in ───────────────────────────────
@@ -590,9 +651,20 @@ class ProcessingRunner(_Runner):
         group if unset.
     inventory : bool
         Take the implicit inventory before the first step.
+    sink : Callable | None
+        Where save points are written: called as ``sink(name, dataset)`` by
+        each step that accepts a ``sink`` argument, mid-run, as that step is
+        reached. It must not modify the dataset, which the rest of the run
+        goes on to use. ``None`` skips the save points; their edits still
+        replay.
     """
 
     group = FILTER_GROUP
+
+    def __init__(self, pipeline: Pipeline, steps: dict[str, Callable] | None = None,
+                 inventory: bool = True, sink: Callable | None = None):
+        super().__init__(pipeline, steps, inventory)
+        self.sink = sink
 
     def run(self, dataset):
         """Apply every step in order, recording each on the dataset.
@@ -612,7 +684,12 @@ class ProcessingRunner(_Runner):
         dataset = self._open(dataset, report)
         for index, (name, params) in enumerate(self.pipeline.steps, start=1):
             log.info("step %d/%d: %s", index, len(self.pipeline.steps), name)
-            dataset, step_report = self.steps[name](dataset, **params)
+            step = self.steps[name]
+            # Only a step that asks for the sink gets one, so every other
+            # step's calling convention is unchanged; the report and history
+            # still record the document's parameters alone.
+            given = {**params, SINK: self.sink} if takes_sink(step) else params
+            dataset, step_report = step(dataset, **given)
             step_report.params = params
             report.steps.append(step_report)
             dataset.record_step(name, params)

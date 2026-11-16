@@ -47,19 +47,19 @@ from .pipeline import FILTER_GROUP, load_steps
 
 log = logging.getLogger(__name__)
 
-#: Colour carries SIGN, marker carries FATE. Red for negative is the house
-#: convention in both views — a single sounding, where two moments leave colour
-#: free for sign, and a profile, where a switch colours every point by sign.
+#: Color carries SIGN, marker carries FATE. Red for negative is the house
+#: convention in both views — a single sounding, where two moments leave color
+#: free for sign, and a profile, where a switch colors every point by sign.
 #:
 #: Keeping them on separate channels matters: an earlier version used red for
 #: *culled*, which collides with red for *negative* on the one filter where both
-#: are the subject. Colour and shape are independent, so all four combinations
+#: are the subject. Color and shape are independent, so all four combinations
 #: read — and a gate that went negative and was NOT culled, which is the case a
 #: reader most needs to check, becomes visible instead of indistinguishable from
 #: a good one.
 POSITIVE = "C0"        # blue
 NEGATIVE = "C3"        # red
-CULLED = "0.75"        # light grey: gone, so it recedes
+CULLED = "0.75"        # light gray: gone, so it recedes
 BEFORE = "0.6"         # the connecting line, behind everything
 
 
@@ -70,18 +70,18 @@ def _sign_split(values):
 
 
 def _draw_transient(ax, times, values, mask, marker, size, label_prefix=""):
-    """One transient, coloured by sign and marked by fate.
+    """One transient, colored by sign and marked by fate.
 
     Returns what it actually drew, so a legend can name only that — a legend
     entry for negatives on a sounding with none is noise.
     """
     drawn = []
     positive, negative = _sign_split(np.where(mask, values, np.nan))
-    for present, colour, sign in ((positive, POSITIVE, "positive"),
-                                  (negative, NEGATIVE, "negative")):
+    for present, color, sign in ((positive, POSITIVE, "positive"),
+                                 (negative, NEGATIVE, "negative")):
         if not present.any():
             continue
-        ax.plot(times[present], np.abs(values[present]), marker, color=colour,
+        ax.plot(times[present], np.abs(values[present]), marker, color=color,
                 markersize=size, linestyle="none",
                 markeredgewidth=1.6 if marker == "x" else 0.5,
                 label=f"{label_prefix}{sign}", zorder=3)
@@ -142,6 +142,7 @@ SHAPES = {
     "cull_sparse_soundings": CULLING,
     "set_inuse_gates": CULLING,
     "apply_manual_edits": CULLING,
+    "save_intermediate_and_apply_diff": CULLING,
 
     # Values changed. Before against after, on the same axes.
     "average_along_line": TRANSFORM,
@@ -268,12 +269,12 @@ def _culling(fig, before, after, channel, sounding, report):
     _, was, live_before = _transient(before, channel, sounding)
 
     ax = axes[0]
-    # The line only — grey, behind, so the eye follows the shape of the decay
+    # The line only — gray, behind, so the eye follows the shape of the decay
     # while the markers carry sign and fate.
     ax.plot(times, np.abs(was), "-", color=BEFORE, linewidth=1, zorder=1)
 
-    # Culled gates in light grey rather than by sign: they are gone, so they
-    # should recede and let the eye follow what survived. Sign colouring is
+    # Culled gates in light gray rather than by sign: they are gone, so they
+    # should recede and let the eye follow what survived. Sign coloring is
     # reserved for data that is still in play, which is where a reader has a
     # decision to make about it.
     went = live_before & ~live_after
@@ -387,8 +388,8 @@ def _uncertainty(fig, before, after, channel, sounding, report):
     times, values, _ = _transient(after, channel, sounding)
     ax.plot(times, np.abs(values), "-", color="0.85", linewidth=1, zorder=0)
 
-    for dataset, colour, label in ((before, "0.6", "before"),
-                                   (after, "C0", "after")):
+    for dataset, color, label in ((before, "0.6", "before"),
+                                  (after, "C0", "after")):
         key = channel.std_key
         if not key or key not in dataset.layer_data:
             continue
@@ -397,7 +398,7 @@ def _uncertainty(fig, before, after, channel, sounding, report):
         # fraction of the datum. Plotting the fraction itself would put a
         # spread of order one on every gate whatever its magnitude.
         spread = np.abs(relative) * np.abs(values)
-        ax.errorbar(times, np.abs(values), yerr=spread, fmt="o", color=colour,
+        ax.errorbar(times, np.abs(values), yerr=spread, fmt="o", color=color,
                     markersize=3, linewidth=0, elinewidth=1, capsize=2,
                     label=label)
     # set_noise_floor records a model and writes no uncertainty array, so
@@ -423,7 +424,7 @@ def _uncertainty(fig, before, after, channel, sounding, report):
 
     _decorate(ax, channel, times)
     ax.set_ylabel(_y_label(after, absolute=True) + ", with uncertainty")
-    # legend() on an axes with nothing labelled warns rather than drawing
+    # legend() on an axes with nothing labeled warns rather than drawing
     # nothing, which is noise on a correct path.
     if ax.get_legend_handles_labels()[0]:
         ax.legend(fontsize=8, frameon=False)
