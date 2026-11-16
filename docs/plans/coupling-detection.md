@@ -1,6 +1,6 @@
 # Detecting coupled data
 
-**Status:** planned, not started. Literature reviewed 2026-10-15.
+**Status:** stages 0 and 1 built (the table, the step, the PCA reconstructor and the reconstruction criterion). Calibration (work item 4) run 2026-11-04 on a survey edited by hand on every line; new defaults proposed, see "What the calibration found". Stage 2 not started. Literature reviewed 2026-10-15.
 
 ## Decisions
 
@@ -49,9 +49,9 @@ single unaveraged sounding — which makes the smoothness itself informative: an
 unaveraged transient that stays monotonic while displaced from the synthetic is
 **coherent**, and coherent is what distinguishes coupling from noise. The
 likely reason is the lateral constraint: an isolated elevated sounding cannot
-move freely when its neighbours are not elevated, so the regularisation fights
+move freely when its neighbors are not elevated, so the regularization fights
 it and the residual surfaces as misfit. The case that escapes is therefore the
-**broad regional** elevation, where the whole neighbourhood moves together and
+**broad regional** elevation, where the whole neighborhood moves together and
 the constraint has nothing to push against.
 
 So misfit is a useful corroborating signal and a poor sole criterion. The
@@ -68,7 +68,7 @@ What is available instead is the profile:
 > — `blossPowerlineContaminationAirborne2016`
 
 A per-sounding detector run across that pattern flags the flanks and **keeps the
-centre**, leaving an island of apparently good data over the conductor.
+center**, leaving an island of apparently good data over the conductor.
 Detecting the pattern rather than the sounding is the contribution here.
 
 ## Scope and limits
@@ -114,7 +114,7 @@ What separates a power line from a dipping conductor:
 | symmetric double peak with central null | **no** — a vertical sheet gives the same |
 | strict symmetry | **partly** — a *tilted* body is asymmetric; a vertical fault is not |
 | peak separation vs flight height | **weakly** — shallow narrow, deep broad |
-| ruler-straight over kilometres across many lines | **somewhat** — geology is linear but bends and splays |
+| ruler-straight over kilometers across many lines | **somewhat** — geology is linear but bends and splays |
 | the sweep-across-gates ordering | **unknown** — untested |
 | an infrastructure layer | **yes** |
 | the powerline monitor | **yes, where it responds** |
@@ -186,12 +186,12 @@ culls more by hand. `apply_manual_edits` (filter_33) is the checkpoint;
 The alternative — flag and leave it in — is wrong here for three reasons.
 
 **The model is the QC instrument.** A transient cannot be pronounced good by
-looking at it; that judgement only exists downstream, as whether the data
+looking at it; that judgment only exists downstream, as whether the data
 inverted into something sensible. Leaving coupling in to be safe corrupts the
 very thing pass one exists to produce.
 
 **Coupling does not stay where it was left.** The lateral constraints and the
-regularisation spread it — false conductors "get smeared out into the model
+regularization spread it — false conductors "get smeared out into the model
 domain" — so a flag on three soundings does not contain an artifact thirty wide.
 Convergence suffers too; Asif measured the other side, automatically processed
 data taking "fewer iterations to converge."
@@ -288,9 +288,7 @@ leniency or strictness in the automated data processing."
   that is ours: "may not be true if the signal levels are drastically low, e.g.,
   in a very resistive case."
 
-Defaults stay Asif's, as the only values with evidence behind them, with a
-docstring note that they were calibrated against *measured* stack scatter and
-that a modeled sigma moves them.
+Defaults were Asif's, as the only values with evidence behind them, with a docstring note that they were calibrated against *measured* stack scatter and that a modeled sigma moves them. The calibration below is that evidence for one system: it proposes `n_components` 8, `min_confidence` 0.99 and `max_reconstruction_error` 2.0-2.5, each beating the current default on both held-out blocks (see "What the calibration found").
 
 ### Where it sits in the chain
 
@@ -300,12 +298,18 @@ not fail. It produces plausible nonsense." Two placements are forced:
 - **after `assign_uncertainty`** — ε divides by Δd_obs; before that there is
   nothing to divide by;
 - **before `average_along_line`** — the reason `cull_negatives` is ("or a bad
-  gate is smeared into its neighbours"), sharpened by Asif's warning about
+  gate is smeared into its neighbors"), sharpened by Asif's warning about
   smearing the coupling signature, and quantified by the 10:1 stack measured
   below.
 
-So `estimate_noise_model` → `assign_uncertainty` → `cull_by_coupling` →
-`average_along_line`, with `apply_manual_edits` last.
+Two more follow from the workflow:
+
+- after the shape culls (`cull_negatives`, `cull_by_slope`, `cull_by_curvature`, with their tails), which take the gross damage, so the detector looks at what they leave;
+- before the first save point (`save_intermediate_and_apply_diff`), so its marks are in the state the first hand pass opens, where a processor reviews them with the shape culls and can turn any of them back on.
+
+So `set_noise_floor` → `assign_uncertainty` → `cull_by_altitude_tilt` → the shape culls → `cull_by_coupling` → the first save point → `average_along_line`. A second run after averaging, for the weaker coupling that only shows once the noise is down, is optional and the same step.
+
+The first of those two was in question: before the shape culls the detector also sees the humps and flattened late gates the slope cull removes, which might help it find crossings. The calibration scored both positions and the default slot held. Before the shape culls every basis gained a few points of recall and lost more precision, removing 18-23% of a line's candidate gates against the processor's 10-12%, and at power-line crossings 88-95% against 44-51%. The detector finds the crossings without the gross damage and over-culls with it.
 
 ### Corroboration
 
@@ -409,13 +413,13 @@ enhancement where the rate allows, never the basis.
 
 ### 1. Locate the crossing by its axis of symmetry
 
-**Do not search for the trough** — its position is quantised by the sounding
+**Do not search for the trough** — its position is quantized by the sounding
 interval and may fall between samples. Instead cross-correlate the profile
-segment against its own reverse; the lag maximising correlation is twice the
+segment against its own reverse; the lag maximizing correlation is twice the
 offset of the symmetry axis. This uses the well-sampled **flanks** to locate a
-centre that may never be sampled, to sub-sample precision.
+center that may never be sampled, to sub-sample precision.
 
-- **Altitude-invariant.** Height changes the pattern's *width*, not its centre.
+- **Altitude-invariant.** Height changes the pattern's *width*, not its center.
   Only positions are compared across lines, never widths.
 - **Angle-invariant.** A straight path crossing a straight line is symmetric at
   any angle; only apparent width stretches, by `1 / sin θ`.
@@ -440,7 +444,7 @@ collinear subsets with **small residual scatter** — a Hough transform or RANSA
   no reason to know a line's role. Tie lines are not assumed perpendicular and
   are not required; differing bearings simply improve the fit geometry.
 - **Scatter, not collinearity, is the test.** A transmission line is straight to
-  within metres over 10 km; geology bends and splays. That is a number with a
+  within meters over 10 km; geology bends and splays. That is a number with a
   threshold, which is what makes it a discriminator.
 - **Missing lines are harmless.** Hough and RANSAC tolerate gaps, and a
   non-detection on a line flown high is *explicable*, since qc_01 has the height.
@@ -493,7 +497,7 @@ direction. A hole that announces itself is survivable; a confident pass is not.
 | **point** | wreckage, well casings, tanks, silos, pivots | **too few samples** | **rejects it** | **the right tool** |
 
 **Railways are the best case** — straighter than power lines, continuous welded
-steel, bonded for signalling.
+steel, bonded for signaling.
 
 **Areal sources: edge-detect then fill.** Vineyard rows at 2–3 m against 30 m
 soundings are far past Nyquist, so the rows never resolve and what is seen is a
@@ -510,13 +514,13 @@ geophysical answer. Three weak discriminators, none decisive:
 
 - **Time constant.** τ ≈ μ₀σa²/π². Metal at σ ≈ 10⁷ S/m gives *seconds* —
   effectively non-decaying across the gate window — against a few milliseconds
-  for a sulphide body at σ ≈ 10 S/m and 50 m scale. **An anomaly that does not
+  for a sulfide body at σ ≈ 10 S/m and 50 m scale. **An anomaly that does not
   decay at all is metal.** Arithmetic to be checked, not trusted.
 - **Shallowness.** Wreckage is at surface and hits early gates hardest.
 - **Spatial coincidence** on adjacent lines, where spacing is fine enough
   relative to the footprint — at 100–500 m it usually is not.
 
-**Debris-fall fencing is unsolved**, not parameterised. Rockfall *mesh* is a 2D
+**Debris-fall fencing is unsolved**, not parameterized. Rockfall *mesh* is a 2D
 conductive sheet draped on a slope, so it presents as an inclined conductive
 sheet — the dipping-conductor mimic — it follows contours so it curves, and it
 lives where terrain is steepest and the 1/r⁶ amplitude swing is largest.
@@ -543,7 +547,7 @@ The refinement: combine the per-gate symmetry estimates coherently.
   amplitude and keeps only the symmetry lag, so weak and strong gates combine
   cleanly; summing profiles *then* correlating lets a loud early gate swamp the
   rest and mixes cross-gate terms.
-- **Weight by per-gate uncertainty.** Normalise each gate — e.g. autocorrelate
+- **Weight by per-gate uncertainty.** Normalize each gate — e.g. autocorrelate
   the standardised residual (profile minus smooth background, over `Δd_obs`) —
   so one loud gate cannot dominate the stack. The denominator is already in hand
   from `assign_uncertainty`, the same one the reconstruction criterion uses.
@@ -729,14 +733,13 @@ the detector.
    warn.
 3. **`PCAReconstructor` + the reconstruction criterion.** Asif's arithmetic;
    roughly fifty lines once the table exists.
-4. **Run it on demo line 300901** against the Workbench `InUse` mask. Calibrate
-   `max_reconstruction_error` and `min_confidence` with `parameter_sweep`.
+4. **Calibrate** `max_reconstruction_error`, `min_confidence`, `window`, `n_components`, the basis and the placement against a processor's hand edits. Done on the demo line, on seven hand-edited lines, and on a survey edited by hand on every line. See "What the calibration found".
 5. **The profile criterion**, per line, with the symmetry estimator.
 6. **The trend criterion**, cross-line, with classification.
 7. **Corroboration**, consuming qc_05's excess column and filter_30's distance
    logic.
 
-Steps 1–4 are stage 1 and are close. 5–7 are stage 2 and have no precedent.
+Steps 1-4 are stage 1: 1-3 are built and 4 has run, with its defaults change pending a decision. 5-7 are stage 2 and have no precedent.
 
 ### Tests to write
 
@@ -791,13 +794,13 @@ interpolation.
 ### Two levels of ground truth
 
 Only 531 soundings survive of the 882 seconds the line spans: 52 gaps totalling
-~351 soundings, the largest 29 s (about a kilometre). **Forty percent of the
-line was removed outright.** So the judgement is recorded twice — whole
+~351 soundings, the largest 29 s (about a kilometer). **Forty percent of the
+line was removed outright.** So the judgment is recorded twice — whole
 soundings deleted, and gates masked on the survivors — and any scoring must
 account for both.
 
 The gap structure alone is worth plotting against `PLNI` before any detector
-exists: 52 episodes of up to a kilometre is what a map of culture looks like.
+exists: 52 episodes of up to a kilometer is what a map of culture looks like.
 
 ### The join is spatial
 
@@ -817,17 +820,90 @@ alike. So run the chain twice:
 2. the same chain **plus** `cull_by_coupling` → mask **B**
 3. both scored against `InUse` *and* against the whole-sounding deletions
 
-**B − A is this step's contribution**, against a real processor's judgement, and
+**B − A is this step's contribution**, against a real processor's judgment, and
 it separates the two failure directions: gates the processor kept that we culled
 are over-culling; gates it culled that we kept are under-culling.
 
 This also makes Asif's 96% *measurable* — a different expert, survey and a
 decimated join, so not the same number, but the same measurement. And the data
 was culled because something was wrong with it, whatever the reason recorded, so
-agreement with that judgement is a fair test even where the reason is unknown.
+agreement with that judgment is a fair test even where the reason is unknown.
 
 Remaining caveats: the mask is aggregate rather than coupling-specific, the join
 loses resolution, and it is one line of one survey by one processor.
+
+The outcome was no usable signal on this line. Ranked without thresholds, the low moment's confidence scores at chance against the processor's gaps, and the high moment's about as well as the power-line monitor alone (AUC 0.60-0.68). No setting of α, β_max, `window` or `n_components` lifts precision above the processor's base cull rate. The mask culls for every reason, at 1 Hz, so this says little about coupling either way. Seven lines of a single-moment VTEM survey, edited by hand after the automatic chain, did show a signal (per-gate AUC 0.72). There the defaults caught a quarter of the hand culls at about a quarter precision, and β_max 0.99 caught 62% only by removing three to seven times what the processor did.
+
+### Calibration on a survey edited by hand on every line
+
+That VTEM survey has since been edited by hand on every line: 69 lines at 10 Hz, about a million soundings, edited at the full rate after the automatic pre-average chain. It is the calibration set for item 4, and the first one large enough to hold lines out.
+
+The pre-edit state comes from provenance. The hand edits are one in-use diff against a dataset that had already been through two `apply_manual_edits` passes. Every gate those passes turned off carries `apply_manual_edits`' code in `why_inuse_*`, so the state the detector would see in a pipeline is the stored mask with those gates turned back on. The chain is not rerun.
+
+| | |
+|---|---|
+| candidate | a gate in use in that state, from the gate the shape culls start at |
+| label | a candidate the hand-edited state has off |
+| not scored | gates the processor turned back on. The automatic chain over-culled them, which says nothing about this step; they are counted and reported |
+
+The chain's altitude cull did not run on this dataset (a column-name mismatch), so high soundings were removed by hand. The chain's own limits are applied to the candidates before scoring, or those soundings would count as coupling the step missed.
+
+**The labels are partly anchored.** On all but the seven lines above, the hand pass started from a trained model's proposed culls, so whatever of the proposal was left standing is in the labels. That favors the model in a comparison and nothing else. The seven lines edited without it are reported on their own as the unanchored subset. A re-cull of some lines from the automatic state, with no proposal shown, is the clean test once it exists.
+
+The score is per line, as a percentage of that line's candidates:
+
+- recall of the hand culls and precision of the step's marks, per gate;
+- the same at crossings, where the power-line monitor peaks within 150 m;
+- the share of the line the step removes, beside the share the processor removed;
+- the AUC of 1 − confidence against the labels, which says whether any threshold can work before one is chosen.
+
+Means are over lines, so a long line does not outweigh a short one.
+
+Thresholds are chosen on one block of lines and reported on the other. The flight lines are split at their median northing into two blocks of adjacent lines, because a power line crosses many neighboring lines and a split by alternate lines would put the same crossing in both halves. Tie lines are reported and not used to choose. No basis uses the labels, so each is fitted on all the data it covers, as the step would fit it.
+
+Two placements are scored on the same candidates. One is the default slot, after the shape culls. The other is before them, with the shape culls' gates also turned back on: the slope cull in particular removes humps and flattened late gates, the strongest evidence of a crossing, and with them in the confidence smoothing may carry that evidence out to the crossing's flanks. The cost is a basis fitted on dirtier transients. The default placement follows the held-out result.
+
+Three bases are scored side by side, the same way:
+
+- per survey, the step as built: one basis fitted on the whole survey;
+- per line: a basis fitted on each line's own soundings. On a line that crosses several power lines the coupling is a larger share of the fit, so it is likelier to be absorbed;
+- on forwards: a basis fitted on 1D forward responses of the system, Asif's construction with PCA in place of the network. The forwards are computed with the SimPEG system class the inversion uses, from the survey's GEX, over layered earths sampled log-uniformly in resistivity at the survey's range of loop heights. They are only as good as the GEX's waveform, and a wrong waveform reads as coupling everywhere, so the waveform's provenance is checked first and recorded with the result.
+
+The grid is the same for each basis and placement: `n_components` 3-8 and `window` 7.5-60 m, one detection each. α and β_max act on the stored per-gate errors and the along-line confidence (`along_line_mean`), so the whole α × β_max grid comes from each detection without rerunning it. `max_uncertainty` stays at 0.2: after the automatic chain no in-use gate exceeds it, and before the shape culls it does the masking it exists for. `cull_below_confidence` stays at 0.80 × β_max, since its whole-sounding cull changed nothing on the seven lines.
+
+A default changes only to a value that beats the current one on the held-out block. `action: cull` becomes the recommended use only where held-out precision and recall both reach 50%, the trained model's precision on the seven lines. Below that the step is a reviewer's aid, run as `flag`. How a winning basis enters the step is decided once the numbers are in; until then the variants live in the calibration scripts, not the library.
+
+Per-line tables, scripts and survey-specific numbers go in the private business repository. This plan records the method and the defaults it settles on.
+
+### What the calibration found
+
+Run 2026-11-03/04 on all 69 lines: about a million soundings, 41.5 million candidate gates, 10.5% of them culled by hand. Two placements, three bases, twenty detections each (`n_components` 3, 4, 5, 6, 8 by `window` 7.5, 15, 30, 60 m), the α × β_max grid (1.5-4 by 0.80-0.99) re-thresholded from each detection's stored errors with the step's own judged mask, and checked cell for cell against the step's table at the defaults. Held-out scores are means over the flight lines of the other block, the one the setting was not chosen on, as fractions of each line's candidate gates; the first number is chosen on north and scored on south, the second the reverse.
+
+| placement | basis | chosen on north | recall | precision | Jaccard | removed, step vs hand |
+|---|---|---|---|---|---|---|
+| after the shape culls | forward responses | k=8 W=15 α=1.5 β=0.99 | 0.60 / 0.61 | 0.42 / 0.45 | 0.33 / 0.33 | 14-17% vs 10-12% |
+| after the shape culls | survey, the step as built | k=8 W=60 α=2.5 β=0.99 | 0.43 / 0.53 | 0.49 / 0.39 | 0.28 / 0.28 | 9-17% vs 10-12% |
+| after the shape culls | per line | k=8 W=60 α=2.0 β=0.99 | 0.48 / 0.42 | 0.45 / 0.50 | 0.28 / 0.28 | 11-12% vs 10-12% |
+| before the shape culls | forward responses | k=8 W=30 α=2.0 β=0.99 | 0.63 / 0.66 | 0.36 / 0.40 | 0.29 / 0.31 | 18-22% vs 10-12% |
+| before the shape culls | survey | k=8 W=15 α=3.0 β=0.95 | 0.42 / 0.57 | 0.34 / 0.32 | 0.22 / 0.25 | 13-23% vs 10-12% |
+| before the shape culls | per line | k=8 W=30 α=4.0 β=0.99 | 0.47 / 0.50 | 0.33 / 0.36 | 0.22 / 0.23 | 16-20% vs 10-12% |
+| after the shape culls | survey, current defaults | k=4 W=15 α=2.5 β=0.86 | 0.30 / 0.30 | 0.32 / 0.32 | 0.18 / 0.18 | 10-12% vs 10-12% |
+
+- The basis fitted on forward responses is the best of the three and the only one near the trained model (0.62 recall at 0.50 precision, Jaccard 0.37, leave-one-line-out on the seven lines). On the seven unanchored lines it scores 0.56 / 0.35 / 0.27, so about 0.06 of its Jaccard on the other lines is the anchoring.
+- The step as built goes from Jaccard 0.18 to 0.28 with eight components, β_max 0.99 and α 2-2.5. The window hardly matters between 15 and 60 m, as Asif says it should not; 7.5 m is a little worse everywhere.
+- The per-line basis equals the survey basis at 10-40 times the cost, and its alternating least squares rarely converges within 200 rounds once the basis has five or more components. One basis per survey is the right design.
+- At power-line crossings the detector is good at the default slot: recall 0.75, precision 0.60-0.69 for the survey and forward bases. Its misses are away from the monitor's peaks, where the processor culled 10-12% of the gates and the step marks fewer of the same ones. The trained model's advantage over it is of the same kind.
+- The bar for `action: cull` is not met held out. Two forward-basis settings reach 50% / 50% on the north block and score 0.49-0.52 recall at 0.45-0.46 precision on the south; nothing reaches it on the south block. The step stays a reviewer's aid run as `flag`.
+
+Caveats: the labels on 62 of the 69 lines lean toward the trained model's proposals; one survey, one system, one processor; the forward library uses the inversion's uncalibrated waveform, which fits the data at a misfit of 0.84, so a waveform error would show as a uniform residual the basis absorbs rather than as coupling.
+
+Proposed, for the maintainers to decide:
+
+1. New defaults for the step as built: `n_components` 8, `min_confidence` 0.99, `max_reconstruction_error` 2.0 or 2.5. Each beats the current default on both held-out blocks. A one-line change with a docstring note and a regenerated reference.
+2. A forward-response basis as an option of the step. It needs the system's forward responses at processing time, so either SimPEG becomes an optional dependency of the library or the library of responses is an input file, and a decision on how the earth models are sampled (here 40 log-spaced layers to 400 m, half smooth random walks, a third one-to-three-interface models, a fifth halfspaces, 0.3-3000 ohm.m, loop heights drawn from the survey's). It is the best basis by a margin and the only one whose errors do not depend on how much coupling the survey contains.
+3. Repeat the scoring on a re-cull of a few lines from the automatic state with no proposal shown, which removes the anchoring.
+
+Found on the way: `mask.provenance()` misses the lower-cased key the platform writes (#46); `PCAReconstructor` overflows on a few ill-conditioned soundings (#47); `detect()` returns finite errors at gates past the noise cutoff that it does not judge, so anyone re-thresholding its output needs the judged mask too.
 
 ### A second case: a VTEM survey, and what it already shows
 
@@ -863,7 +939,7 @@ Two caveats on using it:
   mask here, so it illustrates and does not score.
 
 Those four decay panels — typical, hump-with-loud-monitor,
-severe-with-climb, smooth-with-quiet-monitor — are close to a labelled set of
+severe-with-climb, smooth-with-quiet-monitor — are close to a labeled set of
 the cases the detector has to separate, and worth keeping as fixtures.
 
 ### Synthetic data, and its circularity
@@ -921,10 +997,7 @@ is publicly available, and their network took ~13,000 epochs at ~6 s/epoch ≈
 
 **Needing the data**
 
-- **What do `max_reconstruction_error` and `min_confidence` become against a
-  modeled sigma?** Asif's 2.5 and 0.99 are tied to measured stack scatter, and
-  with vendor processing in the chain the calibration is per vendor and system.
-  `parameter_sweep` against line 300901 is the tool.
+- **What do `max_reconstruction_error` and `min_confidence` become against a modeled sigma?** Asif's 2.5 and 0.99 are tied to measured stack scatter, and with vendor processing in the chain the calibration is per vendor and system. For one VTEM survey the answer is 2.0-2.5 and 0.99 with an eight-component basis ("What the calibration found"); other vendors and systems are open.
 - **How far does vendor pre-processing move the reconstruction residual?** If
   the offset is uniform it only moves the threshold; if it varies along the
   line, the black box is doing something adaptive and the criterion is shakier
@@ -945,9 +1018,6 @@ line
 
 **Needing a decision**
 
-- **What does "working" mean?** Per gate, per sounding, or per crossing? Per
-  crossing is probably the honest unit, since missing a crossing and trimming
-  its edges differently are not comparable errors. **Decide before building.**
 - **Where is `corroborate` declared?** A project-level fact, not derivable from
   data, so it probably belongs with project configuration rather than buried in
   a step.
@@ -979,7 +1049,7 @@ poles, the wire down each pole, the ground electrodes and the ground pathway
 closing the circuit — citing `blossPowerlineContaminationTimedomain2017` for the
 circuit treatment of contact resistance.
 
-## Why the centre is clean
+## Why the center is clean
 
 > When AEM loops are right above the power line, there will be no magnetic flux
 > (generated by induced currents flowing in the power-line loop) intersecting
@@ -1053,7 +1123,7 @@ can measure.
 
 Three consequences:
 
-1. **Do not deprioritise resistive terrain.** Bulk resistivity barely enters,
+1. **Do not deprioritize resistive terrain.** Bulk resistivity barely enters,
    and the *percentage* effect moves the other way, since "an increase in
    ρ_background causes a decrease in the amplitude of the subsurface signals,
    resulting in a net increase in the percentage power-line effect." Resistive
@@ -1151,7 +1221,7 @@ The modeling route was tried and did not reach ATEM scale.
 `blossPowerlineContaminationAirborne2016` built a 'skywire' RL analogue after
 Polzer, with results "consistent with the collected gTEM data" but which "do not
 reproduce the amplitude or spatial-scale of powerline distortion observed in
-ATEM data." Parameterising it needs the contact resistance at each pole and the
+ATEM data." Parameterizing it needs the contact resistance at each pole and the
 capacitance between ground wire and ground, neither knowable per survey.
 
 **What Polzer gives us anyway:** his decomposition is the ancestor of the
@@ -1175,7 +1245,7 @@ specification says — `01`, quoted in `filter_32`:
 
 **IP is not a special case.** Any charging interface produces it — a conductive
 clay layer in sand or sandstone polarizes at the contact, an ordinary
-sedimentary situation. In mineralized ground sulphides are strongly polarizable
+sedimentary situation. In mineralized ground sulfides are strongly polarizable
 and effectively glow. And IP is present long before it is strong enough to drive
 the transient negative; a negative is the end of a continuum, not the start.
 
@@ -1194,7 +1264,7 @@ most often meet, which is polarizable geology and needs no infrastructure.
 **Culling IP is deliberate.** IP cannot be modeled yet, and data the forward
 model cannot represent cannot be inverted correctly, so culling it is the honest
 response and what the industry does. What is worth changing is the *account*:
-`filter_32`'s defence of `disable_tail` — "a transient does not recover once it
+`filter_32`'s defense of `disable_tail` — "a transient does not recover once it
 has gone bad" — is true of coupling and noise and **false of IP**, where the
 transient is doing something physical and repeatable. Recording that costs
 nothing and matters when an IP-capable forward model arrives.
@@ -1219,9 +1289,9 @@ Keys are in `~/Codes/_refs/library.bib`; PDFs in the YmerFlow shared library.
   and TPPE numbers, LM/HM and transmitter-height sensitivities, field validation
   against 41 water wells, and released notebooks
 - `blossPowerlineContaminationTimedomain2017` — the signatures, the profile
-  characterisation, the skywire circuit (§2.2.4.2) and the resistance and
+  characterization, the skywire circuit (§2.2.4.2) and the resistance and
   inductance experiments (§3.1.2.4)
-- `blossPowerlineContaminationAirborne2016` — the profile characterisation and
+- `blossPowerlineContaminationAirborne2016` — the profile characterization and
   the smearing failure
 - `andersenArtificialNeuralNetworks2016` — the earlier supervised ANN
 - `polzerStrippingCulturalConductor1990` — stripping by measured current
