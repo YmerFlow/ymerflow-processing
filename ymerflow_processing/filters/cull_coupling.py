@@ -39,9 +39,13 @@ marked as coupled. Where conductive targets are expected, flag rather than
 cull, and review. A coupling that mimics a 1D response reconstructs well and is
 kept. Oscillatory coupling is ``cull_negatives``' business, not this step's.
 
-The defaults are Asif et al.'s, from a survey with measured stack scatter and a
-trained auto-encoder; a modeled uncertainty and a fitted basis move them, so
-they are a starting point for calibration, not a calibration.
+The defaults were calibrated on one VTEM survey edited by hand on every line,
+against a modeled uncertainty and the fitted PCA basis (the plan's "What the
+calibration found"): eight components and ``β_max`` 0.99 catch about 40% of
+the processor's culls at 50% precision on lines held out, where Asif et al.'s
+airborne values (four components, 0.86) caught 30% at 32%. Other vendors and
+systems are uncalibrated, and the step stays a reviewer's aid run as ``flag``
+until a survey's own numbers say otherwise.
 """
 
 import logging
@@ -69,10 +73,10 @@ ACTIONS = ("flag", "cull")
 
 
 def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: float = 2.5,
-                     min_confidence: float = 0.86,
+                     min_confidence: float = 0.99,
                      cull_below_confidence: float | None = None,
                      window: float = 15.0, max_uncertainty: float = 0.2,
-                     n_components: int = 4, confidence_column: str = "qs_coupling",
+                     n_components: int = 8, confidence_column: str = "qs_coupling",
                      start_gate: int = 0, spread_earlier: int = 1,
                      disable_tail: bool = True):
     """Mark, and optionally cull, gates the survey's basis cannot reproduce.
@@ -91,9 +95,9 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
         Lower is stricter.
     min_confidence : float
         A sounding whose smoothed confidence, the fraction of its gates that
-        reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``,
-        0.86 for their airborne survey (0.99 on the ground). Higher is
-        stricter. A fraction, 0..1.
+        reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``;
+        0.99 calibrated on a hand-edited VTEM survey (their airborne value was
+        0.86, their ground value 0.99). Higher is stricter. A fraction, 0..1.
     cull_below_confidence : float | None
         Below this smoothed confidence every gate of the sounding is culled;
         between it and ``min_confidence`` only gates within one standard
@@ -111,8 +115,10 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
         exceeds this, the transient is not judged: that is noise, not coupling.
         Asif et al.'s ``Δ_max``, 20%. A fraction.
     n_components : int
-        Components kept in the reconstruction basis. Too many and the basis
-        learns the coupling as well as the decay.
+        Components kept in the reconstruction basis. A bigger basis trades
+        recall for precision; eight was the best of 3-8 on a hand-edited VTEM
+        survey. Too many and the basis learns the coupling as well as the
+        decay.
     confidence_column : str
         Prefix of the per-sounding confidence column written for each channel,
         suffixed with the channel key (``qs_coupling_ch1``). The smoothed
