@@ -196,12 +196,17 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
             "soundings_judged": int(np.isfinite(confidence).sum()),
             "confidence": summarize(confidence[np.isfinite(confidence)]),
             "error": summarize(error[np.isfinite(error)]),
-            "basis": {"iterations": basis.iterations_, "converged": basis.converged_},
+            "basis": {"iterations": basis.iterations_, "converged": basis.converged_,
+                      "gates_left_out": int((~basis.gates_).sum())},
         }
         if basis.converged_ is False:
             report.notes.append(
                 f"The basis for {channel} did not converge in {basis.iterations_} "
                 f"rounds of imputation; its reconstruction errors are less certain.")
+        if not basis.gates_.all():
+            report.notes.append(
+                f"{int((~basis.gates_).sum())} gate(s) of {channel} were available in "
+                f"too few soundings to fit into the basis and were not judged.")
         if action == "cull" and widened.any():
             culled_any = True
             outcome.update(table.apply(dataset, channel, step_code=STEP_CODE))
