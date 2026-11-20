@@ -16,7 +16,9 @@ Missing gates are ``NaN`` in the transients handed over: a gate that is culled,
 non-positive, or past a sounding's noise cutoff. The basis is fitted by
 alternating least squares over the known gates only, so every sounding
 contributes the gates it has and nothing is imputed, and a sounding is
-reconstructed by least squares on its own available gates.
+reconstructed by least squares on its own available gates. A gate known in too
+few of the fitted soundings to determine its mean and loadings is left out of
+the basis and reconstructs as ``NaN``, so the criterion does not judge it.
 """
 
 from typing import Protocol
@@ -55,6 +57,13 @@ class PCAReconstructor:
         The basis is fitted on at most this many soundings, evenly spaced
         through the survey; every sounding is still reconstructed. A basis of
         a few components is well determined long before this.
+
+    Attributes
+    ----------
+    gates_ : numpy.ndarray
+        ``(gates,)`` bool after :meth:`fit`: which gates the basis covers. A
+        gate known in no more of the fitted soundings than there are
+        components is left out and reconstructs as ``NaN``.
     """
 
     def __init__(self, n_components: int = 4, log_space: bool = True,
@@ -69,6 +78,7 @@ class PCAReconstructor:
         self.max_soundings = int(max_soundings)
         self.mean_ = None
         self.components_ = None
+        self.gates_ = None
         self.iterations_ = 0
         self.converged_ = None
 
@@ -94,8 +104,8 @@ class PCAReconstructor:
         Raises
         ------
         ValueError
-            If fewer soundings than components have any usable gate, or a gate
-            is unavailable in every sounding.
+            If no more soundings than components have any usable gate, or no
+            gate is available in more soundings than that.
         """
         values = self._forward(transients)
         values = values[np.isfinite(values).any(axis=1)]
@@ -106,10 +116,17 @@ class PCAReconstructor:
                 f"{len(values)} sounding(s) with a usable gate; a basis of "
                 f"{self.n_components} component(s) needs more.")
         known = np.isfinite(values)
-        if not known.any(axis=0).all():
+        # A gate's mean and loadings are one unknown more than the components,
+        # so a gate known in no more soundings than that cannot be fitted: the
+        # same rule as for the soundings above. It is left out of the basis
+        # and reconstruct() returns NaN for it; on a large survey the fitted
+        # sample can miss a gate that only a few soundings have.
+        self.gates_ = known.sum(axis=0) > self.n_components
+        if not self.gates_.any():
             raise ValueError(
-                "At least one gate is unavailable in every sounding; leave it "
-                "out of the transients rather than fit a basis over it.")
+                f"No gate is available in more than {self.n_components} sounding(s); "
+                f"a basis of {self.n_components} component(s) needs more.")
+        values, known = values[:, self.gates_], known[:, self.gates_]
 
         # Start from the leading directions of the mean-filled data, then
         # alternate: each sounding's coefficients given the basis, then each
@@ -147,16 +164,18 @@ class PCAReconstructor:
         numpy.ndarray
             The reconstruction, the same shape, in the data's own units. A
             sounding with fewer available gates than components is ``NaN``
-            throughout: there is nothing to constrain its coefficients.
+            throughout: there is nothing to constrain its coefficients. A gate
+            the basis left out (``gates_``) is ``NaN`` in every sounding.
         """
         if self.components_ is None:
             raise RuntimeError("reconstruct() before fit()")
         values = self._forward(transients)
-        known = np.isfinite(values)
         out = np.full(values.shape, np.nan)
+        values = values[:, self.gates_]
+        known = np.isfinite(values)
         enough = known.sum(axis=1) >= len(self.components_)
         coefficients = _solve_rows(self.components_, values[enough] - self.mean_, known[enough])
-        out[enough] = self.mean_ + coefficients @ self.components_
+        out[np.ix_(enough, self.gates_)] = self.mean_ + coefficients @ self.components_
         return self._inverse(out)
 
 
