@@ -317,6 +317,21 @@ def test_a_gate_the_fitted_sample_misses_is_left_out_not_fatal():
     np.testing.assert_allclose(rebuilt[:, :-1], data[:, :-1], rtol=1e-8)
 
 
+def test_a_gate_the_fitted_sample_has_in_only_a_few_soundings_is_still_fitted():
+    """The same large survey, with the rare gate landing on a few soundings the
+    sample does include, more than the basis has components: the gate stays in
+    the basis and reconstructs as the family says it should."""
+    data = decays(n=100)
+    data[:, 3] = np.nan
+    data[0:20:5, 3] = decays(n=100)[0:20:5, 3]   # four of the sample's rows
+    basis = PCAReconstructor(n_components=2, max_soundings=20)
+    basis.fit(data)
+    assert basis.gates_.all()
+    rebuilt = basis.reconstruct(data)
+    assert np.isfinite(rebuilt[:, 3]).all()
+    np.testing.assert_allclose(rebuilt[0:20:5, 3], data[0:20:5, 3], rtol=1e-6)
+
+
 def test_a_gate_known_in_no_more_soundings_than_components_is_left_out():
     """Its mean and loadings are one unknown more than the components, so it
     cannot be fitted even when the sample includes those soundings."""
