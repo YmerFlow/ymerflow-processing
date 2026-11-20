@@ -300,3 +300,36 @@ def test_non_positive_values_are_missing_in_log_space():
 def test_too_few_soundings_for_the_basis_is_refused():
     with pytest.raises(ValueError, match="needs more"):
         PCAReconstructor(n_components=4).fit(decays(n=3))
+
+
+def test_a_gate_the_fitted_sample_misses_is_left_out_not_fatal():
+    """A large survey where the last gate is available in only a few soundings,
+    none of which the evenly spaced fitting sample lands on: that gate is not
+    judged, and every other gate still is."""
+    data = decays(n=100)
+    data[:, -1] = np.nan
+    data[1:4, -1] = decays(n=100)[1:4, -1]
+    basis = PCAReconstructor(n_components=2, max_soundings=20)
+    basis.fit(data)
+    assert basis.gates_.tolist() == [True] * 9 + [False]
+    rebuilt = basis.reconstruct(data)
+    assert np.isnan(rebuilt[:, -1]).all()
+    np.testing.assert_allclose(rebuilt[:, :-1], data[:, :-1], rtol=1e-8)
+
+
+def test_a_gate_known_in_no_more_soundings_than_components_is_left_out():
+    """Its mean and loadings are one unknown more than the components, so it
+    cannot be fitted even when the sample includes those soundings."""
+    data = decays()
+    data[2:, 3] = np.nan
+    basis = PCAReconstructor(n_components=2)
+    basis.fit(data)
+    assert not basis.gates_[3] and basis.gates_.sum() == 9
+    assert np.isnan(basis.reconstruct(data)[:, 3]).all()
+
+
+def test_no_gate_with_enough_soundings_is_refused():
+    data = np.full((6, 4), np.nan)
+    data[np.arange(6), np.arange(6) % 4] = 1e-6   # one gate per sounding
+    with pytest.raises(ValueError, match="No gate is available"):
+        PCAReconstructor(n_components=2).fit(data)
