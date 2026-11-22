@@ -25,8 +25,9 @@ setup(
         # Spelled exactly as aem-processes spells it. pip compares direct
         # references as text, so ".git" against "@master" for the same commit
         # reads as two sources and the two packages cannot be installed
-        # together. No ref means the default branch, master.
-        "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz.git",
+        # together. Pinned to the libaarhusxyz integration-20261120 head so
+        # one environment can carry its unmerged work alongside this one's.
+        "libaarhusxyz @ git+https://github.com/YmerFlow/libaarhusxyz.git@69057baeecc68e023c9831a6e4f21c45aec51cf2",
         # Deliberately unpinned, and deliberately compatible with both majors.
         # numpy 2 is what this is developed against, but the inversion stack it
         # feeds still runs on 1.x, so a floor here would strand the environment
