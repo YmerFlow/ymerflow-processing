@@ -47,7 +47,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..mask import apply_policy, cull, in_use, mark_step
+from ..mask import apply_policy, check_policy, cull, in_use, mark_step
 from ..pipeline import StepReport
 from ..transient import log_slope
 
@@ -62,36 +62,9 @@ STEP = "cull_by_slope"
 STEP_CODE = 25
 
 
-def cull_by_slope(dataset, shallowest: float | None = None,
-                       steepest: float | None = None, start_gate: int = 0,
-                       spread_earlier: int = 0, disable_tail: bool = False):
-    """Disable data whose local decay rate is implausible.
-
-    Parameters
-    ----------
-    dataset : Dataset
-        The dataset to cull; its in-use masks are written.
-    shallowest : float | None
-        Slopes above this — closer to flat — are culled (filter_25). Signed and
-        negative for a decay.
-    steepest : float | None
-        Slopes below this — falling faster — are culled (filter_26).
-    start_gate : int
-        Where evaluation begins, 0-based.
-    spread_earlier : int
-        Also disable this many gates before each hit.
-    disable_tail : bool
-        Also disable everything after the earliest hit.
-
-    Returns
-    -------
-    tuple
-        ``(dataset, StepReport)``.
-    """
-    report = StepReport(step=STEP)
-    frame = dataset.flightlines
-    report.soundings_total = 0 if frame is None else len(frame)
-
+def _check(own: dict) -> None:
+    """Refuse one channel's bounds and policy before any mask is written."""
+    shallowest, steepest = own["shallowest"], own["steepest"]
     if shallowest is None and steepest is None:
         raise ValueError(
             "cull_by_slope needs shallowest or steepest. With neither it "
@@ -102,6 +75,56 @@ def cull_by_slope(dataset, shallowest: float | None = None,
             f"steepest ({steepest:g}) must be below shallowest "
             f"({shallowest:g}); these are signed slopes, and a decay is "
             f"negative. Written the other way round they exclude every slope.")
+    check_policy(own)
+
+
+def cull_by_slope(dataset, shallowest: float | dict[str, float] | None = None,
+                  steepest: float | dict[str, float] | None = None,
+                  start_gate: int | dict[str, int] = 0,
+                  spread_earlier: int | dict[str, int] = 0,
+                  disable_tail: bool | dict[str, bool] = False):
+    """Disable data whose local decay rate is implausible.
+
+    Every parameter is per channel: one value for every channel, or a mapping
+    by channel key or moment name (``{"LM": -0.5, "HM": -1.0}``) naming every
+    channel, since a dual-moment system's moments differ in noise, gate count
+    and turn-off and one bound rarely serves both.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
+    shallowest : float | dict | None
+        Slopes above this — closer to flat — are culled (filter_25). Signed and
+        negative for a decay. One value, or a mapping by channel key or moment
+        name.
+    steepest : float | dict | None
+        Slopes below this — falling faster — are culled (filter_26). One value,
+        or a mapping by channel key or moment name.
+    start_gate : int | dict
+        Where evaluation begins, 0-based, counted in each channel's own gates.
+        One value, or a mapping by channel key or moment name.
+    spread_earlier : int | dict
+        Also disable this many gates before each hit. One value, or a mapping
+        by channel key or moment name.
+    disable_tail : bool | dict
+        Also disable everything after the earliest hit. One value, or a mapping
+        by channel key or moment name.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
+    report = StepReport(step=STEP)
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    settings = dataset.settings_per_channel(
+        shallowest=shallowest, steepest=steepest, start_gate=start_gate,
+        spread_earlier=spread_earlier, disable_tail=disable_tail)
+    for own in settings.values():
+        _check(own)
 
     per_channel, culled_any = {}, False
     for channel in dataset.channels:
@@ -110,28 +133,30 @@ def cull_by_slope(dataset, shallowest: float | None = None,
         if times.size != values.shape[1]:
             continue
 
+        own = settings[channel.key]
         live = in_use(dataset, channel)
         slope = log_slope(values, times, live)
 
         # NaN is "unmeasurable here" — an end gate, a non-positive value, a
         # sounding with too few survivors — and must not become an objection.
         bad = np.zeros(values.shape, dtype=bool)
-        if shallowest is not None:
-            bad |= slope > shallowest
-        if steepest is not None:
-            bad |= slope < steepest
+        if own["shallowest"] is not None:
+            bad |= slope > own["shallowest"]
+        if own["steepest"] is not None:
+            bad |= slope < own["steepest"]
         bad &= np.isfinite(slope) & live
 
-        widened = apply_policy(bad, start_gate=start_gate,
-                               spread_earlier=spread_earlier,
-                               disable_tail=disable_tail)
+        widened = apply_policy(bad, start_gate=own["start_gate"],
+                               spread_earlier=own["spread_earlier"],
+                               disable_tail=own["disable_tail"])
         direct = bad.copy()
-        direct[:, :start_gate] = False
+        direct[:, :own["start_gate"]] = False
 
         outcome = {
             "implausible": int(direct.sum()),
             "unmeasurable": int((~np.isfinite(slope) & live).sum()),
             "slope": summarize(slope[np.isfinite(slope)]),
+            "settings": own,
         }
         if widened.any():
             culled_any = True

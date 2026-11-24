@@ -56,7 +56,7 @@ from ..coupling import table
 from ..coupling.reconstruct import PCAReconstructor
 from ..coupling.reconstruction import FUZZY_FLOOR, detect, positions
 from ..distribution import summarize
-from ..mask import apply_policy, mark_step
+from ..mask import apply_policy, check_policy, mark_step
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -72,14 +72,51 @@ STEP_CODE = 28
 ACTIONS = ("flag", "cull")
 
 
-def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: float = 2.5,
-                     min_confidence: float = 0.99,
-                     cull_below_confidence: float | None = None,
-                     window: float = 15.0, max_uncertainty: float = 0.2,
-                     n_components: int = 8, confidence_column: str = "qs_coupling",
-                     start_gate: int = 0, spread_earlier: int = 1,
-                     disable_tail: bool = True):
+def _applied(own: dict) -> dict:
+    """One channel's settings as applied: floats, the floor filled in, refused
+    when out of range, before any table or mask is written."""
+    alpha = float(own["max_reconstruction_error"])
+    beta = float(own["min_confidence"])
+    floor = (FUZZY_FLOOR * beta if own["cull_below_confidence"] is None
+             else float(own["cull_below_confidence"]))
+    window, delta = float(own["window"]), float(own["max_uncertainty"])
+    if alpha <= 0:
+        raise ValueError(f"max_reconstruction_error is in standard deviations and must "
+                         f"be positive; got {alpha:g}")
+    if not 0 < beta <= 1:
+        raise ValueError(f"min_confidence is a fraction in (0, 1]; got {beta:g}")
+    if not 0 <= floor <= beta:
+        raise ValueError(f"cull_below_confidence must lie in [0, min_confidence = "
+                         f"{beta:g}]; got {floor:g}")
+    if window < 0:
+        raise ValueError(f"window is a distance and cannot be negative; got {window:g}")
+    if delta <= 0:
+        raise ValueError(f"max_uncertainty is a fraction and must be positive; got "
+                         f"{delta:g}")
+    check_policy(own)
+    return {**own, "max_reconstruction_error": alpha, "min_confidence": beta,
+            "cull_below_confidence": floor, "window": window, "max_uncertainty": delta,
+            "n_components": int(own["n_components"])}
+
+
+def cull_by_coupling(dataset, action: str = "flag",
+                     max_reconstruction_error: float | dict[str, float] = 2.5,
+                     min_confidence: float | dict[str, float] = 0.99,
+                     cull_below_confidence: float | dict[str, float] | None = None,
+                     window: float | dict[str, float] = 15.0,
+                     max_uncertainty: float | dict[str, float] = 0.2,
+                     n_components: int | dict[str, int] = 8,
+                     confidence_column: str = "qs_coupling",
+                     start_gate: int | dict[str, int] = 0,
+                     spread_earlier: int | dict[str, int] = 1,
+                     disable_tail: bool | dict[str, bool] = True):
     """Mark, and optionally cull, gates the survey's basis cannot reproduce.
+
+    The basis is fitted per channel and each channel is judged against its
+    own, so every threshold and policy parameter is per channel too: one value
+    for every channel, or a mapping by channel key or moment name
+    (``{"LM": 0.86, "HM": 0.99}``) naming every channel. ``action`` and
+    ``confidence_column`` describe the step and stay one value.
 
     Parameters
     ----------
@@ -89,47 +126,54 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
     action : str
         ``flag`` writes the coupling table and confidence only; ``cull`` also
         applies the table to the mask.
-    max_reconstruction_error : float
+    max_reconstruction_error : float | dict
         A gate reconstructs when its error is below this many standard
         deviations of its assigned uncertainty. Asif et al.'s ``α``, 2.5.
-        Lower is stricter.
-    min_confidence : float
+        Lower is stricter. One value, or a mapping by channel key or moment
+        name.
+    min_confidence : float | dict
         A sounding whose smoothed confidence, the fraction of its gates that
         reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``;
         0.99 calibrated on a hand-edited VTEM survey (their airborne value was
         0.86, their ground value 0.99). Higher is stricter. A fraction, 0..1.
-    cull_below_confidence : float | None
+        One value, or a mapping by channel key or moment name.
+    cull_below_confidence : float | dict | None
         Below this smoothed confidence every gate of the sounding is culled;
         between it and ``min_confidence`` only gates within one standard
         deviation survive. ``0.80 × min_confidence`` if unset, as in Asif et al.
-        A fraction, at most ``min_confidence``.
-    window : float
+        A fraction, at most ``min_confidence``. One value, or a mapping by
+        channel key or moment name.
+    window : float | dict
         The along-line length the data are averaged over before they are
         judged, in the survey's horizontal units (meters for a projected CRS).
         The confidence is averaged over twice this. Asif et al. average 7 raw
         stacks; 15 m is that at a 10 Hz SkyTEM spacing of about 2.2 m. Set by
         the sounding spacing, not a strictness dial: a larger window smears
-        the coupling.
-    max_uncertainty : float
+        the coupling. One value, or a mapping by channel key or moment name.
+    max_uncertainty : float | dict
         From the first gate whose relative uncertainty, after averaging,
         exceeds this, the transient is not judged: that is noise, not coupling.
-        Asif et al.'s ``Δ_max``, 20%. A fraction.
-    n_components : int
+        Asif et al.'s ``Δ_max``, 20%. A fraction. One value, or a mapping by
+        channel key or moment name.
+    n_components : int | dict
         Components kept in the reconstruction basis. A bigger basis trades
         recall for precision; eight was the best of 3-8 on a hand-edited VTEM
         survey. Too many and the basis learns the coupling as well as the
-        decay.
+        decay. One value, or a mapping by channel key or moment name.
     confidence_column : str
         Prefix of the per-sounding confidence column written for each channel,
         suffixed with the channel key (``qs_coupling_ch1``). The smoothed
         fraction of gates that reconstruct, 0..1; ``NaN`` where nothing could
         be judged.
-    start_gate : int
-        Where the culling policy begins, 0-based.
-    spread_earlier : int
-        Also cull this many gates before each hit.
-    disable_tail : bool
-        Also cull everything after the earliest hit in that sounding.
+    start_gate : int | dict
+        Where the culling policy begins, 0-based, counted in each channel's
+        own gates. One value, or a mapping by channel key or moment name.
+    spread_earlier : int | dict
+        Also cull this many gates before each hit. One value, or a mapping by
+        channel key or moment name.
+    disable_tail : bool | dict
+        Also cull everything after the earliest hit in that sounding. One
+        value, or a mapping by channel key or moment name.
 
     Returns
     -------
@@ -148,24 +192,6 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
 
     if action not in ACTIONS:
         raise ValueError(f"action must be one of {', '.join(ACTIONS)}; got {action!r}")
-    max_reconstruction_error = float(max_reconstruction_error)
-    min_confidence = float(min_confidence)
-    floor = (FUZZY_FLOOR * min_confidence if cull_below_confidence is None
-             else float(cull_below_confidence))
-    window, max_uncertainty = float(window), float(max_uncertainty)
-    if max_reconstruction_error <= 0:
-        raise ValueError(f"max_reconstruction_error is in standard deviations and must "
-                         f"be positive; got {max_reconstruction_error:g}")
-    if not 0 < min_confidence <= 1:
-        raise ValueError(f"min_confidence is a fraction in (0, 1]; got {min_confidence:g}")
-    if not 0 <= floor <= min_confidence:
-        raise ValueError(f"cull_below_confidence must lie in [0, min_confidence = "
-                         f"{min_confidence:g}]; got {floor:g}")
-    if window < 0:
-        raise ValueError(f"window is a distance and cannot be negative; got {window:g}")
-    if max_uncertainty <= 0:
-        raise ValueError(f"max_uncertainty is a fraction and must be positive; got "
-                         f"{max_uncertainty:g}")
 
     channels = dataset.channels
     if not channels:
@@ -176,21 +202,31 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
                             "formed, so nothing was judged.")
         return dataset, report
 
+    settings = {key: _applied(own) for key, own in dataset.settings_per_channel(
+        max_reconstruction_error=max_reconstruction_error, min_confidence=min_confidence,
+        cull_below_confidence=cull_below_confidence, window=window,
+        max_uncertainty=max_uncertainty, n_components=n_components,
+        start_gate=start_gate, spread_earlier=spread_earlier,
+        disable_tail=disable_tail).items()}
+
     per_channel, without, culled_any = {}, [], False
     for channel in channels:
         if not channel.std_key or channel.std_key not in dataset.layer_data:
             without.append(str(channel))
             continue
 
-        basis = PCAReconstructor(n_components=n_components)
+        own = settings[channel.key]
+        basis = PCAReconstructor(n_components=own["n_components"])
         direct, confidence, error = detect(
             dataset, channel, basis,
-            max_reconstruction_error=max_reconstruction_error,
-            min_confidence=min_confidence, cull_below_confidence=floor,
-            window=window, max_uncertainty=max_uncertainty)
-        widened = apply_policy(direct, start_gate=start_gate,
-                               spread_earlier=spread_earlier, disable_tail=disable_tail)
-        direct[:, :start_gate] = False
+            max_reconstruction_error=own["max_reconstruction_error"],
+            min_confidence=own["min_confidence"],
+            cull_below_confidence=own["cull_below_confidence"],
+            window=own["window"], max_uncertainty=own["max_uncertainty"])
+        widened = apply_policy(direct, start_gate=own["start_gate"],
+                               spread_earlier=own["spread_earlier"],
+                               disable_tail=own["disable_tail"])
+        direct[:, :own["start_gate"]] = False
         table.write(dataset, channel, widened, direct)
         frame[f"{confidence_column}_{channel.key}"] = confidence
 
@@ -204,6 +240,7 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
             "error": summarize(error[np.isfinite(error)]),
             "basis": {"iterations": basis.iterations_, "converged": basis.converged_,
                       "gates_left_out": int((~basis.gates_).sum())},
+            "settings": own,
         }
         if basis.converged_ is False:
             report.notes.append(
@@ -233,9 +270,10 @@ def cull_by_coupling(dataset, action: str = "flag", max_reconstruction_error: fl
         "action": action,
         "marked": sum(c["marked"] for c in per_channel.values()),
         "removed": sum(c["removed"] for c in per_channel.values()),
+        # As given, scalar or mapping; each channel's outcome has what it got.
         "thresholds": {"max_reconstruction_error": max_reconstruction_error,
                        "min_confidence": min_confidence,
-                       "cull_below_confidence": floor, "window": window,
+                       "cull_below_confidence": cull_below_confidence, "window": window,
                        "max_uncertainty": max_uncertainty,
                        "n_components": n_components},
         "policy": {"start_gate": start_gate, "spread_earlier": spread_earlier,

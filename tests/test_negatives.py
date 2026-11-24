@@ -148,6 +148,38 @@ def test_start_gate_keeps_the_turn_off_window_out_of_it():
         str(dataset.channels[0])]["negative_gates"] == 1
 
 
+def test_each_moment_has_its_own_start_gate():
+    """Dual-moment data: the moments have different gate counts and a different
+    turn-off, so where the sign may still flip differs between them."""
+    dataset = delivery({(1, 2): -1e-10})
+    dataset.layer_data[dataset.channels[1].data_key].iloc[1, 2] = -1e-10
+    dataset, report = cull_negatives(dataset, start_gate={"LM": 0, "HM": 4})
+
+    assert mask(dataset, 0)[1, 2] == CULLED
+    assert mask(dataset, 1)[1, 2] == IN_USE
+    assert report.distributions["policy"]["start_gate"] == {"LM": 0, "HM": 4}
+
+
+def test_one_start_gate_and_a_mapping_naming_every_moment_agree():
+    negatives = {(1, 1): -1e-10, (1, 6): -1e-10}
+    scalar, _ = cull_negatives(delivery(negatives), start_gate=4)
+    by_name, _ = cull_negatives(delivery(negatives), start_gate={"LM": 4, "HM": 4})
+    by_key, _ = cull_negatives(delivery(negatives), start_gate={"ch1": 4, "ch2": 4})
+
+    np.testing.assert_array_equal(mask(by_name), mask(scalar))
+    np.testing.assert_array_equal(mask(by_key), mask(scalar))
+
+
+def test_a_start_gate_for_a_moment_the_data_lacks_is_refused():
+    with pytest.raises(KeyError, match="No channel 'XM'"):
+        cull_negatives(delivery(), start_gate={"LM": 4, "XM": 4})
+
+
+def test_a_start_gate_mapping_must_name_every_moment():
+    with pytest.raises(ValueError, match="start_gate names some channels but not"):
+        cull_negatives(delivery(), start_gate={"HM": 4})
+
+
 def test_a_gate_already_disabled_is_not_claimed_as_a_finding():
     """Counting it would inflate what this step appears to have discovered."""
     dataset = delivery({(1, 5): -1e-10})
