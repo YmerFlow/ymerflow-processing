@@ -165,7 +165,7 @@ inflate_uncertainty(fraction: float | dict[str, float], gates: int | str | list[
 Set the dataset's noise floor — supplied or estimated — for every consumer.
 
 ```python
-set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float = -0.5, fit_exponent: bool = False, late_gates: int | None = None)
+set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float = -0.5, fit_exponent: bool = False, late_gates: int | dict[str, int] | None = None)
 ```
 
 | parameter | default | |
@@ -174,7 +174,7 @@ set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None
 | `noise_level_1ms` | `None` | The absolute floor at 1 ms in physical units (V/Am², before moment normalization) — the instrument's own dB/dt noise, the same number SimPEG's ``uncertainties__noise_level_1ms`` takes. Applied to the data it is divided by each channel's dipole moment and compared against the physical form ``dbdt × scalefactor × GateFactor``. Absent means estimate it from the late-gate scatter, and an estimated floor is in the raw arrays' own units instead. |
 | `noise_exponent` | `-0.5` | The power-law slope of the floor in time. ``-0.5`` is what ambient noise does for every airborne TEM system in use, so it is a fixed number rather than an estimate. |
 | `fit_exponent` | `False` | Fit the slope from the data instead of using ``noise_exponent``. For checking the assumption: a fitted value far from ``-0.5`` usually means the gates fitted over are not ambient noise. The fitted value is reported under ``measured`` whether or not it is applied. |
-| `late_gates` | `None` | How many trailing gates to estimate from. Enough to fit a slope, few enough to be noise-dominated; the last third by default. The per-gate scatter is reported so the choice is checkable rather than trusted. |
+| `late_gates` | `None` | How many trailing gates to estimate from. Enough to fit a slope, few enough to be noise-dominated; the last third by default. One value for every channel, or a mapping by channel key or moment name (``{"LM": 6, "HM": 10}``) naming every channel. The per-gate scatter is reported so the choice is checkable rather than trusted. |
 
 ## cull soundings
 
@@ -201,12 +201,12 @@ cull_by_altitude_tilt(max_pitch: float | None = None, max_roll: float | None = N
 Disable soundings whose usable gate count has fallen below ``minimum``.
 
 ```python
-cull_sparse_soundings(minimum_gates: int)
+cull_sparse_soundings(minimum_gates: int | dict[str, int])
 ```
 
 | parameter | default | |
 |---|---|---|
-| `minimum_gates` | `required` | Fewest usable gates a sounding may have and still be kept, per channel. Inclusive — a sounding with exactly this many is kept, since "at least N gates" is how the requirement is stated. **No default:** how many gates constrain a model depends on how many layers the inversion solves for. |
+| `minimum_gates` | `required` | Fewest usable gates a sounding may have and still be kept, per channel. Inclusive — a sounding with exactly this many is kept, since "at least N gates" is how the requirement is stated. One value for every channel, or a mapping by channel key or moment name (``{"LM": 5, "HM": 8}``) naming every channel, since the moments' gate counts differ. **No default:** how many gates constrain a model depends on how many layers the inversion solves for. |
 
 ## cull gates
 
@@ -243,38 +243,38 @@ cull_below_noise_floor(margin: float = 1.0, start_gate: int = 0, spread_earlier:
 Mark, and optionally cull, gates the survey's basis cannot reproduce.
 
 ```python
-cull_by_coupling(action: str = 'flag', max_reconstruction_error: float = 2.5, min_confidence: float = 0.99, cull_below_confidence: float | None = None, window: float = 15.0, max_uncertainty: float = 0.2, n_components: int = 8, confidence_column: str = 'qs_coupling', start_gate: int = 0, spread_earlier: int = 1, disable_tail: bool = True)
+cull_by_coupling(action: str = 'flag', max_reconstruction_error: float | dict[str, float] = 2.5, min_confidence: float | dict[str, float] = 0.99, cull_below_confidence: float | dict[str, float] | None = None, window: float | dict[str, float] = 15.0, max_uncertainty: float | dict[str, float] = 0.2, n_components: int | dict[str, int] = 8, confidence_column: str = 'qs_coupling', start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 1, disable_tail: bool | dict[str, bool] = True)
 ```
 
 | parameter | default | |
 |---|---|---|
 | `action` | `'flag'` | ``flag`` writes the coupling table and confidence only; ``cull`` also applies the table to the mask. |
-| `max_reconstruction_error` | `2.5` | A gate reconstructs when its error is below this many standard deviations of its assigned uncertainty. Asif et al.'s ``α``, 2.5. Lower is stricter. |
-| `min_confidence` | `0.99` | A sounding whose smoothed confidence, the fraction of its gates that reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``; 0.99 calibrated on a hand-edited VTEM survey (their airborne value was 0.86, their ground value 0.99). Higher is stricter. A fraction, 0..1. |
-| `cull_below_confidence` | `None` | Below this smoothed confidence every gate of the sounding is culled; between it and ``min_confidence`` only gates within one standard deviation survive. ``0.80 × min_confidence`` if unset, as in Asif et al. A fraction, at most ``min_confidence``. |
-| `window` | `15.0` | The along-line length the data are averaged over before they are judged, in the survey's horizontal units (meters for a projected CRS). The confidence is averaged over twice this. Asif et al. average 7 raw stacks; 15 m is that at a 10 Hz SkyTEM spacing of about 2.2 m. Set by the sounding spacing, not a strictness dial: a larger window smears the coupling. |
-| `max_uncertainty` | `0.2` | From the first gate whose relative uncertainty, after averaging, exceeds this, the transient is not judged: that is noise, not coupling. Asif et al.'s ``Δ_max``, 20%. A fraction. |
-| `n_components` | `8` | Components kept in the reconstruction basis. A bigger basis trades recall for precision; eight was the best of 3-8 on a hand-edited VTEM survey. Too many and the basis learns the coupling as well as the decay. |
+| `max_reconstruction_error` | `2.5` | A gate reconstructs when its error is below this many standard deviations of its assigned uncertainty. Asif et al.'s ``α``, 2.5. Lower is stricter. One value, or a mapping by channel key or moment name. |
+| `min_confidence` | `0.99` | A sounding whose smoothed confidence, the fraction of its gates that reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``; 0.99 calibrated on a hand-edited VTEM survey (their airborne value was 0.86, their ground value 0.99). Higher is stricter. A fraction, 0..1. One value, or a mapping by channel key or moment name. |
+| `cull_below_confidence` | `None` | Below this smoothed confidence every gate of the sounding is culled; between it and ``min_confidence`` only gates within one standard deviation survive. ``0.80 × min_confidence`` if unset, as in Asif et al. A fraction, at most ``min_confidence``. One value, or a mapping by channel key or moment name. |
+| `window` | `15.0` | The along-line length the data are averaged over before they are judged, in the survey's horizontal units (meters for a projected CRS). The confidence is averaged over twice this. Asif et al. average 7 raw stacks; 15 m is that at a 10 Hz SkyTEM spacing of about 2.2 m. Set by the sounding spacing, not a strictness dial: a larger window smears the coupling. One value, or a mapping by channel key or moment name. |
+| `max_uncertainty` | `0.2` | From the first gate whose relative uncertainty, after averaging, exceeds this, the transient is not judged: that is noise, not coupling. Asif et al.'s ``Δ_max``, 20%. A fraction. One value, or a mapping by channel key or moment name. |
+| `n_components` | `8` | Components kept in the reconstruction basis. A bigger basis trades recall for precision; eight was the best of 3-8 on a hand-edited VTEM survey. Too many and the basis learns the coupling as well as the decay. One value, or a mapping by channel key or moment name. |
 | `confidence_column` | `'qs_coupling'` | Prefix of the per-sounding confidence column written for each channel, suffixed with the channel key (``qs_coupling_ch1``). The smoothed fraction of gates that reconstruct, 0..1; ``NaN`` where nothing could be judged. |
-| `start_gate` | `0` | Where the culling policy begins, 0-based. |
-| `spread_earlier` | `1` | Also cull this many gates before each hit. |
-| `disable_tail` | `True` | Also cull everything after the earliest hit in that sounding. |
+| `start_gate` | `0` | Where the culling policy begins, 0-based, counted in each channel's own gates. One value, or a mapping by channel key or moment name. |
+| `spread_earlier` | `1` | Also cull this many gates before each hit. One value, or a mapping by channel key or moment name. |
+| `disable_tail` | `True` | Also cull everything after the earliest hit in that sounding. One value, or a mapping by channel key or moment name. |
 
 ### `cull_by_curvature`
 
 Disable data whose local curvature is implausible.
 
 ```python
-cull_by_curvature(max_curvature: float | None = None, min_curvature: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_curvature(max_curvature: float | dict[str, float] | None = None, min_curvature: float | dict[str, float] | None = None, start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `max_curvature` | `None` | Curvature above this is culled (filter_27). |
-| `min_curvature` | `None` | Curvature below this is culled (filter_28). |
-| `start_gate` | `0` | Where evaluation begins, 0-based. |
-| `spread_earlier` | `0` | Also disable this many gates before each hit. |
-| `disable_tail` | `False` | Also disable everything after the earliest hit. |
+| `max_curvature` | `None` | Curvature above this is culled (filter_27). One value, or a mapping by channel key or moment name. |
+| `min_curvature` | `None` | Curvature below this is culled (filter_28). One value, or a mapping by channel key or moment name. |
+| `start_gate` | `0` | Where evaluation begins, 0-based, counted in each channel's own gates. One value, or a mapping by channel key or moment name. |
+| `spread_earlier` | `0` | Also disable this many gates before each hit. One value, or a mapping by channel key or moment name. |
+| `disable_tail` | `False` | Also disable everything after the earliest hit. One value, or a mapping by channel key or moment name. |
 
 ### `cull_by_misfit`
 
@@ -301,31 +301,31 @@ cull_by_misfit(max_misfit: float, result: str | libaarhusxyz.xyz.XYZ | ymerflow_
 Disable data whose local decay rate is implausible.
 
 ```python
-cull_by_slope(shallowest: float | None = None, steepest: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_slope(shallowest: float | dict[str, float] | None = None, steepest: float | dict[str, float] | None = None, start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `shallowest` | `None` | Slopes above this — closer to flat — are culled (filter_25). Signed and negative for a decay. |
-| `steepest` | `None` | Slopes below this — falling faster — are culled (filter_26). |
-| `start_gate` | `0` | Where evaluation begins, 0-based. |
-| `spread_earlier` | `0` | Also disable this many gates before each hit. |
-| `disable_tail` | `False` | Also disable everything after the earliest hit. |
+| `shallowest` | `None` | Slopes above this — closer to flat — are culled (filter_25). Signed and negative for a decay. One value, or a mapping by channel key or moment name. |
+| `steepest` | `None` | Slopes below this — falling faster — are culled (filter_26). One value, or a mapping by channel key or moment name. |
+| `start_gate` | `0` | Where evaluation begins, 0-based, counted in each channel's own gates. One value, or a mapping by channel key or moment name. |
+| `spread_earlier` | `0` | Also disable this many gates before each hit. One value, or a mapping by channel key or moment name. |
+| `disable_tail` | `False` | Also disable everything after the earliest hit. One value, or a mapping by channel key or moment name. |
 
 ### `cull_by_uncertainty`
 
 Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
 
 ```python
-cull_by_uncertainty(max_uncertainty: float, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_uncertainty(max_uncertainty: float | dict[str, float], start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `max_uncertainty` | `required` | Largest relative uncertainty to keep, as a fraction — ``0.15`` is fifteen percent. Inclusive: a point exactly at the limit is kept. **No default:** what is tolerable depends on the inversion. |
-| `start_gate` | `0` | Where evaluation begins, 0-based. |
-| `spread_earlier` | `0` | Also disable this many gates before each hit. |
-| `disable_tail` | `False` | Also disable everything after the earliest hit in that sounding. |
+| `max_uncertainty` | `required` | Largest relative uncertainty to keep, as a fraction — ``0.15`` is fifteen percent. Inclusive: a point exactly at the limit is kept. **No default:** what is tolerable depends on the inversion. One value, or a mapping by channel key or moment name. |
+| `start_gate` | `0` | Where evaluation begins, 0-based, counted in each channel's own gates. One value, or a mapping by channel key or moment name. |
+| `spread_earlier` | `0` | Also disable this many gates before each hit. One value, or a mapping by channel key or moment name. |
+| `disable_tail` | `False` | Also disable everything after the earliest hit in that sounding. One value, or a mapping by channel key or moment name. |
 
 ### `cull_near_infrastructure`
 
@@ -350,14 +350,14 @@ cull_near_infrastructure(infrastructure: str | geopandas.geodataframe.GeoDataFra
 Disable gates whose measured value is negative.
 
 ```python
-cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_negatives(start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `start_gate` | `0` | Where evaluation begins, 0-based. Early gates sit in the transmitter turn-off and legitimately change sign there. |
-| `spread_earlier` | `0` | Also disable this many gates before each negative — the contamination precedes its visible onset. |
-| `disable_tail` | `False` | Also disable everything after the earliest negative in that sounding, since a transient does not recover. |
+| `start_gate` | `0` | Where evaluation begins, 0-based, counted in each channel's own gates. Early gates sit in the transmitter turn-off and legitimately change sign there. One value, or a mapping by channel key or moment name. |
+| `spread_earlier` | `0` | Also disable this many gates before each negative — the contamination precedes its visible onset. One value, or a mapping by channel key or moment name. |
+| `disable_tail` | `False` | Also disable everything after the earliest negative in that sounding, since a transient does not recover. One value, or a mapping by channel key or moment name. |
 
 ### `save_intermediate_and_apply_diff`
 
@@ -392,21 +392,21 @@ set_inuse_gates(enable_gates: int | str | list[int | str] | dict | None = None, 
 Average each sounding with its along-line neighbours.
 
 ```python
-average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float = 0.1, max_weight_factor: float = 10.0, independent_fraction: float = 0.0)
+average_along_line(width_first: int | dict[str, int], width_last: int | dict[str, int] | None = None, method: str = 'hann', min_valid_fraction: float | dict[str, float] = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float | dict[str, float] = 0.1, max_weight_factor: float | dict[str, float] = 10.0, independent_fraction: float | dict[str, float] = 0.0)
 ```
 
 | parameter | default | |
 |---|---|---|
-| `width_first` | `required` | Window width in soundings at the first gate in use. |
-| `width_last` | `None` | Width at the last gate in use. Equal to ``width_first`` if unset, giving a constant window. |
+| `width_first` | `required` | Window width in soundings at the first gate in use. One value, or a mapping by channel key or moment name. |
+| `width_last` | `None` | Width at the last gate in use, in the same forms. Equal to ``width_first`` if unset, giving a constant window. |
 | `method` | `'hann'` | ``hann`` (default), ``gaussian``, ``boxcar`` or ``robust_stack``. ``robust_stack`` is an alpha-trimmed, weight-capped inverse-variance mean whose error is the window's total spread, with odd widths; see the module docstring. ``hybrid`` is accepted as its earlier name. ``boxcar`` is a flat kernel kept for reproducing a previous run. |
-| `min_valid_fraction` | `0.5` | For the tapered methods, the **effective** sample size a window must reach, as a fraction of its width. For ``robust_stack``, the **count** of valid neighbours, ``max(2, ceil(fraction × width))``. |
+| `min_valid_fraction` | `0.5` | For the tapered methods, the **effective** sample size a window must reach, as a fraction of its width. For ``robust_stack``, the **count** of valid neighbours, ``max(2, ceil(fraction × width))``. One value, or a mapping by channel key or moment name. |
 | `decimate_to` | `None` | Keep only soundings this far apart along the line, in CRS units. Drops soundings, changing the dataset's extent. |
 | `line_column` | `None` | Which column identifies the line. Discovered if unset. |
 | `stash` | `True` | Keep the unaveraged values and uncertainties alongside. |
-| `alpha` | `0.1` | ``robust_stack`` only: the fraction trimmed from each end of the sorted values in a window. |
-| `max_weight_factor` | `10.0` | ``robust_stack`` only: the cap on any weight, as a multiple of the window's median weight. |
-| `independent_fraction` | `0.0` | ``robust_stack`` only, 0 to 1: how independent neighbouring soundings are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps the window's total spread as the error; 1 is the standard error of the mean for fully independent soundings. |
+| `alpha` | `0.1` | ``robust_stack`` only: the fraction trimmed from each end of the sorted values in a window. One value, or a mapping by channel key or moment name. |
+| `max_weight_factor` | `10.0` | ``robust_stack`` only: the cap on any weight, as a multiple of the window's median weight. One value, or a mapping by channel key or moment name. |
+| `independent_fraction` | `0.0` | ``robust_stack`` only, 0 to 1: how independent neighbouring soundings are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps the window's total spread as the error; 1 is the standard error of the mean for fully independent soundings. One value, or a mapping by channel key or moment name. |
 
 ## housekeeping
 

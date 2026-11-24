@@ -12,7 +12,8 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.mask import (
     CULLED, IN_USE, UNTOUCHED, apply_policy, cull, ensure, in_use,
-    PROVENANCE_PREFIX, enable, provenance, provenance_key, summarize,
+    PROVENANCE_PREFIX, check_policy, enable, provenance, provenance_key,
+    summarize,
 )
 
 HEIGHT = 6
@@ -162,6 +163,19 @@ def test_a_predicate_answering_the_wrong_shape_is_an_error():
 def test_negative_gate_counts_are_an_error(kw):
     with pytest.raises(ValueError, match="cannot be negative"):
         apply_policy(nothing_bad(), **kw)
+
+
+# ── The policy is checked per channel before anything is written ────────────
+
+def test_a_channel_s_policy_is_checked_before_any_mask_is_written():
+    """On dual-moment data the policy may differ per moment, so each channel's
+    is checked up front rather than when apply_policy reaches it, by which
+    time the first channel's mask has been written."""
+    check_policy({"start_gate": 3, "spread_earlier": 1, "disable_tail": True})
+    with pytest.raises(ValueError, match="start_gate counts gates and cannot be negative"):
+        check_policy({"start_gate": -1, "spread_earlier": 0})
+    with pytest.raises(ValueError, match="spread_earlier counts gates and cannot be negative"):
+        check_policy({"start_gate": 0, "spread_earlier": -2})
 
 
 # ── Culling ──────────────────────────────────────────────────────────────────

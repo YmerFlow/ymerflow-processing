@@ -817,6 +817,71 @@ class Dataset:
             resolved[self.channel(str(wanted)).key] = setting
         return resolved
 
+    def resolve_for_every_channel(self, value, parameter: str) -> dict[str, Any]:
+        """Expand a per-channel setting that every channel must have.
+
+        :meth:`resolve_per_channel`, plus the rule that a mapping names every
+        channel the data has. For a setting that nominates channels, such as
+        which to adjust, a partial mapping means the rest; for one every
+        channel needs to run at all, such as an averaging width or a cull's
+        starting gate, a partial mapping is a mistake, and refusing it is
+        better than leaving a channel out of the step without a word.
+
+        Parameters
+        ----------
+        value : object | dict
+            A scalar for every channel, or a mapping by channel key or name.
+        parameter : str
+            The parameter's name, for the error message.
+
+        Returns
+        -------
+        dict[str, Any]
+            Keyed by channel ``key``, one entry per channel present.
+
+        Raises
+        ------
+        KeyError
+            If the mapping names a channel the data does not have.
+        ValueError
+            If the mapping leaves out a channel the data has.
+        """
+        resolved = self.resolve_per_channel(value)
+        missing = [str(ch) for ch in self.channels if ch.key not in resolved]
+        if missing:
+            raise ValueError(
+                f"{parameter} names some channels but not {', '.join(missing)}; "
+                f"name every channel, or give one value for all of them.")
+        return resolved
+
+    def settings_per_channel(self, **settings) -> dict[str, dict[str, Any]]:
+        """A step's per-channel settings, resolved for every channel.
+
+        Each setting is one value for every channel, or a mapping by channel
+        key or moment name that names every channel, as
+        :meth:`resolve_for_every_channel` reads it. A step resolves its
+        settings once at the top, looks up one channel's in its loop, and
+        records them in that channel's outcome, so a scalar and a mapping
+        saying the same thing run identically and the report shows what each
+        channel got.
+
+        Parameters
+        ----------
+        **settings
+            The settings by name, each a scalar or a mapping.
+
+        Returns
+        -------
+        dict[str, dict[str, Any]]
+            Keyed by channel ``key``, then by setting name:
+            ``settings_per_channel(start_gate={"LM": 3, "HM": 8}, spread_earlier=1)``
+            gives ``{"ch1": {"start_gate": 3, "spread_earlier": 1}, "ch2": {...}}``.
+        """
+        resolved = {name: self.resolve_for_every_channel(value, name)
+                    for name, value in settings.items()}
+        return {ch.key: {name: resolved[name][ch.key] for name in settings}
+                for ch in self.channels}
+
     # ── Moments: the time-domain name for a channel ──────────────────────────
 
     @property

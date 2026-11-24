@@ -51,7 +51,7 @@ import logging
 
 import numpy as np
 
-from ..mask import apply_policy, cull, in_use, mark_step
+from ..mask import apply_policy, check_policy, cull, in_use, mark_step
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -64,23 +64,32 @@ STEP = "cull_negatives"
 STEP_CODE = 32
 
 
-def cull_negatives(dataset, start_gate: int = 0, spread_earlier: int = 0,
-                   disable_tail: bool = False):
+def cull_negatives(dataset, start_gate: int | dict[str, int] = 0,
+                   spread_earlier: int | dict[str, int] = 0,
+                   disable_tail: bool | dict[str, bool] = False):
     """Disable gates whose measured value is negative.
+
+    Every parameter is per channel: one value for every channel, or a mapping
+    by channel key or moment name (``{"LM": 3, "HM": 8}``) naming every
+    channel, since a dual-moment system's moments differ in gate count and
+    turn-off.
 
     Parameters
     ----------
     dataset : Dataset
         The dataset to cull; its in-use masks are written.
-    start_gate : int
-        Where evaluation begins, 0-based. Early gates sit in the transmitter
-        turn-off and legitimately change sign there.
-    spread_earlier : int
+    start_gate : int | dict
+        Where evaluation begins, 0-based, counted in each channel's own gates.
+        Early gates sit in the transmitter turn-off and legitimately change
+        sign there. One value, or a mapping by channel key or moment name.
+    spread_earlier : int | dict
         Also disable this many gates before each negative — the contamination
-        precedes its visible onset.
-    disable_tail : bool
+        precedes its visible onset. One value, or a mapping by channel key or
+        moment name.
+    disable_tail : bool | dict
         Also disable everything after the earliest negative in that sounding,
-        since a transient does not recover.
+        since a transient does not recover. One value, or a mapping by channel
+        key or moment name.
 
     Returns
     -------
@@ -96,8 +105,14 @@ def cull_negatives(dataset, start_gate: int = 0, spread_earlier: int = 0,
         report.notes.append("No channels; nothing to inspect.")
         return dataset, report
 
+    settings = dataset.settings_per_channel(
+        start_gate=start_gate, spread_earlier=spread_earlier, disable_tail=disable_tail)
+    for own in settings.values():
+        check_policy(own)
+
     per_channel, culled_any = {}, False
     for channel in channels:
+        own = settings[channel.key]
         values = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
 
         # Strictly below zero: an exact zero is not a sign change, and usually
@@ -110,19 +125,20 @@ def cull_negatives(dataset, start_gate: int = 0, spread_earlier: int = 0,
         # what this step appears to have discovered.
         negative &= in_use(dataset, channel)
 
-        widened = apply_policy(negative, start_gate=start_gate,
-                               spread_earlier=spread_earlier,
-                               disable_tail=disable_tail)
+        widened = apply_policy(negative, start_gate=own["start_gate"],
+                               spread_earlier=own["spread_earlier"],
+                               disable_tail=own["disable_tail"])
         # The policy discards objections before start_gate, so the direct hits
         # are what survived it rather than the raw comparison.
         direct = negative.copy()
-        direct[:, :start_gate] = False
+        direct[:, :own["start_gate"]] = False
 
         outcome = {
             "negative_gates": int(direct.sum()),
             "soundings_with_a_negative": int(direct.any(axis=1).sum()),
             "first_negative_gate": (int(np.argmax(direct.any(axis=0)))
                                     if direct.any() else None),
+            "settings": own,
         }
         if widened.any():
             culled_any = True

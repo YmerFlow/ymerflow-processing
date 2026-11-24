@@ -54,7 +54,7 @@ assign_uncertainty(relative_fraction: float | None = None, stash: bool = True)
 Replace uncertainties with the noise floor and a proportional error.
 
 ### average_along_line  [averaging]
-average_along_line(width_first: int, width_last: int | None = None, method: str = 'hann', min_valid_fraction: float = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float = 0.1, max_weight_factor: float = 10.0, independent_fraction: float = 0.0)
+average_along_line(width_first: int | dict[str, int], width_last: int | dict[str, int] | None = None, method: str = 'hann', min_valid_fraction: float | dict[str, float] = 0.5, decimate_to: float | None = None, line_column: str | None = None, stash: bool = True, alpha: float | dict[str, float] = 0.1, max_weight_factor: float | dict[str, float] = 10.0, independent_fraction: float | dict[str, float] = 0.0)
 Average each sounding with its along-line neighbours.
 
 ### classify_lines  [selection]
@@ -86,11 +86,11 @@ cull_by_altitude_tilt(max_pitch: float | None = None, max_roll: float | None = N
 Disable soundings flown outside the geometry the forward model assumes.
 
 ### cull_by_coupling  [cull gates]
-cull_by_coupling(action: str = 'flag', max_reconstruction_error: float = 2.5, min_confidence: float = 0.99, cull_below_confidence: float | None = None, window: float = 15.0, max_uncertainty: float = 0.2, n_components: int = 8, confidence_column: str = 'qs_coupling', start_gate: int = 0, spread_earlier: int = 1, disable_tail: bool = True)
+cull_by_coupling(action: str = 'flag', max_reconstruction_error: float | dict[str, float] = 2.5, min_confidence: float | dict[str, float] = 0.99, cull_below_confidence: float | dict[str, float] | None = None, window: float | dict[str, float] = 15.0, max_uncertainty: float | dict[str, float] = 0.2, n_components: int | dict[str, int] = 8, confidence_column: str = 'qs_coupling', start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 1, disable_tail: bool | dict[str, bool] = True)
 Mark, and optionally cull, gates the survey's basis cannot reproduce.
 
 ### cull_by_curvature  [cull gates]
-cull_by_curvature(max_curvature: float | None = None, min_curvature: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_curvature(max_curvature: float | dict[str, float] | None = None, min_curvature: float | dict[str, float] | None = None, start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 Disable data whose local curvature is implausible.
 
 ### cull_by_misfit  [cull gates]
@@ -98,11 +98,11 @@ cull_by_misfit(max_misfit: float, result: str | libaarhusxyz.xyz.XYZ | ymerflow_
 Disable gates a previous inversion fit poorly, optionally only near mapped features.
 
 ### cull_by_slope  [cull gates]
-cull_by_slope(shallowest: float | None = None, steepest: float | None = None, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_slope(shallowest: float | dict[str, float] | None = None, steepest: float | dict[str, float] | None = None, start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 Disable data whose local decay rate is implausible.
 
 ### cull_by_uncertainty  [cull gates]
-cull_by_uncertainty(max_uncertainty: float, start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_by_uncertainty(max_uncertainty: float | dict[str, float], start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
 
 ### cull_near_infrastructure  [cull gates]
@@ -110,11 +110,11 @@ cull_near_infrastructure(infrastructure: str | geopandas.geodataframe.GeoDataFra
 Disable gates whose sounding lies within an exclusion distance of a mapped feature.
 
 ### cull_negatives  [cull gates]
-cull_negatives(start_gate: int = 0, spread_earlier: int = 0, disable_tail: bool = False)
+cull_negatives(start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 0, disable_tail: bool | dict[str, bool] = False)
 Disable gates whose measured value is negative.
 
 ### cull_sparse_soundings  [cull soundings]
-cull_sparse_soundings(minimum_gates: int)
+cull_sparse_soundings(minimum_gates: int | dict[str, int])
 Disable soundings whose usable gate count has fallen below ``minimum``.
 
 ### export_vector  [housekeeping]
@@ -158,7 +158,7 @@ set_inuse_gates(enable_gates: int | str | list[int | str] | dict | None = None, 
 Set named gates in the mask, either direction, per channel.
 
 ### set_noise_floor  [noise]
-set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float = -0.5, fit_exponent: bool = False, late_gates: int | None = None)
+set_noise_floor(scope: str = 'per_dataset', noise_level_1ms: float | None = None, noise_exponent: float = -0.5, fit_exponent: bool = False, late_gates: int | dict[str, int] | None = None)
 Set the dataset's noise floor — supplied or estimated — for every consumer.
 
 ### zero_attitude  [corrections]
