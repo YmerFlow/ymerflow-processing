@@ -7,6 +7,7 @@ family that only some detectors know about is how discovery breaks.
 """
 
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -15,11 +16,11 @@ import pytest
 from conftest import make_dataset
 from ymerflow_processing.coupling import table
 from ymerflow_processing.coupling.reconstruct import PCAReconstructor
-from ymerflow_processing.coupling.reconstruction import along_line_mean
+from ymerflow_processing.coupling.reconstruction import along_line_mean, detect
 from ymerflow_processing.filters.cull_coupling import STEP_CODE, cull_by_coupling
 from ymerflow_processing.filters.select_moments import select_moments, unclaimed_arrays
 from ymerflow_processing.inventory import take
-from ymerflow_processing.mask import provenance, provenance_key
+from ymerflow_processing.mask import cull, in_use, provenance, provenance_key
 from ymerflow_processing.methods.tem import TEM_NAMING
 
 N, LINES, GATES = 120, 2, 12
@@ -199,6 +200,7 @@ def test_re_running_a_flag_pass_changes_nothing():
     {"window": -1.0},
     {"max_reconstruction_error": 0.0},
     {"max_uncertainty": 0.0},
+    {"relative_floor": -0.01},
 ])
 def test_a_parameter_out_of_range_is_refused(bad):
     with pytest.raises(ValueError):
@@ -211,6 +213,48 @@ def test_a_channel_without_uncertainty_is_not_judged_and_says_so():
     _, report = flag(dataset)
     assert any("assign_uncertainty" in note for note in report.notes)
     assert table.key_for("dbdt_inuse_ch1gt") not in dataset.layer_data
+
+
+def cull_everything(dataset, which):
+    channel = dataset.channels[which]
+    shape = dataset.layer_data[channel.data_key].shape
+    cull(dataset, channel, np.ones(shape, dtype=bool), step_code=1)
+
+
+@pytest.mark.parametrize("action", ["flag", "cull"])
+def test_a_channel_with_nothing_left_in_use_is_reported_not_fatal(action):
+    """Every sounding of one moment culled upstream: there is nothing to fit a
+    basis on, which is something to say, and the other moment is still judged."""
+    dataset = survey(moments=("LM", "HM"))
+    cull_everything(dataset, 1)
+    _, report = cull_by_coupling(dataset, action=action, n_components=2)
+    empty = report.distributions["per_channel"]["ch2 (HM/z)"]
+
+    assert empty["basis"] is None
+    assert empty["marked"] == 0 and empty["removed"] == 0
+    assert empty["soundings_judged"] == 0
+    assert dataset.flightlines["qs_coupling_ch2"].isna().all()
+    assert not coupling_table(dataset, 1).any()
+    assert any("ch2 (HM/z) had no gate to judge" in note for note in report.notes)
+    assert (coupling_table(dataset, 0)[COUPLED] != 0).any(axis=1).all()
+
+
+def test_a_survey_with_nothing_left_in_use_marks_nothing():
+    dataset = survey()
+    cull_everything(dataset, 0)
+    _, report = cull_by_coupling(dataset, action="cull", n_components=2)
+
+    assert report.distributions["marked"] == 0 and report.distributions["removed"] == 0
+    assert report.distributions["per_channel"]["ch1 (LM/z)"]["basis"] is None
+
+
+def test_a_channel_that_is_noise_from_the_first_gate_is_reported_not_fatal():
+    dataset = survey(std=0.5)
+    _, report = flag(dataset)
+
+    assert report.distributions["per_channel"]["ch1 (LM/z)"]["basis"] is None
+    assert not coupling_table(dataset).any()
+    assert any("had no gate to judge" in note for note in report.notes)
 
 
 # ── The criterion ────────────────────────────────────────────────────────────
@@ -242,6 +286,107 @@ def test_noise_dominated_gates_are_excluded_before_the_decision():
     dataset = survey(std=std)
     flag(dataset)
     assert not coupling_table(dataset).any()
+
+
+# ── An uncertainty tighter than a basis reproduces ───────────────────────────
+
+SCATTER = 0.0004    # relative: what stacking alone leaves on an early gate
+
+
+def rippled(std=SCATTER, moments=("LM",), coupled=True):
+    """The survey with a half-percent gate-to-gate ripple no two-component
+    basis reproduces: small beside any modeled uncertainty, a dozen sigmas of
+    stack scatter."""
+    dataset = survey(moments=moments, coupled=coupled, std=std)
+    rng = np.random.default_rng(3)
+    for channel in dataset.channels:
+        data = dataset.layer_data[channel.data_key]
+        dataset.layer_data[channel.data_key] = data * (1 + 0.005 * rng.standard_normal(data.shape))
+    return dataset
+
+
+def test_stack_scatter_alone_marks_nearly_everything_and_a_floor_does_not():
+    """The defaults assume an uncertainty with a few percent in it. Against
+    stack scatter the test asks the basis for a few hundredths of a percent,
+    and the whole survey fails it; with a floor only the coupled soundings do."""
+    tight, floored = rippled(), rippled()
+    flag(tight)
+    flag(floored, relative_floor=0.02)
+    far = np.r_[0:10, 40:N]
+
+    assert (coupling_table(tight)[far] != 0).mean() > 0.5
+    assert not (coupling_table(floored)[far] != 0).any()
+    assert (coupling_table(floored)[COUPLED] != 0).any(axis=1).all()
+
+
+def test_the_floor_is_for_the_test_only_and_the_uncertainty_is_left_alone():
+    dataset = rippled()
+    before = dataset.layer_data[dataset.channels[0].std_key].copy()
+    flag(dataset, relative_floor=0.02)
+    pd.testing.assert_frame_equal(dataset.layer_data[dataset.channels[0].std_key], before)
+
+
+def test_no_floor_and_a_floor_of_zero_are_the_step_as_it_was():
+    absent, zero, named = rippled(), rippled(), rippled()
+    flag(absent)
+    _, report = flag(zero, relative_floor=0.0)
+    flag(named, relative_floor={"LM": 0.0})
+
+    for other in (zero, named):
+        np.testing.assert_array_equal(coupling_table(other), coupling_table(absent))
+        pd.testing.assert_series_equal(other.flightlines["qs_coupling_ch1"],
+                                       absent.flightlines["qs_coupling_ch1"])
+    assert report.distributions["thresholds"]["relative_floor"] == 0.0
+
+
+def test_the_floor_combines_with_the_assigned_uncertainty_in_quadrature():
+    """A floor ``f`` over an uncertainty ``s`` judges exactly as an assigned
+    uncertainty of ``sqrt(s² + f²)`` would."""
+    settings = dict(max_reconstruction_error=2.5, min_confidence=0.99,
+                    cull_below_confidence=0.79, window=15.0, max_uncertainty=0.2)
+    floored, assigned = rippled(std=0.01), rippled(std=float(np.hypot(0.01, 0.02)))
+    with_floor = detect(floored, floored.channels[0], PCAReconstructor(n_components=2),
+                        relative_floor=0.02, **settings)
+    without = detect(assigned, assigned.channels[0], PCAReconstructor(n_components=2),
+                     **settings)
+
+    np.testing.assert_array_equal(with_floor[0], without[0])
+    np.testing.assert_allclose(with_floor[1], without[1])
+    np.testing.assert_allclose(with_floor[2], without[2])
+
+
+def test_the_floor_does_not_move_the_noise_cutoff():
+    """Whether a gate is noise is the assigned uncertainty's to say. A floor
+    past ``max_uncertainty`` stops no gate being judged, and a gate past the
+    cutoff is not brought back by one."""
+    dataset = survey()
+    _, report = flag(dataset, relative_floor=0.5)
+    assert report.distributions["per_channel"]["ch1 (LM/z)"]["soundings_judged"] == N
+
+    std = np.full((N, GATES), 0.03)
+    std[:, 5:] = 0.5
+    noisy = survey(std=std)
+    flag(noisy, relative_floor=0.02)
+    assert not coupling_table(noisy).any()
+
+
+def test_each_moment_may_have_its_own_floor():
+    """One moment delivered with stack scatter, the other with a modeled
+    uncertainty: the floor goes where it is needed and the other is judged as
+    it was."""
+    split = rippled(moments=("LM", "HM"))
+    alone = rippled(moments=("LM", "HM"))
+    everywhere = rippled(moments=("LM", "HM"))
+    _, report = flag(split, relative_floor={"LM": 0.0, "HM": 0.02})
+    flag(alone)
+    flag(everywhere, relative_floor=0.02)
+
+    np.testing.assert_array_equal(coupling_table(split, 0), coupling_table(alone, 0))
+    np.testing.assert_array_equal(coupling_table(split, 1), coupling_table(everywhere, 1))
+    per_channel = report.distributions["per_channel"]
+    assert per_channel["ch1 (LM/z)"]["settings"]["relative_floor"] == 0.0
+    assert per_channel["ch2 (HM/z)"]["settings"]["relative_floor"] == 0.02
+    assert report.distributions["thresholds"]["relative_floor"] == {"LM": 0.0, "HM": 0.02}
 
 
 def test_windows_are_distances_not_sounding_counts():
@@ -295,6 +440,24 @@ def test_non_positive_values_are_missing_in_log_space():
     basis = PCAReconstructor(n_components=2)
     basis.fit(data)
     assert np.isfinite(basis.reconstruct(data)[0]).all()
+
+
+def test_a_reconstruction_past_what_a_float_holds_is_missing_not_infinite():
+    """Two gates fix two components exactly, however far apart, and the basis
+    is then extrapolated to gates the sounding lacks. Out of range either way
+    the basis has nothing to say, and says it quietly."""
+    data = decays()
+    basis = PCAReconstructor(n_components=2)
+    basis.fit(data)
+    wild = np.full((1, data.shape[1]), np.nan)
+    wild[0, :2] = 1e-200, 1e200
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        rebuilt = basis.reconstruct(wild)
+
+    np.testing.assert_allclose(rebuilt[0, :2], wild[0, :2], rtol=1e-6)
+    assert np.isnan(rebuilt[0, 2:]).all()
+    assert not any("power" in str(warning.message) for warning in caught)
 
 
 def test_too_few_soundings_for_the_basis_is_refused():

@@ -86,7 +86,7 @@ cull_by_altitude_tilt(max_pitch: float | None = None, max_roll: float | None = N
 Disable soundings flown outside the geometry the forward model assumes.
 
 ### cull_by_coupling  [cull gates]
-cull_by_coupling(action: str = 'flag', max_reconstruction_error: float | dict[str, float] = 2.5, min_confidence: float | dict[str, float] = 0.99, cull_below_confidence: float | dict[str, float] | None = None, window: float | dict[str, float] = 15.0, max_uncertainty: float | dict[str, float] = 0.2, n_components: int | dict[str, int] = 8, confidence_column: str = 'qs_coupling', start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 1, disable_tail: bool | dict[str, bool] = True)
+cull_by_coupling(action: str = 'flag', max_reconstruction_error: float | dict[str, float] = 2.5, relative_floor: float | dict[str, float] = 0.0, min_confidence: float | dict[str, float] = 0.99, cull_below_confidence: float | dict[str, float] | None = None, window: float | dict[str, float] = 15.0, max_uncertainty: float | dict[str, float] = 0.2, n_components: int | dict[str, int] = 8, confidence_column: str = 'qs_coupling', start_gate: int | dict[str, int] = 0, spread_earlier: int | dict[str, int] = 1, disable_tail: bool | dict[str, bool] = True)
 Mark, and optionally cull, gates the survey's basis cannot reproduce.
 
 ### cull_by_curvature  [cull gates]
