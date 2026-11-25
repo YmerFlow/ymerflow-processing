@@ -34,6 +34,13 @@ currently *warn* when they do, and that under R3 that belongs in the structured
 record instead — so it is a note on the step report rather than a printed line
 that scrolls past.
 
+Arrays go by the key the dataset holds
+--------------------------------------
+The array steps take a ``layer_data`` key exactly as the dataset holds it, and
+that is not always how the XYZ file spells it: reading lowercases column names,
+so an array spelled ``STD_Ch01`` in the file is ``std_ch01`` here. A key that is
+not found is refused with the keys present.
+
 Renaming an array a channel is discovered by
 --------------------------------------------
 These operate on raw ``layer_data`` keys, and channel discovery matches on those
@@ -178,7 +185,9 @@ def copy_array(dataset, source: str, destination: str):
     dataset : Dataset
         The dataset whose ``layer_data`` gains an array.
     source : str
-        The array to copy.
+        The array to copy, by its key as the dataset holds it. Reading
+        an XYZ lowercases column names, so the file's ``STD_Ch01`` is
+        ``std_ch01`` here.
     destination : str
         The key to copy it under.
 
@@ -206,7 +215,9 @@ def rename_array(dataset, source: str, destination: str):
     dataset : Dataset
         The dataset whose ``layer_data`` key is renamed.
     source : str
-        The array to rename.
+        The array to rename, by its key as the dataset holds it. Reading
+        an XYZ lowercases column names, so the file's ``STD_Ch01`` is
+        ``std_ch01`` here.
     destination : str
         Its new key.
 
@@ -236,7 +247,9 @@ def remove_array(dataset, name: str):
     dataset : Dataset
         The dataset whose ``layer_data`` loses an array.
     name : str
-        The array to remove.
+        The array to remove, by its key as the dataset holds it. Reading
+        an XYZ lowercases column names, so the file's ``STD_Ch01`` is
+        ``std_ch01`` here.
 
     Returns
     -------

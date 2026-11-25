@@ -27,7 +27,10 @@ survives both (``coupling/table.py``).
 Where it sits
 -------------
 **After** ``assign_uncertainty``: the error is in sigmas of the assigned
-uncertainty, so there is nothing to divide by before it. **Before**
+uncertainty, so there is nothing to divide by before it. Where that
+uncertainty is stack scatter alone, tighter than any basis reproduces a
+transient, ``relative_floor`` loosens the test without touching what the
+inversion weights by. **Before**
 ``average_along_line``: averaging smears a coupling signature into its
 neighbors, and before averaging is the data the method was built for.
 
@@ -80,6 +83,7 @@ def _applied(own: dict) -> dict:
     floor = (FUZZY_FLOOR * beta if own["cull_below_confidence"] is None
              else float(own["cull_below_confidence"]))
     window, delta = float(own["window"]), float(own["max_uncertainty"])
+    relative_floor = float(own["relative_floor"])
     if alpha <= 0:
         raise ValueError(f"max_reconstruction_error is in standard deviations and must "
                          f"be positive; got {alpha:g}")
@@ -93,14 +97,19 @@ def _applied(own: dict) -> dict:
     if delta <= 0:
         raise ValueError(f"max_uncertainty is a fraction and must be positive; got "
                          f"{delta:g}")
+    if relative_floor < 0:
+        raise ValueError(f"relative_floor is a fraction of the value and cannot be "
+                         f"negative; got {relative_floor:g}")
     check_policy(own)
-    return {**own, "max_reconstruction_error": alpha, "min_confidence": beta,
+    return {**own, "max_reconstruction_error": alpha, "relative_floor": relative_floor,
+            "min_confidence": beta,
             "cull_below_confidence": floor, "window": window, "max_uncertainty": delta,
             "n_components": int(own["n_components"])}
 
 
 def cull_by_coupling(dataset, action: str = "flag",
                      max_reconstruction_error: float | dict[str, float] = 2.5,
+                     relative_floor: float | dict[str, float] = 0.0,
                      min_confidence: float | dict[str, float] = 0.99,
                      cull_below_confidence: float | dict[str, float] | None = None,
                      window: float | dict[str, float] = 15.0,
@@ -131,6 +140,19 @@ def cull_by_coupling(dataset, action: str = "flag",
         deviations of its assigned uncertainty. Asif et al.'s ``α``, 2.5.
         Lower is stricter. One value, or a mapping by channel key or moment
         name.
+    relative_floor : float | dict
+        A proportional error the test allows the basis, as a fraction of the
+        value: the standard deviation ``max_reconstruction_error`` counts in
+        is the assigned uncertainty and this in quadrature,
+        ``sqrt(assigned² + (relative_floor × value)²)``. For this test only:
+        the dataset's uncertainties are not changed, and ``max_uncertainty``
+        still reads the assigned one. Needed where the assigned uncertainty is
+        stack scatter alone, a fraction of a percent on early gates, which no
+        basis reproduces a transient to; the defaults were calibrated against
+        a modeled uncertainty, a noise floor and a proportional error of a
+        few percent. 0, the default, counts in the assigned uncertainty as it
+        is. One value, or a mapping by channel key or moment name
+        (``{"LM": 0.0, "HM": 0.02}``).
     min_confidence : float | dict
         A sounding whose smoothed confidence, the fraction of its gates that
         reconstruct, exceeds this keeps every gate. Asif et al.'s ``β_max``;
@@ -203,7 +225,8 @@ def cull_by_coupling(dataset, action: str = "flag",
         return dataset, report
 
     settings = {key: _applied(own) for key, own in dataset.settings_per_channel(
-        max_reconstruction_error=max_reconstruction_error, min_confidence=min_confidence,
+        max_reconstruction_error=max_reconstruction_error,
+        relative_floor=relative_floor, min_confidence=min_confidence,
         cull_below_confidence=cull_below_confidence, window=window,
         max_uncertainty=max_uncertainty, n_components=n_components,
         start_gate=start_gate, spread_earlier=spread_earlier,
@@ -220,6 +243,7 @@ def cull_by_coupling(dataset, action: str = "flag",
         direct, confidence, error = detect(
             dataset, channel, basis,
             max_reconstruction_error=own["max_reconstruction_error"],
+            relative_floor=own["relative_floor"],
             min_confidence=own["min_confidence"],
             cull_below_confidence=own["cull_below_confidence"],
             window=own["window"], max_uncertainty=own["max_uncertainty"])
@@ -238,18 +262,29 @@ def cull_by_coupling(dataset, action: str = "flag",
             "soundings_judged": int(np.isfinite(confidence).sum()),
             "confidence": summarize(confidence[np.isfinite(confidence)]),
             "error": summarize(error[np.isfinite(error)]),
-            "basis": {"iterations": basis.iterations_, "converged": basis.converged_,
-                      "gates_left_out": int((~basis.gates_).sum())},
             "settings": own,
         }
-        if basis.converged_ is False:
+        if basis.gates_ is None:
+            # No gate to evaluate, so detect() fitted nothing: an empty table,
+            # no confidence, and the reason said rather than a failure.
+            outcome["basis"] = None
             report.notes.append(
-                f"The basis for {channel} did not converge in {basis.iterations_} "
-                f"rounds of imputation; its reconstruction errors are less certain.")
-        if not basis.gates_.all():
-            report.notes.append(
-                f"{int((~basis.gates_).sum())} gate(s) of {channel} were available in "
-                f"too few soundings to fit into the basis and were not judged.")
+                f"{channel} had no gate to judge: every sounding is already culled "
+                f"or empty, or its uncertainty is past max_uncertainty from the "
+                f"first gate. Nothing was marked.")
+        else:
+            left_out = int((~basis.gates_).sum())
+            outcome["basis"] = {"iterations": basis.iterations_,
+                                "converged": basis.converged_,
+                                "gates_left_out": left_out}
+            if basis.converged_ is False:
+                report.notes.append(
+                    f"The basis for {channel} did not converge in {basis.iterations_} "
+                    f"rounds of imputation; its reconstruction errors are less certain.")
+            if left_out:
+                report.notes.append(
+                    f"{left_out} gate(s) of {channel} were available in too few "
+                    f"soundings to fit into the basis and were not judged.")
         if action == "cull" and widened.any():
             culled_any = True
             outcome.update(table.apply(dataset, channel, step_code=STEP_CODE))
@@ -272,6 +307,7 @@ def cull_by_coupling(dataset, action: str = "flag",
         "removed": sum(c["removed"] for c in per_channel.values()),
         # As given, scalar or mapping; each channel's outcome has what it got.
         "thresholds": {"max_reconstruction_error": max_reconstruction_error,
+                       "relative_floor": relative_floor,
                        "min_confidence": min_confidence,
                        "cull_below_confidence": cull_below_confidence, "window": window,
                        "max_uncertainty": max_uncertainty,
