@@ -11,7 +11,9 @@ rest of the survey does. The arithmetic, with the paper's symbols:
    ``max_uncertainty`` (``Δ_max``, 20%) onward, mask the transient: that is
    noise, not coupling, and not this criterion's business.
 3. Reconstruct the averaged transient from the basis and take the error in
-   sigmas at each evaluated gate, ``β = |d_recon − d| / Δd``.
+   sigmas at each evaluated gate, ``β = |d_recon − d| / Δd``. With a
+   ``relative_floor`` (not in the paper) ``Δd`` is the assigned uncertainty
+   and that fraction of the value in quadrature, here and in step 6 only.
 4. The confidence ``C`` is the fraction of evaluated gates with
    ``β < max_reconstruction_error`` (``α``, 2.5).
 5. Average ``C`` along the line over twice ``window`` (``2W``), so no single
@@ -121,7 +123,7 @@ def _live(dataset, channel) -> np.ndarray:
 
 def detect(dataset, channel, reconstructor, *, max_reconstruction_error: float,
            min_confidence: float, cull_below_confidence: float, window: float,
-           max_uncertainty: float):
+           max_uncertainty: float, relative_floor: float = 0.0):
     """Which gates of one channel the basis cannot reproduce, per Algorithm 1.
 
     Parameters
@@ -148,6 +150,12 @@ def detect(dataset, channel, reconstructor, *, max_reconstruction_error: float,
     max_uncertainty : float
         ``Δ_max``: from the first gate whose averaged relative uncertainty
         exceeds this, the transient is not judged. A fraction.
+    relative_floor : float
+        A proportional error, as a fraction of the value, combined in
+        quadrature with the assigned uncertainty to give the sigma the error
+        is counted in. It does not move the ``max_uncertainty`` cutoff, which
+        reads the assigned uncertainty alone, and nothing is written back.
+        Zero counts the error in the assigned uncertainty as it is.
 
     Returns
     -------
@@ -155,7 +163,10 @@ def detect(dataset, channel, reconstructor, *, max_reconstruction_error: float,
         ``(direct, confidence, error)``: the gates the criterion marks coupled,
         ``(soundings, gates)`` bool; the smoothed confidence per sounding, ``NaN``
         where nothing could be judged; and the error in sigmas per gate, ``NaN``
-        where not evaluated.
+        where not evaluated. When the channel has no gate to evaluate, every
+        sounding culled already or noise from the first gate, the basis is
+        left unfitted, nothing is marked and the confidence is ``NaN``
+        throughout.
     """
     x, y, lines = positions(dataset)
     data = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
@@ -177,8 +188,11 @@ def detect(dataset, channel, reconstructor, *, max_reconstruction_error: float,
         transients = np.where(evaluated, averaged, np.nan)[:, gates]
         reconstructor.fit(transients)
         rebuilt = reconstructor.reconstruct(transients)
+        # The floor widens the sigma the error is counted in and nothing else:
+        # the noise cutoff above read the assigned uncertainty alone.
+        tested = np.hypot(sigma, relative_floor * averaged) if relative_floor else sigma
         with np.errstate(invalid="ignore", divide="ignore"):
-            error[:, gates] = np.abs(rebuilt - averaged[:, gates]) / sigma[:, gates]
+            error[:, gates] = np.abs(rebuilt - averaged[:, gates]) / tested[:, gates]
     evaluated &= np.isfinite(error)
 
     judged = evaluated.sum(axis=1)

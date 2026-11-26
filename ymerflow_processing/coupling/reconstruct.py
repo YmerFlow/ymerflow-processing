@@ -90,7 +90,15 @@ class PCAReconstructor:
             return np.where(values > 0, np.log10(values), np.nan)
 
     def _inverse(self, values):
-        return 10.0 ** values if self.log_space else values
+        if not self.log_space:
+            return values
+        # A sounding with barely more gates than components is fitted closely on
+        # those and extrapolated freely to the rest, sometimes to a log amplitude
+        # no float holds. That is the basis unable to say, so NaN: clipping would
+        # put a number there that reads as a prediction.
+        with np.errstate(over="ignore", under="ignore"):
+            amplitudes = 10.0 ** values
+        return np.where(np.isfinite(amplitudes) & (amplitudes > 0), amplitudes, np.nan)
 
     def fit(self, transients: np.ndarray) -> None:
         """Fit the basis.
@@ -165,7 +173,10 @@ class PCAReconstructor:
             The reconstruction, the same shape, in the data's own units. A
             sounding with fewer available gates than components is ``NaN``
             throughout: there is nothing to constrain its coefficients. A gate
-            the basis left out (``gates_``) is ``NaN`` in every sounding.
+            the basis left out (``gates_``) is ``NaN`` in every sounding, and
+            so is a gate whose reconstruction falls outside what a float
+            holds, which happens where a sounding with few gates is
+            extrapolated to one it does not have.
         """
         if self.components_ is None:
             raise RuntimeError("reconstruct() before fit()")
