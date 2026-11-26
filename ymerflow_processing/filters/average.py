@@ -128,6 +128,20 @@ For every method, the ramp from ``width_first`` to ``width_last`` runs from the
 first gate in use anywhere in the channel to the last, so ``width_first`` lands
 on the first gate that is averaged rather than on a padded or disabled one.
 
+Settings may differ per moment
+------------------------------
+A dual-moment system's moments have different gate counts and different noise,
+and the window that suits one is wrong for the other. ``width_first``,
+``width_last``, ``min_valid_fraction`` and the robust stack's ``alpha``,
+``max_weight_factor`` and ``independent_fraction`` therefore take a value per
+channel, by channel key or moment name (``{LM: 11, HM: 21}``), in the form
+``inflate_uncertainty`` uses for its ``fraction``. Each moment still ramps in
+log time over its own gates in use. A scalar is every channel's value, so a
+document written with one runs as before, and a mapping must name every channel
+the data has: there is no sense in which a moment left out of it is "not
+averaged". ``method``, ``decimate_to`` and ``stash`` describe the step rather
+than a channel and stay one value.
+
 Nothing crosses the turn between lines
 --------------------------------------
 A window that spanned two lines would average a sounding with one flown minutes
@@ -381,34 +395,65 @@ def _convolve(values, weights, taper):
     return weighted, total, squared, for_variance
 
 
-def average_along_line(dataset, width_first: int, width_last: int | None = None,
-                       method: str = HANN, min_valid_fraction: float = 0.5,
+def _check(key: str, own: dict) -> None:
+    """Refuse one channel's settings before anything is averaged."""
+    for name in ("width_first", "width_last"):
+        if int(own[name]) < 1:
+            raise ValueError(f"{name} is a count of soundings and must be at "
+                             f"least 1; got {own[name]} for {key}.")
+    if not 0 < own["min_valid_fraction"] <= 1:
+        raise ValueError(
+            f"min_valid_fraction is a fraction of the window and must be in "
+            f"(0, 1]; got {own['min_valid_fraction']:g}.")
+    if not 0 <= own["alpha"] < 0.5:
+        raise ValueError(f"alpha is the fraction trimmed from EACH end and must be "
+                         f"in [0, 0.5); got {own['alpha']:g}.")
+    if not own["max_weight_factor"] > 0:
+        raise ValueError(f"max_weight_factor must be positive; got "
+                         f"{own['max_weight_factor']:g}.")
+    if not 0 <= own["independent_fraction"] <= 1:
+        raise ValueError(f"independent_fraction must be in [0, 1]; got "
+                         f"{own['independent_fraction']:g}.")
+
+
+def average_along_line(dataset, width_first: int | dict[str, int],
+                       width_last: int | dict[str, int] | None = None,
+                       method: str = HANN,
+                       min_valid_fraction: float | dict[str, float] = 0.5,
                        decimate_to: float | None = None,
                        line_column: str | None = None, stash: bool = True,
-                       alpha: float = 0.1, max_weight_factor: float = 10.0,
-                       independent_fraction: float = 0.0):
+                       alpha: float | dict[str, float] = 0.1,
+                       max_weight_factor: float | dict[str, float] = 10.0,
+                       independent_fraction: float | dict[str, float] = 0.0):
     """Average each sounding with its along-line neighbours.
+
+    The widths, ``min_valid_fraction`` and the robust stack's three settings
+    are per channel: one value for every channel, or a mapping by channel key
+    or moment name (``{"LM": 11, "HM": 21}``) naming every channel, since a
+    dual-moment system's moments differ in gate count and noise.
 
     Parameters
     ----------
     dataset : Dataset
         The dataset to average; data and uncertainty arrays are replaced, and
         with ``decimate_to`` soundings are dropped.
-    width_first : int
-        Window width in soundings at the first gate in use.
-    width_last : int | None
-        Width at the last gate in use. Equal to ``width_first`` if unset,
-        giving a constant window.
+    width_first : int | dict
+        Window width in soundings at the first gate in use. One value, or a
+        mapping by channel key or moment name.
+    width_last : int | dict | None
+        Width at the last gate in use, in the same forms. Equal to
+        ``width_first`` if unset, giving a constant window.
     method : str
         ``hann`` (default), ``gaussian``, ``boxcar`` or ``robust_stack``.
         ``robust_stack`` is an alpha-trimmed, weight-capped inverse-variance
         mean whose error is the window's total spread, with odd widths; see the
         module docstring. ``hybrid`` is accepted as its earlier name.
         ``boxcar`` is a flat kernel kept for reproducing a previous run.
-    min_valid_fraction : float
+    min_valid_fraction : float | dict
         For the tapered methods, the **effective** sample size a window must
         reach, as a fraction of its width. For ``robust_stack``, the **count**
-        of valid neighbours, ``max(2, ceil(fraction × width))``.
+        of valid neighbours, ``max(2, ceil(fraction × width))``. One value, or
+        a mapping by channel key or moment name.
     decimate_to : float | None
         Keep only soundings this far apart along the line, in CRS units. Drops
         soundings, changing the dataset's extent.
@@ -416,17 +461,20 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
         Which column identifies the line. Discovered if unset.
     stash : bool
         Keep the unaveraged values and uncertainties alongside.
-    alpha : float
+    alpha : float | dict
         ``robust_stack`` only: the fraction trimmed from each end of the
-        sorted values in a window.
-    max_weight_factor : float
+        sorted values in a window. One value, or a mapping by channel key or
+        moment name.
+    max_weight_factor : float | dict
         ``robust_stack`` only: the cap on any weight, as a multiple of the
-        window's median weight.
-    independent_fraction : float
+        window's median weight. One value, or a mapping by channel key or
+        moment name.
+    independent_fraction : float | dict
         ``robust_stack`` only, 0 to 1: how independent neighbouring soundings
         are. The error variance is divided by ``max(1, fraction × n)``. 0 keeps
         the window's total spread as the error; 1 is the standard error of the
-        mean for fully independent soundings.
+        mean for fully independent soundings. One value, or a mapping by
+        channel key or moment name.
 
     Returns
     -------
@@ -441,27 +489,17 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
     if method not in METHODS:
         raise ValueError(
             f"Unknown method {method!r}. Available: {', '.join(METHODS)}")
-    if not 0 < min_valid_fraction <= 1:
-        raise ValueError(
-            f"min_valid_fraction is a fraction of the window and must be in "
-            f"(0, 1]; got {min_valid_fraction:g}.")
-    width_last = width_first if width_last is None else width_last
-    for name, value in (("width_first", width_first), ("width_last", width_last)):
-        if int(value) < 1:
-            raise ValueError(f"{name} is a count of soundings and must be at "
-                             f"least 1; got {value}.")
-    if not 0 <= alpha < 0.5:
-        raise ValueError(f"alpha is the fraction trimmed from EACH end and must be "
-                         f"in [0, 0.5); got {alpha:g}.")
-    if not max_weight_factor > 0:
-        raise ValueError(f"max_weight_factor must be positive; got {max_weight_factor:g}.")
-    if not 0 <= independent_fraction <= 1:
-        raise ValueError(f"independent_fraction must be in [0, 1]; got "
-                         f"{independent_fraction:g}.")
-
     if frame is None or len(frame) == 0 or not dataset.channels:
         report.notes.append("No soundings or no channels; nothing to average.")
         return dataset, report
+
+    settings = dataset.settings_per_channel(
+        width_first=width_first,
+        width_last=width_first if width_last is None else width_last,
+        min_valid_fraction=min_valid_fraction, alpha=alpha,
+        max_weight_factor=max_weight_factor, independent_fraction=independent_fraction)
+    for key, own in settings.items():
+        _check(key, own)
 
     xyz = dataset.survey.xyz
     line_column = line_column or xyz.line_id_column
@@ -493,8 +531,10 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
                 dataset.layer_data[stash_key(channel.std_key)] = \
                     dataset.layer_data[channel.std_key].copy()
 
-        widths = gate_widths(int(width_first), int(width_last), times,
-                             active=live.any(axis=0), odd=method == ROBUST_STACK)
+        own = settings[channel.key]
+        widths = gate_widths(int(own["width_first"]), int(own["width_last"]),
+                             times, active=live.any(axis=0),
+                             odd=method == ROBUST_STACK)
         averaged = np.full(values.shape, np.nan)
         propagated = np.full(values.shape, np.nan)
         thin = np.zeros(values.shape, dtype=bool)
@@ -516,9 +556,9 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
                     mean, error, enough = robust_stack(
                         np.where(usable[rows], column[rows], np.nan),
                         np.where(usable[rows], sigma[rows], np.nan),
-                        int(widths[gate]), min_valid_fraction=min_valid_fraction,
-                        alpha=alpha, max_weight_factor=max_weight_factor,
-                        independent_fraction=independent_fraction)
+                        int(widths[gate]), min_valid_fraction=own["min_valid_fraction"],
+                        alpha=own["alpha"], max_weight_factor=own["max_weight_factor"],
+                        independent_fraction=own["independent_fraction"])
                     averaged[rows, gate] = mean
                     thin[rows, gate] = ~enough
                     with np.errstate(divide="ignore", invalid="ignore"):
@@ -563,7 +603,7 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
                 # A hair of tolerance: a genuinely full window computes an
                 # effective size of 4.999999999999998, so an exact comparison
                 # rejects every window at min_valid_fraction of 1.
-                needed = min_valid_fraction * widths[gate]
+                needed = own["min_valid_fraction"] * widths[gate]
                 enough = effective >= needed * (1 - 1e-9)
                 averaged[rows, gate] = np.where(enough, mean, np.nan)
                 thin[rows, gate] = ~enough
@@ -606,6 +646,7 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
             "spread_estimated_uncertainty": spread_used,
             "too_thin": int(thin.sum()),
             "values": summarize(averaged[np.isfinite(averaged)]),
+            "settings": own,
         }
         if thin.any():
             culled_any = True
@@ -623,9 +664,10 @@ def average_along_line(dataset, width_first: int, width_last: int | None = None,
     report.distributions = {
         "per_channel": per_channel,
         "method": method,
-        "min_valid_fraction": float(min_valid_fraction),
-        "robust_stack": ({"alpha": float(alpha), "max_weight_factor": float(max_weight_factor),
-                          "independent_fraction": float(independent_fraction)}
+        # As given, scalar or mapping; each channel's outcome has what it got.
+        "min_valid_fraction": min_valid_fraction,
+        "robust_stack": ({"alpha": alpha, "max_weight_factor": max_weight_factor,
+                          "independent_fraction": independent_fraction}
                          if method == ROBUST_STACK else None),
         "decimated": decimated,
         "stashed": STASH_PREFIX if stash else None,

@@ -484,3 +484,68 @@ def test_robust_stack_parameters_are_checked():
     for bad in ({"alpha": 0.5}, {"independent_fraction": 1.5}, {"max_weight_factor": 0}):
         with pytest.raises(ValueError):
             average_along_line(delivery(), width_first=3, method=ROBUST_STACK, **bad)
+
+
+# ── Widths per moment ────────────────────────────────────────────────────────
+
+def noisy_delivery(seed=0):
+    """Values that vary along the line, so a window wider than one changes them."""
+    dataset = delivery()
+    rng = np.random.default_rng(seed)
+    for channel in dataset.channels:
+        frame = dataset.layer_data[channel.data_key]
+        frame.iloc[:, :] = frame.to_numpy() * (1 + 0.1 * rng.standard_normal(frame.shape))
+    return dataset
+
+
+def test_one_width_and_a_mapping_naming_every_moment_agree():
+    """A scalar is every channel's width, so a document written with one and a
+    mapping saying the same thing by moment name or by channel key give the
+    same result."""
+    scalar, _ = average_along_line(noisy_delivery(), width_first=3, width_last=7)
+    by_name, _ = average_along_line(noisy_delivery(), width_first={"LM": 3, "HM": 3},
+                                    width_last={"LM": 7, "HM": 7})
+    by_key, _ = average_along_line(noisy_delivery(), width_first={"ch1": 3, "ch2": 3},
+                                   width_last={"ch1": 7, "ch2": 7})
+    for which in (0, 1):
+        np.testing.assert_array_equal(data(by_name, which), data(scalar, which))
+        np.testing.assert_array_equal(data(by_key, which), data(scalar, which))
+        np.testing.assert_array_equal(std(by_name, which), std(scalar, which))
+
+
+def test_each_moment_gets_its_own_window():
+    """Dual-moment data: the moments have different gate counts and noise, so
+    the window that suits one is wrong for the other. Here the low moment is
+    left as it is and the high moment is averaged."""
+    before = noisy_delivery()
+    dataset, report = average_along_line(noisy_delivery(), width_first={"LM": 1, "HM": 5},
+                                         width_last={"LM": 1, "HM": 9})
+
+    np.testing.assert_allclose(data(dataset, 0), data(before, 0))
+    finite = np.isfinite(data(dataset, 1))
+    assert finite.any()
+    # Relative: the values are 1e-9, which np.allclose's absolute tolerance
+    # would call equal to anything.
+    assert not np.allclose(data(dataset, 1)[finite], data(before, 1)[finite],
+                           rtol=1e-6, atol=0)
+    widths = {k: v["widths"] for k, v in report.distributions["per_channel"].items()}
+    assert widths["ch1 (LM/z)"]["per_gate"] == [1] * GATES
+    assert (widths["ch2 (HM/z)"]["first"], widths["ch2 (HM/z)"]["last"]) == (5, 9)
+
+
+def test_a_width_for_a_moment_the_data_lacks_is_refused():
+    with pytest.raises(KeyError, match="No channel 'XM'"):
+        average_along_line(delivery(), width_first={"LM": 3, "XM": 3})
+
+
+def test_a_width_mapping_must_name_every_moment():
+    """Leaving a moment out of the mapping cannot mean 'do not average it'."""
+    with pytest.raises(ValueError, match="width_first names some channels but not"):
+        average_along_line(delivery(), width_first={"HM": 3})
+    with pytest.raises(ValueError, match="width_last names some channels but not"):
+        average_along_line(delivery(), width_first=3, width_last={"HM": 7})
+
+
+def test_a_width_below_one_is_refused_for_the_moment_it_names():
+    with pytest.raises(ValueError, match="width_first .* got 0 for ch2"):
+        average_along_line(delivery(), width_first={"LM": 3, "HM": 0})

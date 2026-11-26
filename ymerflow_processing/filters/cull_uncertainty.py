@@ -48,7 +48,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..mask import apply_policy, cull, in_use, mark_step
+from ..mask import apply_policy, check_policy, cull, in_use, mark_step
 from ..pipeline import StepReport
 
 log = logging.getLogger(__name__)
@@ -61,24 +61,46 @@ STEP = "cull_by_uncertainty"
 STEP_CODE = 24
 
 
-def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
-                        spread_earlier: int = 0, disable_tail: bool = False):
+def _check(own: dict) -> None:
+    """Refuse one channel's settings before any mask is written."""
+    if float(own["max_uncertainty"]) <= 0:
+        raise ValueError(
+            f"max_uncertainty is a fraction and must be positive; got "
+            f"{float(own['max_uncertainty']):g}. Zero would disable everything "
+            f"with any uncertainty at all, which is every point."
+        )
+    check_policy(own)
+
+
+def cull_by_uncertainty(dataset, max_uncertainty: float | dict[str, float],
+                        start_gate: int | dict[str, int] = 0,
+                        spread_earlier: int | dict[str, int] = 0,
+                        disable_tail: bool | dict[str, bool] = False):
     """Disable gates whose relative uncertainty exceeds ``max_uncertainty``.
+
+    Every parameter is per channel: one value for every channel, or a mapping
+    by channel key or moment name (``{"LM": 0.1, "HM": 0.3}``) naming every
+    channel, since a dual-moment system's moments differ in noise, gate count
+    and turn-off.
 
     Parameters
     ----------
     dataset : Dataset
         The dataset to cull; its in-use masks are written.
-    max_uncertainty : float
+    max_uncertainty : float | dict
         Largest relative uncertainty to keep, as a fraction — ``0.15`` is
         fifteen percent. Inclusive: a point exactly at the limit is kept. **No
-        default:** what is tolerable depends on the inversion.
-    start_gate : int
-        Where evaluation begins, 0-based.
-    spread_earlier : int
-        Also disable this many gates before each hit.
-    disable_tail : bool
-        Also disable everything after the earliest hit in that sounding.
+        default:** what is tolerable depends on the inversion. One value, or a
+        mapping by channel key or moment name.
+    start_gate : int | dict
+        Where evaluation begins, 0-based, counted in each channel's own gates.
+        One value, or a mapping by channel key or moment name.
+    spread_earlier : int | dict
+        Also disable this many gates before each hit. One value, or a mapping
+        by channel key or moment name.
+    disable_tail : bool | dict
+        Also disable everything after the earliest hit in that sounding. One
+        value, or a mapping by channel key or moment name.
 
     Returns
     -------
@@ -89,18 +111,16 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
     frame = dataset.flightlines
     report.soundings_total = 0 if frame is None else len(frame)
 
-    max_uncertainty = float(max_uncertainty)
-    if max_uncertainty <= 0:
-        raise ValueError(
-            f"max_uncertainty is a fraction and must be positive; got "
-            f"{max_uncertainty:g}. Zero would disable everything with any "
-            f"uncertainty at all, which is every point."
-        )
-
     channels = dataset.channels
     if not channels:
         report.notes.append("No channels; nothing to inspect.")
         return dataset, report
+
+    settings = dataset.settings_per_channel(
+        max_uncertainty=max_uncertainty, start_gate=start_gate,
+        spread_earlier=spread_earlier, disable_tail=disable_tail)
+    for own in settings.values():
+        _check(own)
 
     per_channel, culled_any, without = {}, False, []
     for channel in channels:
@@ -108,19 +128,20 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
             without.append(str(channel))
             continue
 
+        own = settings[channel.key]
         std = dataset.layer_data[channel.std_key].to_numpy(dtype=float)
 
         # A direct comparison: the array is already a relative standard
         # deviation. NaN is not greater than anything and is not flagged here —
         # a point with no uncertainty assigned is filter_23's problem, since it
         # is unusable rather than uncertain.
-        excessive = (std > max_uncertainty) & in_use(dataset, channel)
+        excessive = (std > float(own["max_uncertainty"])) & in_use(dataset, channel)
 
-        widened = apply_policy(excessive, start_gate=start_gate,
-                               spread_earlier=spread_earlier,
-                               disable_tail=disable_tail)
+        widened = apply_policy(excessive, start_gate=own["start_gate"],
+                               spread_earlier=own["spread_earlier"],
+                               disable_tail=own["disable_tail"])
         direct = excessive.copy()
-        direct[:, :start_gate] = False
+        direct[:, :own["start_gate"]] = False
 
         outcome = {
             "column": channel.std_key,
@@ -128,6 +149,7 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
             # So a delivery carrying *absolute* uncertainties shows magnitudes
             # nothing like a percentage, rather than quietly under-culling.
             "uncertainty": summarize(std[np.isfinite(std)]),
+            "settings": own,
         }
         if widened.any():
             culled_any = True
@@ -157,6 +179,6 @@ def cull_by_uncertainty(dataset, max_uncertainty: float, start_gate: int = 0,
                    "disable_tail": disable_tail},
         "provenance_code": STEP_CODE,
     }
-    log.info("%s: disabled %d gate-sample(s) above %.3g relative uncertainty",
-             STEP, removed, max_uncertainty)
+    log.info("%s: disabled %d gate-sample(s) over the relative uncertainty limit",
+             STEP, removed)
     return dataset, report

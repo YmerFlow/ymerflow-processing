@@ -423,8 +423,14 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
                     noise_level_1ms: float | None = None,
                     noise_exponent: float = DEFAULT_EXPONENT,
                     fit_exponent: bool = False,
-                    late_gates: int | None = None):
+                    late_gates: int | dict[str, int] | None = None):
     """Set the dataset's noise floor — supplied or estimated — for every consumer.
+
+    The floor and its slope are one value for the dataset, not one per moment
+    (R9): the model is one object every consumer reads, and a supplied floor
+    is the instrument's own figure, divided by each channel's dipole moment
+    when it is applied. The estimate behind it is made per channel, and
+    ``late_gates`` may differ per channel since the moments' gate counts do.
 
     Parameters
     ----------
@@ -453,10 +459,12 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
         checking the assumption: a fitted value far from ``-0.5`` usually means
         the gates fitted over are not ambient noise. The fitted value is
         reported under ``measured`` whether or not it is applied.
-    late_gates : int | None
+    late_gates : int | dict | None
         How many trailing gates to estimate from. Enough to fit a slope, few
-        enough to be noise-dominated; the last third by default. The per-gate
-        scatter is reported so the choice is checkable rather than trusted.
+        enough to be noise-dominated; the last third by default. One value for
+        every channel, or a mapping by channel key or moment name (``{"LM": 6,
+        "HM": 10}``) naming every channel. The per-gate scatter is reported so
+        the choice is checkable rather than trusted.
 
     Returns
     -------
@@ -495,6 +503,8 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
     else:
         groups = np.zeros(len(frame))
 
+    settings = dataset.settings_per_channel(late_gates=late_gates)
+
     per_channel, levels, slopes = {}, [], []
     for channel in channels:
         values = dataset.layer_data[channel.data_key].to_numpy(dtype=float)
@@ -502,7 +512,7 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
         if times.size != values.shape[1]:
             continue
 
-        trailing = late_gates or max(3, values.shape[1] // 3)
+        trailing = settings[channel.key]["late_gates"] or max(3, values.shape[1] // 3)
         first = max(0, values.shape[1] - int(trailing))
         noise = _scatter(values, groups)
 
@@ -515,6 +525,7 @@ def set_noise_floor(dataset, scope: str = PER_DATASET,
         per_channel[str(channel)] = {
             "estimated_level_1ms": level,
             "estimated_exponent": free_slope,
+            "late_gates": int(trailing),
             "gates_used": list(range(first, values.shape[1])),
             "per_gate_noise": [None if not np.isfinite(v) else float(v)
                                for v in noise],

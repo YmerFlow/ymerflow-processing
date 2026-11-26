@@ -91,19 +91,21 @@ def usable(dataset, channel) -> np.ndarray:
     return good
 
 
-def cull_sparse_soundings(dataset, minimum_gates: int):
+def cull_sparse_soundings(dataset, minimum_gates: int | dict[str, int]):
     """Disable soundings whose usable gate count has fallen below ``minimum``.
 
     Parameters
     ----------
     dataset : Dataset
         The dataset to cull; its in-use masks are written.
-    minimum_gates : int
+    minimum_gates : int | dict
         Fewest usable gates a sounding may have and still be kept, per channel.
         Inclusive — a sounding with exactly this many is kept, since "at least
-        N gates" is how the requirement is stated. **No default:** how many
-        gates constrain a model depends on how many layers the inversion solves
-        for.
+        N gates" is how the requirement is stated. One value for every channel,
+        or a mapping by channel key or moment name (``{"LM": 5, "HM": 8}``)
+        naming every channel, since the moments' gate counts differ. **No
+        default:** how many gates constrain a model depends on how many layers
+        the inversion solves for.
 
     Returns
     -------
@@ -114,18 +116,19 @@ def cull_sparse_soundings(dataset, minimum_gates: int):
     frame = dataset.flightlines
     report.soundings_total = 0 if frame is None else len(frame)
 
-    minimum_gates = int(minimum_gates)
-    if minimum_gates < 1:
-        raise ValueError(
-            f"minimum_gates counts gates and must be at least 1; got "
-            f"{minimum_gates}. Zero would disable nothing and is better said by "
-            f"leaving the step out."
-        )
-
     channels = dataset.channels
     if not channels:
         report.notes.append("No channels; nothing to count.")
         return dataset, report
+
+    settings = dataset.settings_per_channel(minimum_gates=minimum_gates)
+    for own in settings.values():
+        if int(own["minimum_gates"]) < 1:
+            raise ValueError(
+                f"minimum_gates counts gates and must be at least 1; got "
+                f"{own['minimum_gates']}. Zero would disable nothing and is "
+                f"better said by leaving the step out."
+            )
 
     per_channel, culled_any = {}, False
     # Which soundings lost a channel, in any channel. Summing the per-channel
@@ -133,16 +136,17 @@ def cull_sparse_soundings(dataset, minimum_gates: int):
     # sounding can be thinned in every channel independently.
     touched = np.zeros(len(frame), dtype=bool)
     for channel in channels:
+        minimum = int(settings[channel.key]["minimum_gates"])
         good = usable(dataset, channel)
         counts = good.sum(axis=1)
 
         # Already empty is not this step's doing, and counting it as such would
         # credit filter_23 with whatever actually emptied the sounding.
         already_empty = counts == 0
-        sparse = (counts < minimum_gates) & ~already_empty
+        sparse = (counts < minimum) & ~already_empty
 
         outcome = {
-            "minimum_gates": minimum_gates,
+            "minimum_gates": minimum,
             "soundings_sparse": int(sparse.sum()),
             "soundings_already_empty": int(already_empty.sum()),
             "median_usable_gates": float(np.median(counts)) if counts.size else None,
@@ -178,6 +182,6 @@ def cull_sparse_soundings(dataset, minimum_gates: int):
         "earlier culling removed, so it belongs last in a pipeline — run first "
         "it has nothing to find."
     )
-    log.info("%s: disabled %d sounding(s) below %d usable gate(s)",
-             STEP, int(touched.sum()), minimum_gates)
+    log.info("%s: disabled %d sounding(s) below their channel's usable-gate minimum",
+             STEP, int(touched.sum()))
     return dataset, report

@@ -167,6 +167,30 @@ def test_an_unknown_channel_is_an_error_not_a_silent_drop(dual_moment):
         dual_moment.resolve_per_channel({"XM": 1})
 
 
+def test_a_setting_every_channel_needs_may_not_leave_one_out(dual_moment):
+    """An averaging width or a starting gate has no meaning for a channel it is
+    silent about, so a partial mapping is refused rather than read as 'leave
+    that channel out of the step'."""
+    assert dual_moment.resolve_for_every_channel(7, "width_first") == {"ch1": 7, "ch2": 7}
+    assert (dual_moment.resolve_for_every_channel({"HM": 20, "LM": 10}, "width_first")
+            == {"ch1": 10, "ch2": 20})
+    with pytest.raises(ValueError, match="width_first names some channels but not ch1"):
+        dual_moment.resolve_for_every_channel({"HM": 20}, "width_first")
+    with pytest.raises(KeyError, match="No channel"):
+        dual_moment.resolve_for_every_channel({"XM": 1}, "width_first")
+
+
+def test_a_step_s_settings_resolve_together_per_channel(dual_moment):
+    """A step resolves everything once at the top and looks up one channel's
+    settings in its loop, so a scalar and a mapping run the same code."""
+    settings = dual_moment.settings_per_channel(start_gate={"LM": 3, "HM": 8},
+                                                spread_earlier=1)
+    assert settings == {"ch1": {"start_gate": 3, "spread_earlier": 1},
+                        "ch2": {"start_gate": 8, "spread_earlier": 1}}
+    with pytest.raises(ValueError, match="spread_earlier names some channels but not"):
+        dual_moment.settings_per_channel(start_gate=3, spread_earlier={"LM": 1})
+
+
 def test_channel_lookup_by_key_and_name(dual_moment):
     assert dual_moment.channel("LM").key == "ch1"
     assert dual_moment.channel("ch2").name == "HM"

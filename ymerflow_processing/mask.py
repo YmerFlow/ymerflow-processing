@@ -404,6 +404,31 @@ def apply_policy(bad, start_gate: int = 0, spread_earlier: int = 0,
     return out
 
 
+def check_policy(settings: dict) -> None:
+    """Refuse one channel's culling policy before any mask is written.
+
+    On dual-moment data every policy parameter may differ per moment, and a
+    step resolves them all with ``Dataset.settings_per_channel`` before its
+    loop. :func:`apply_policy` refuses a negative gate count too, but only
+    when it runs, which is after the first channel's mask has been written.
+
+    Parameters
+    ----------
+    settings : dict
+        One channel's settings, holding ``start_gate`` and ``spread_earlier``,
+        both counted in that channel's own gates.
+
+    Raises
+    ------
+    ValueError
+        If either counts below zero.
+    """
+    for name in ("start_gate", "spread_earlier"):
+        if int(settings[name]) < 0:
+            raise ValueError(
+                f"{name} counts gates and cannot be negative; got {settings[name]}")
+
+
 def enable(dataset, channel, good, step_code: int) -> dict:
     """Turn ``good`` back on in the channel's mask, and record who did it.
 

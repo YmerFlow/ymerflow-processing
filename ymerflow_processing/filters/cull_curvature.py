@@ -36,7 +36,7 @@ import logging
 import numpy as np
 
 from ..distribution import summarize
-from ..mask import apply_policy, cull, in_use, mark_step
+from ..mask import apply_policy, check_policy, cull, in_use, mark_step
 from ..pipeline import StepReport
 from ..transient import log_curvature
 
@@ -51,35 +51,9 @@ STEP = "cull_by_curvature"
 STEP_CODE = 27
 
 
-def cull_by_curvature(dataset, max_curvature: float | None = None,
-                      min_curvature: float | None = None, start_gate: int = 0,
-                      spread_earlier: int = 0, disable_tail: bool = False):
-    """Disable data whose local curvature is implausible.
-
-    Parameters
-    ----------
-    dataset : Dataset
-        The dataset to cull; its in-use masks are written.
-    max_curvature : float | None
-        Curvature above this is culled (filter_27).
-    min_curvature : float | None
-        Curvature below this is culled (filter_28).
-    start_gate : int
-        Where evaluation begins, 0-based.
-    spread_earlier : int
-        Also disable this many gates before each hit.
-    disable_tail : bool
-        Also disable everything after the earliest hit.
-
-    Returns
-    -------
-    tuple
-        ``(dataset, StepReport)``.
-    """
-    report = StepReport(step=STEP)
-    frame = dataset.flightlines
-    report.soundings_total = 0 if frame is None else len(frame)
-
+def _check(own: dict) -> None:
+    """Refuse one channel's bounds and policy before any mask is written."""
+    max_curvature, min_curvature = own["max_curvature"], own["min_curvature"]
     if max_curvature is None and min_curvature is None:
         raise ValueError(
             "cull_by_curvature needs max_curvature or min_curvature. With "
@@ -91,6 +65,56 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
             f"min_curvature ({min_curvature:g}) is above max_curvature "
             f"({max_curvature:g}); written that way round they exclude every "
             f"value.")
+    check_policy(own)
+
+
+def cull_by_curvature(dataset, max_curvature: float | dict[str, float] | None = None,
+                      min_curvature: float | dict[str, float] | None = None,
+                      start_gate: int | dict[str, int] = 0,
+                      spread_earlier: int | dict[str, int] = 0,
+                      disable_tail: bool | dict[str, bool] = False):
+    """Disable data whose local curvature is implausible.
+
+    Every parameter is per channel: one value for every channel, or a mapping
+    by channel key or moment name (``{"LM": 3.0, "HM": 0.75}``) naming every
+    channel. On a dual-moment survey the high moment is far cleaner than the
+    low one at the same gate times, so one bound cannot serve both.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset to cull; its in-use masks are written.
+    max_curvature : float | dict | None
+        Curvature above this is culled (filter_27). One value, or a mapping by
+        channel key or moment name.
+    min_curvature : float | dict | None
+        Curvature below this is culled (filter_28). One value, or a mapping by
+        channel key or moment name.
+    start_gate : int | dict
+        Where evaluation begins, 0-based, counted in each channel's own gates.
+        One value, or a mapping by channel key or moment name.
+    spread_earlier : int | dict
+        Also disable this many gates before each hit. One value, or a mapping
+        by channel key or moment name.
+    disable_tail : bool | dict
+        Also disable everything after the earliest hit. One value, or a mapping
+        by channel key or moment name.
+
+    Returns
+    -------
+    tuple
+        ``(dataset, StepReport)``.
+    """
+    report = StepReport(step=STEP)
+    frame = dataset.flightlines
+    report.soundings_total = 0 if frame is None else len(frame)
+
+    settings = dataset.settings_per_channel(
+        max_curvature=max_curvature, min_curvature=min_curvature,
+        start_gate=start_gate, spread_earlier=spread_earlier,
+        disable_tail=disable_tail)
+    for own in settings.values():
+        _check(own)
 
     per_channel, culled_any = {}, False
     for channel in dataset.channels:
@@ -99,26 +123,28 @@ def cull_by_curvature(dataset, max_curvature: float | None = None,
         if times.size != values.shape[1]:
             continue
 
+        own = settings[channel.key]
         live = in_use(dataset, channel)
         curvature = log_curvature(values, times, live)
 
         bad = np.zeros(values.shape, dtype=bool)
-        if max_curvature is not None:
-            bad |= curvature > max_curvature
-        if min_curvature is not None:
-            bad |= curvature < min_curvature
+        if own["max_curvature"] is not None:
+            bad |= curvature > own["max_curvature"]
+        if own["min_curvature"] is not None:
+            bad |= curvature < own["min_curvature"]
         bad &= np.isfinite(curvature) & live
 
-        widened = apply_policy(bad, start_gate=start_gate,
-                               spread_earlier=spread_earlier,
-                               disable_tail=disable_tail)
+        widened = apply_policy(bad, start_gate=own["start_gate"],
+                               spread_earlier=own["spread_earlier"],
+                               disable_tail=own["disable_tail"])
         direct = bad.copy()
-        direct[:, :start_gate] = False
+        direct[:, :own["start_gate"]] = False
 
         outcome = {
             "implausible": int(direct.sum()),
             "unmeasurable": int((~np.isfinite(curvature) & live).sum()),
             "curvature": summarize(curvature[np.isfinite(curvature)]),
+            "settings": own,
         }
         if widened.any():
             culled_any = True
